@@ -35,11 +35,16 @@ import {
 const STATUS_COLORS = ['#10b981', '#1d4ed8', '#ef4444']
 
 function Reports() {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+
   const [reservations, setReservations] = useState([])
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
+  const [selectedYear, setSelectedYear] = useState(currentYear)
+  const [selectedMonthNumber, setSelectedMonthNumber] = useState(currentMonth)
 
   useEffect(() => {
     const fetchReportData = async () => {
@@ -60,8 +65,41 @@ function Reports() {
     fetchReportData()
   }, [])
 
+  const monthOptions = useMemo(() => {
+    const available = new Set()
+
+    reservations.forEach((reservation) => {
+      if (!reservation.checkInDate) return
+      const date = parseISO(reservation.checkInDate)
+      if (Number.isNaN(date.getTime())) return
+      if (date.getFullYear() === selectedYear) {
+        available.add(date.getMonth() + 1)
+      }
+    })
+
+    transactions.forEach((transaction) => {
+      if (!transaction.date) return
+      const date = parseISO(transaction.date)
+      if (Number.isNaN(date.getTime())) return
+      if (date.getFullYear() === selectedYear) {
+        available.add(date.getMonth() + 1)
+      }
+    })
+
+    const maxMonth = selectedYear === currentYear ? currentMonth : 12
+    const base = Array.from({ length: maxMonth }, (_, index) => index + 1)
+    const merged = [...new Set([...base, ...available])]
+
+    return merged.sort((a, b) => a - b)
+  }, [reservations, transactions, selectedYear, currentYear, currentMonth])
+
+  const effectiveMonthNumber = monthOptions.includes(selectedMonthNumber)
+    ? selectedMonthNumber
+    : (monthOptions[0] ?? 1)
+
   const reportData = useMemo(() => {
-    const referenceDate = parseISO(`${selectedMonth}-01`)
+    const monthText = String(effectiveMonthNumber).padStart(2, '0')
+    const referenceDate = parseISO(`${selectedYear}-${monthText}-01`)
     const reservationCounts = getReservationStatusCounts(reservations)
     const monthlyReservationIncome = getMonthlyReservationIncome(reservations, referenceDate)
     const { monthlyIncome: monthlyManualIncome, monthlyExpense } = getMonthlyTransactionTotals(
@@ -95,7 +133,7 @@ function Reports() {
       if (status === RES_STATUS.CANCELLED) return false
       const checkInDate = reservation.checkInDate ? parseISO(reservation.checkInDate) : null
       if (!checkInDate || Number.isNaN(checkInDate.getTime())) return false
-      return format(checkInDate, 'yyyy-MM') === selectedMonth
+      return checkInDate.getFullYear() === selectedYear && checkInDate.getMonth() + 1 === effectiveMonthNumber
     }).length
 
     return {
@@ -115,7 +153,7 @@ function Reports() {
       selectedMonthLabel: format(referenceDate, 'MMMM yyyy', { locale: tr }),
       selectedMonthChartData: [{ ay: format(referenceDate, 'MMMM yyyy', { locale: tr }), gelir: monthlyTotalIncome, gider: monthlyExpense }],
     }
-  }, [reservations, transactions, selectedMonth])
+  }, [reservations, transactions, selectedYear, effectiveMonthNumber])
 
   return (
     <section className='space-y-4'>
@@ -124,12 +162,32 @@ function Reports() {
           <h2 className='text-lg font-semibold text-blue-950'>Raporlar - {reportData.selectedMonthLabel}</h2>
           <div>
             <label className='mb-1 block text-xs font-medium text-slate-600'>Ay / Yıl Seç</label>
-            <input
-              type='month'
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-              className='input'
-            />
+            <div className='flex gap-2'>
+              <select
+                className='input'
+                value={effectiveMonthNumber}
+                onChange={(event) => setSelectedMonthNumber(Number(event.target.value))}
+              >
+                {monthOptions.map((monthValue) => (
+                  <option key={monthValue} value={monthValue}>
+                    {format(parseISO(`${selectedYear}-${String(monthValue).padStart(2, '0')}-01`), 'MMMM', {
+                      locale: tr,
+                    })}
+                  </option>
+                ))}
+              </select>
+              <select
+                className='input'
+                value={selectedYear}
+                onChange={(event) => setSelectedYear(Number(event.target.value))}
+              >
+                {[currentYear, currentYear - 1].map((yearValue) => (
+                  <option key={yearValue} value={yearValue}>
+                    {yearValue}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
