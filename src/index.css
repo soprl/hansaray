@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply m-0 bg-slate-100 text-slate-800;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.input {
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-900 focus:ring-2 focus:ring-blue-900/20;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition;
+}
+
+.btn-primary {
+  @apply btn bg-blue-900 text-white hover:bg-blue-800;
+}
+
+.btn-success {
+  @apply btn bg-emerald-600 text-white hover:bg-emerald-500;
+}
+
+.btn-danger {
+  @apply btn bg-rose-600 text-white hover:bg-rose-500;
+}
+
+.card {
+  @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm;
+}
+
+.empty-state {
+  @apply text-sm text-slate-500;
+}
+
+.error-state {
+  @apply text-sm text-rose-600;
+}
+
+.calendar-shell .react-calendar {
+  @apply w-full rounded-xl border border-slate-200 bg-white p-2;
+}
+
+.calendar-shell .react-calendar__navigation button {
+  @apply rounded-md text-sm font-medium text-blue-950 hover:bg-slate-100;
+}
+
+.calendar-shell .react-calendar__month-view__weekdays {
+  @apply text-xs uppercase text-slate-500;
+}
+
+.calendar-shell .react-calendar__tile {
+  @apply relative min-h-16 rounded-lg border border-transparent p-1 text-xs;
+}
+
+.calendar-shell .react-calendar__tile--now {
+  @apply border-amber-300 bg-amber-50;
+}
+
+.calendar-shell .react-calendar__tile--active {
+  @apply border-blue-800 bg-blue-900 text-white;
+}
+
+.calendar-shell .react-calendar__tile.tile-empty {
+  @apply bg-white;
+}
+
+.calendar-shell .react-calendar__tile.tile-occupied {
+  @apply border-emerald-200 bg-emerald-50;
+}
+
+.calendar-shell .tile-chip {
+  @apply mt-1 inline-block rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-medium text-white;
+}
