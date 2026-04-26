@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { formatDateTR } from '../utils/formatters'
 
 const DEFAULT_FORM = {
   customerName: '',
@@ -114,6 +115,9 @@ function ReservationForm({ initialValues, onSubmit, onCancel, submitting }) {
             onChange={handleChange}
             className='input'
           />
+          {form.checkInDate ? (
+            <p className='mt-1 text-xs text-slate-500'>Seçilen tarih: {formatDateTR(form.checkInDate, 'dd MMMM yyyy')}</p>
+          ) : null}
           {errors.checkInDate ? <p className='mt-1 text-xs text-rose-600'>{errors.checkInDate}</p> : null}
         </div>
 
@@ -126,6 +130,9 @@ function ReservationForm({ initialValues, onSubmit, onCancel, submitting }) {
             onChange={handleChange}
             className='input'
           />
+          {form.checkOutDate ? (
+            <p className='mt-1 text-xs text-slate-500'>Seçilen tarih: {formatDateTR(form.checkOutDate, 'dd MMMM yyyy')}</p>
+          ) : null}
           {errors.checkOutDate ? <p className='mt-1 text-xs text-rose-600'>{errors.checkOutDate}</p> : null}
         </div>
 

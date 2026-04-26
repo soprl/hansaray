@@ -1,8 +1,9 @@
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import ReactCalendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { getEffectiveReservationStatus } from '../utils/reservationUtils'
+import { formatDateTR } from '../utils/formatters'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
@@ -19,6 +20,7 @@ function CalendarView({
   occupiedDatesMap,
   selectedDayReservations,
 }) {
+  const weekdayMap = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt']
   const statusBadgeClass = {
     Aktif: 'bg-emerald-100 text-emerald-700',
     Tamamlandı: 'bg-slate-200 text-slate-700',
@@ -62,6 +64,8 @@ function CalendarView({
               locale='tr-TR'
               value={selectedDate}
               onChange={onDateChange}
+              formatMonthYear={(_, date) => format(date, 'MMMM yyyy', { locale: tr })}
+              formatShortWeekday={(_, date) => weekdayMap[date.getDay()]}
               tileClassName={tileClassName}
               tileContent={tileContent}
             />
@@ -83,8 +87,7 @@ function CalendarView({
                 <p className='font-medium text-blue-950'>{reservation.customerName}</p>
                 <p className='text-sm text-slate-600'>Oda: {reservation.roomName || '-'}</p>
                 <p className='text-sm text-slate-600'>
-                  {format(parseISO(reservation.checkInDate), 'dd.MM.yyyy')} -{' '}
-                  {format(parseISO(reservation.checkOutDate), 'dd.MM.yyyy')}
+                  {formatDateTR(reservation.checkInDate)} - {formatDateTR(reservation.checkOutDate)}
                 </p>
                 <div className='mt-1 flex flex-wrap gap-2'>
                   <span

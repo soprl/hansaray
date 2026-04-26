@@ -1,3 +1,5 @@
+import { format } from 'date-fns'
+import { tr } from 'date-fns/locale'
 import { useEffect, useMemo, useState } from 'react'
 import StatCard from '../components/StatCard'
 import { getReservations } from '../services/reservationService'
@@ -37,9 +39,11 @@ function Dashboard() {
   const metrics = useMemo(() => {
     return getDashboardReservationMetrics(reservations)
   }, [reservations])
+  const monthLabel = format(new Date(), 'MMMM yyyy', { locale: tr })
 
   return (
     <section className='space-y-4'>
+      <h2 className='text-lg font-semibold text-blue-950'>{monthLabel} Özeti</h2>
       <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
         <StatCard title='Bugünkü Doluluk' value={loading ? '...' : `${metrics.todaysOccupancyCount}`} tone='warning' />
         <StatCard

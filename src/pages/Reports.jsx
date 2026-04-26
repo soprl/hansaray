@@ -1,7 +1,4 @@
-import {
-  format,
-  startOfMonth,
-} from 'date-fns'
+import { format, parseISO, startOfMonth } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -26,11 +23,13 @@ import {
 import { formatCurrencyTRY } from '../utils/formatters'
 import {
   getAllTimeReservationIncome,
+  getEffectiveReservationStatus,
   getMonthlyReservationIncome,
   getMonthlyReservationIncomeSeries,
   getPaymentStatusCounts,
   getReservationStatusCounts,
   getTopUsedRooms,
+  RES_STATUS,
 } from '../utils/reservationUtils'
 
 const STATUS_COLORS = ['#10b981', '#1d4ed8', '#ef4444']
@@ -40,16 +39,14 @@ function Reports() {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
 
   useEffect(() => {
     const fetchReportData = async () => {
       setLoading(true)
       setError('')
       try {
-        const [reservationData, transactionData] = await Promise.all([
-          getReservations(),
-          getTransactions(),
-        ])
+        const [reservationData, transactionData] = await Promise.all([getReservations(), getTransactions()])
         setReservations(reservationData)
         setTransactions(transactionData)
       } catch (fetchError) {
@@ -64,12 +61,12 @@ function Reports() {
   }, [])
 
   const reportData = useMemo(() => {
-    const now = new Date()
+    const referenceDate = parseISO(`${selectedMonth}-01`)
     const reservationCounts = getReservationStatusCounts(reservations)
-    const monthlyReservationIncome = getMonthlyReservationIncome(reservations, now)
+    const monthlyReservationIncome = getMonthlyReservationIncome(reservations, referenceDate)
     const { monthlyIncome: monthlyManualIncome, monthlyExpense } = getMonthlyTransactionTotals(
       transactions,
-      now,
+      referenceDate,
     )
     const monthlyTotalIncome = monthlyReservationIncome + monthlyManualIncome
     const monthlyNet = monthlyTotalIncome - monthlyExpense
@@ -83,15 +80,23 @@ function Reports() {
       { name: 'Tamamlandı', value: reservationCounts.completed },
       { name: 'İptal', value: reservationCounts.cancelled },
     ]
-    const paymentSummary = getPaymentStatusCounts(reservations, now)
+    const paymentSummary = getPaymentStatusCounts(reservations, referenceDate)
 
-    const reservationSeries = getMonthlyReservationIncomeSeries(reservations, 6, now)
-    const transactionSeries = getMonthlyTransactionSeries(transactions, 6, now)
+    const reservationSeries = getMonthlyReservationIncomeSeries(reservations, 6, referenceDate)
+    const transactionSeries = getMonthlyTransactionSeries(transactions, 6, referenceDate)
     const monthlyBarData = reservationSeries.map((item, index) => ({
-      month: format(item.monthDate || startOfMonth(now), 'MMM yy', { locale: tr }),
+      month: format(item.monthDate || startOfMonth(referenceDate), 'MMM yy', { locale: tr }),
       gelir: item.reservationIncome + (transactionSeries[index]?.income ?? 0),
       gider: transactionSeries[index]?.expense ?? 0,
     }))
+
+    const monthlyReservationCount = reservations.filter((reservation) => {
+      const status = getEffectiveReservationStatus(reservation, referenceDate)
+      if (status === RES_STATUS.CANCELLED) return false
+      const checkInDate = reservation.checkInDate ? parseISO(reservation.checkInDate) : null
+      if (!checkInDate || Number.isNaN(checkInDate.getTime())) return false
+      return format(checkInDate, 'yyyy-MM') === selectedMonth
+    }).length
 
     return {
       reservationCounts,
@@ -106,11 +111,29 @@ function Reports() {
       statusPieData,
       paymentSummary,
       monthlyBarData,
+      monthlyReservationCount,
+      selectedMonthLabel: format(referenceDate, 'MMMM yyyy', { locale: tr }),
+      selectedMonthChartData: [{ ay: format(referenceDate, 'MMMM yyyy', { locale: tr }), gelir: monthlyTotalIncome, gider: monthlyExpense }],
     }
-  }, [reservations, transactions])
+  }, [reservations, transactions, selectedMonth])
 
   return (
     <section className='space-y-4'>
+      <div className='card'>
+        <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+          <h2 className='text-lg font-semibold text-blue-950'>Raporlar - {reportData.selectedMonthLabel}</h2>
+          <div>
+            <label className='mb-1 block text-xs font-medium text-slate-600'>Ay / Yıl Seç</label>
+            <input
+              type='month'
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              className='input'
+            />
+          </div>
+        </div>
+      </div>
+
       <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
         <article className='card'>
           <p className='text-sm text-slate-500'>Toplam Rezervasyon</p>
@@ -134,34 +157,40 @@ function Reports() {
 
       <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
         <article className='card'>
-          <p className='text-sm text-slate-500'>Bu Ay Rezervasyon Geliri</p>
+          <p className='text-sm text-slate-500'>Seçili Ay Rezervasyon Sayısı</p>
+          <p className='mt-2 text-xl font-semibold text-blue-950'>
+            {loading ? '...' : reportData.monthlyReservationCount}
+          </p>
+        </article>
+        <article className='card'>
+          <p className='text-sm text-slate-500'>Rezervasyon Geliri</p>
           <p className='mt-2 text-xl font-semibold text-blue-950'>
             {loading ? '...' : formatCurrencyTRY(reportData.monthlyReservationIncome)}
           </p>
         </article>
         <article className='card'>
-          <p className='text-sm text-slate-500'>Bu Ay Manuel Gelir</p>
+          <p className='text-sm text-slate-500'>Manuel Gelir</p>
           <p className='mt-2 text-xl font-semibold text-emerald-600'>
             {loading ? '...' : formatCurrencyTRY(reportData.monthlyManualIncome)}
           </p>
         </article>
         <article className='card'>
-          <p className='text-sm text-slate-500'>Bu Ay Toplam Gelir</p>
+          <p className='text-sm text-slate-500'>Toplam Gelir</p>
           <p className='mt-2 text-xl font-semibold text-emerald-600'>
             {loading ? '...' : formatCurrencyTRY(reportData.monthlyTotalIncome)}
           </p>
         </article>
+      </div>
+
+      <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-3'>
         <article className='card'>
-          <p className='text-sm text-slate-500'>Bu Ay Toplam Gider</p>
+          <p className='text-sm text-slate-500'>Toplam Gider</p>
           <p className='mt-2 text-xl font-semibold text-rose-600'>
             {loading ? '...' : formatCurrencyTRY(reportData.monthlyExpense)}
           </p>
         </article>
-      </div>
-
-      <div className='grid gap-4 sm:grid-cols-2'>
         <article className='card'>
-          <p className='text-sm text-slate-500'>Bu Ay Net Kazanç</p>
+          <p className='text-sm text-slate-500'>Net Kazanç</p>
           <p className='mt-2 text-2xl font-semibold text-blue-950'>
             {loading ? '...' : formatCurrencyTRY(reportData.monthlyNet)}
           </p>
@@ -206,11 +235,11 @@ function Reports() {
       ) : (
         <div className='grid gap-4 lg:grid-cols-2'>
           <div className='card'>
-            <h3 className='text-base font-semibold text-blue-950'>Aylık Gelir / Gider</h3>
+            <h3 className='text-base font-semibold text-blue-950'>Seçili Ay Gelir / Gider</h3>
             <div className='mt-4 h-72 w-full'>
               <ResponsiveContainer width='100%' height='100%'>
-                <BarChart data={reportData.monthlyBarData}>
-                  <XAxis dataKey='month' />
+                <BarChart data={reportData.selectedMonthChartData}>
+                  <XAxis dataKey='ay' />
                   <YAxis />
                   <Tooltip formatter={(value) => formatCurrencyTRY(value)} />
                   <Legend />
@@ -234,6 +263,22 @@ function Reports() {
                   <Tooltip />
                   <Legend />
                 </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className='card lg:col-span-2'>
+            <h3 className='text-base font-semibold text-blue-950'>Son 6 Ay Gelir / Gider</h3>
+            <div className='mt-4 h-72 w-full'>
+              <ResponsiveContainer width='100%' height='100%'>
+                <BarChart data={reportData.monthlyBarData}>
+                  <XAxis dataKey='month' />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatCurrencyTRY(value)} />
+                  <Legend />
+                  <Bar dataKey='gelir' fill='#10b981' name='Gelir' radius={[6, 6, 0, 0]} />
+                  <Bar dataKey='gider' fill='#ef4444' name='Gider' radius={[6, 6, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
