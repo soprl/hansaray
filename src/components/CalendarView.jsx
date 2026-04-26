@@ -2,6 +2,7 @@ import { format, parseISO } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import ReactCalendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
+import { getEffectiveReservationStatus } from '../utils/reservationUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
@@ -18,6 +19,17 @@ function CalendarView({
   occupiedDatesMap,
   selectedDayReservations,
 }) {
+  const statusBadgeClass = {
+    Aktif: 'bg-emerald-100 text-emerald-700',
+    Tamamlandı: 'bg-slate-200 text-slate-700',
+    İptal: 'bg-rose-100 text-rose-700',
+  }
+  const paymentBadgeClass = {
+    Ödenmedi: 'bg-rose-100 text-rose-700',
+    'Kapora Alındı': 'bg-amber-100 text-amber-700',
+    'Tamamı Ödendi': 'bg-emerald-100 text-emerald-700',
+  }
+
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return ''
     return occupiedDatesMap.has(dayKey(date)) ? 'tile-occupied' : 'tile-empty'
@@ -74,6 +86,22 @@ function CalendarView({
                   {format(parseISO(reservation.checkInDate), 'dd.MM.yyyy')} -{' '}
                   {format(parseISO(reservation.checkOutDate), 'dd.MM.yyyy')}
                 </p>
+                <div className='mt-1 flex flex-wrap gap-2'>
+                  <span
+                    className={`rounded px-2 py-0.5 text-xs font-medium ${
+                      statusBadgeClass[getEffectiveReservationStatus(reservation)] ?? 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {getEffectiveReservationStatus(reservation)}
+                  </span>
+                  <span
+                    className={`rounded px-2 py-0.5 text-xs font-medium ${
+                      paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {reservation.paymentStatus || '-'}
+                  </span>
+                </div>
               </article>
             ))}
           </div>

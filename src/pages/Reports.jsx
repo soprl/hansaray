@@ -28,6 +28,7 @@ import {
   getAllTimeReservationIncome,
   getMonthlyReservationIncome,
   getMonthlyReservationIncomeSeries,
+  getPaymentStatusCounts,
   getReservationStatusCounts,
   getTopUsedRooms,
 } from '../utils/reservationUtils'
@@ -82,6 +83,7 @@ function Reports() {
       { name: 'Tamamlandı', value: reservationCounts.completed },
       { name: 'İptal', value: reservationCounts.cancelled },
     ]
+    const paymentSummary = getPaymentStatusCounts(reservations, now)
 
     const reservationSeries = getMonthlyReservationIncomeSeries(reservations, 6, now)
     const transactionSeries = getMonthlyTransactionSeries(transactions, 6, now)
@@ -102,6 +104,7 @@ function Reports() {
       topRoom,
       roomUsage,
       statusPieData,
+      paymentSummary,
       monthlyBarData,
     }
   }, [reservations, transactions])
@@ -175,6 +178,20 @@ function Reports() {
         <p className='text-sm text-slate-500'>En Çok Kullanılan Oda / Bungalov</p>
         <p className='mt-2 text-2xl font-semibold text-blue-950'>{loading ? '...' : reportData.topRoom}</p>
       </article>
+      <div className='grid gap-4 sm:grid-cols-3'>
+        <article className='card'>
+          <p className='text-sm text-slate-500'>Ödenmedi</p>
+          <p className='mt-2 text-2xl font-semibold text-rose-600'>{loading ? '...' : reportData.paymentSummary.unpaid}</p>
+        </article>
+        <article className='card'>
+          <p className='text-sm text-slate-500'>Kapora Alındı</p>
+          <p className='mt-2 text-2xl font-semibold text-amber-600'>{loading ? '...' : reportData.paymentSummary.deposit}</p>
+        </article>
+        <article className='card'>
+          <p className='text-sm text-slate-500'>Tamamı Ödendi</p>
+          <p className='mt-2 text-2xl font-semibold text-emerald-600'>{loading ? '...' : reportData.paymentSummary.paid}</p>
+        </article>
+      </div>
 
       {error ? <p className='text-sm text-rose-600'>{error}</p> : null}
 

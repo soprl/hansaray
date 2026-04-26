@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { eachDayOfInterval, format, isWithinInterval, parseISO, subDays } from 'date-fns'
 import CalendarView from '../components/CalendarView'
 import { getReservations } from '../services/reservationService'
+import { getEffectiveReservationStatus, RES_STATUS } from '../utils/reservationUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
@@ -33,7 +34,11 @@ function Calendar() {
 
       try {
         const data = await getReservations()
-        setReservations(data.filter((reservation) => reservation.reservationStatus !== 'İptal'))
+        setReservations(
+          data.filter(
+            (reservation) => getEffectiveReservationStatus(reservation) !== RES_STATUS.CANCELLED,
+          ),
+        )
       } catch (fetchError) {
         setError('Takvim verileri yüklenirken bir hata oluştu.')
         console.error(fetchError)

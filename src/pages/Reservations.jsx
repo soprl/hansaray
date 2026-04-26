@@ -1,5 +1,3 @@
-import { format, parseISO } from 'date-fns'
-import { tr } from 'date-fns/locale'
 import { useEffect, useMemo, useState } from 'react'
 import ReservationForm from '../components/ReservationForm'
 import { useAuth } from '../context/useAuth'
@@ -9,17 +7,18 @@ import {
   getReservations,
   updateReservation,
 } from '../services/reservationService'
+import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
+import { getEffectiveReservationStatus, RES_STATUS } from '../utils/reservationUtils'
+const statusBadgeClass = {
+  Aktif: 'bg-emerald-100 text-emerald-700',
+  Tamamlandı: 'bg-slate-200 text-slate-700',
+  İptal: 'bg-rose-100 text-rose-700',
+}
 
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(Number(value) || 0)
-
-const formatDate = (value) => {
-  if (!value) return '-'
-  try {
-    return format(parseISO(value), 'dd.MM.yyyy', { locale: tr })
-  } catch {
-    return '-'
-  }
+const paymentBadgeClass = {
+  Ödenmedi: 'bg-rose-100 text-rose-700',
+  'Kapora Alındı': 'bg-amber-100 text-amber-700',
+  'Tamamı Ödendi': 'bg-emerald-100 text-emerald-700',
 }
 
 function Reservations() {
@@ -88,12 +87,13 @@ function Reservations() {
     const searchTerm = filters.search.trim().toLowerCase('tr')
 
     return reservations.filter((reservation) => {
+      const effectiveStatus = getEffectiveReservationStatus(reservation)
       const matchSearch =
         !searchTerm ||
         reservation.customerName?.toLowerCase('tr').includes(searchTerm) ||
         reservation.customerPhone?.toLowerCase('tr').includes(searchTerm)
       const matchRoom = !filters.roomName || reservation.roomName === filters.roomName
-      const matchStatus = filters.status === 'Tümü' || reservation.reservationStatus === filters.status
+      const matchStatus = filters.status === 'Tümü' || effectiveStatus === filters.status
 
       return matchSearch && matchRoom && matchStatus
     })
@@ -129,19 +129,37 @@ function Reservations() {
     }
   }
 
-  const handleDelete = async (id) => {
-    const confirmed = window.confirm('Bu rezervasyon silinsin mi?')
+  const handleCancelReservation = async (reservation) => {
+    const confirmed = window.confirm('Rezervasyon iptal edilsin mi?')
+    if (!confirmed) return
+
+    setError('')
+    try {
+      await updateReservation(reservation.id, {
+        ...reservation,
+        reservationStatus: RES_STATUS.CANCELLED,
+      })
+      if (editingReservation?.id === reservation.id) {
+        setEditingReservation(null)
+      }
+      await loadReservations()
+    } catch (cancelError) {
+      setError('Rezervasyon iptal edilirken bir hata oluştu.')
+      console.error(cancelError)
+    }
+  }
+
+  const handlePermanentDelete = async (id) => {
+    const confirmed = window.confirm('Rezervasyon kalıcı olarak silinsin mi? Bu işlem geri alınamaz.')
     if (!confirmed) return
 
     setError('')
     try {
       await deleteReservation(id)
-      if (editingReservation?.id === id) {
-        setEditingReservation(null)
-      }
+      if (editingReservation?.id === id) setEditingReservation(null)
       await loadReservations()
     } catch (deleteError) {
-      setError('Rezervasyon silinirken bir hata oluştu.')
+      setError('Rezervasyon kalıcı silinirken bir hata oluştu.')
       console.error(deleteError)
     }
   }
@@ -196,22 +214,32 @@ function Reservations() {
           <p className='text-sm text-slate-500'>Filtreye uygun rezervasyon yok.</p>
         ) : (
           <div className='grid gap-3'>
-            {filteredReservations.map((reservation) => (
-              <article key={reservation.id} className='rounded-lg border border-slate-200 p-4'>
+            {filteredReservations.map((reservation) => {
+              const effectiveStatus = getEffectiveReservationStatus(reservation)
+
+              return (
+                <article key={reservation.id} className='rounded-lg border border-slate-200 p-4'>
                 <div className='flex flex-col justify-between gap-3 md:flex-row md:items-start'>
                   <div className='space-y-1'>
                     <p className='text-lg font-semibold text-blue-950'>{reservation.customerName}</p>
                     <p className='text-sm text-slate-600'>
-                      {reservation.roomName} - {formatDate(reservation.checkInDate)} /{' '}
-                      {formatDate(reservation.checkOutDate)}
+                      {reservation.roomName} - {formatDateTR(reservation.checkInDate)} /{' '}
+                      {formatDateTR(reservation.checkOutDate)}
                     </p>
                     <p className='text-sm text-slate-600'>Telefon: {reservation.customerPhone || '-'}</p>
+                    <div className='flex flex-wrap gap-2 pt-1'>
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass[effectiveStatus] ?? 'bg-slate-100 text-slate-700'}`}>
+                        {effectiveStatus}
+                      </span>
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'}`}>
+                        {reservation.paymentStatus || '-'}
+                      </span>
+                    </div>
                   </div>
                   <div className='space-y-1 text-sm'>
-                    <p className='font-medium text-slate-700'>Toplam: {formatCurrency(reservation.totalPrice)}</p>
-                    <p className='text-slate-600'>Kapora: {formatCurrency(reservation.deposit)}</p>
-                    <p className='text-slate-600'>Kalan: {formatCurrency(reservation.remainingPayment)}</p>
-                    <p className='text-slate-600'>Durum: {reservation.reservationStatus}</p>
+                    <p className='font-medium text-slate-700'>Toplam: {formatCurrencyTRY(reservation.totalPrice)}</p>
+                    <p className='text-slate-600'>Kapora: {formatCurrencyTRY(reservation.deposit)}</p>
+                    <p className='text-slate-600'>Kalan: {formatCurrencyTRY(reservation.remainingPayment)}</p>
                   </div>
                 </div>
 
@@ -223,12 +251,25 @@ function Reservations() {
                   >
                     Düzenle
                   </button>
-                  <button type='button' className='btn-danger' onClick={() => handleDelete(reservation.id)}>
-                    Sil
+                  <button
+                    type='button'
+                    className='btn-danger'
+                    onClick={() => handleCancelReservation(reservation)}
+                    disabled={effectiveStatus === RES_STATUS.CANCELLED}
+                  >
+                    Rezervasyonu İptal Et
+                  </button>
+                  <button
+                    type='button'
+                    className='btn border border-slate-300 bg-white text-xs'
+                    onClick={() => handlePermanentDelete(reservation.id)}
+                  >
+                    Kalıcı Sil
                   </button>
                 </div>
-              </article>
-            ))}
+                </article>
+              )
+            })}
           </div>
         )}
       </div>

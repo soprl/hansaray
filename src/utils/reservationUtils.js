@@ -1,6 +1,7 @@
 import {
   addMonths,
   endOfMonth,
+  isBefore,
   isAfter,
   isSameDay,
   isWithinInterval,
@@ -16,17 +17,47 @@ export const RES_STATUS = {
   CANCELLED: 'İptal',
 }
 
+export const PAYMENT_STATUS = {
+  UNPAID: 'Ödenmedi',
+  DEPOSIT: 'Kapora Alındı',
+  PAID: 'Tamamı Ödendi',
+}
+
 export const isCancelledReservation = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
 
+export const getEffectiveReservationStatus = (reservation, referenceDate = new Date()) => {
+  if (reservation.reservationStatus === RES_STATUS.CANCELLED) return RES_STATUS.CANCELLED
+
+  const checkOutDate = parseISODateSafe(reservation.checkOutDate)
+  const today = startOfDay(referenceDate)
+  if (
+    reservation.reservationStatus === RES_STATUS.ACTIVE &&
+    checkOutDate &&
+    isBefore(checkOutDate, today)
+  ) {
+    return RES_STATUS.COMPLETED
+  }
+
+  return reservation.reservationStatus
+}
+
+export const withEffectiveReservationStatus = (reservation, referenceDate = new Date()) => ({
+  ...reservation,
+  effectiveStatus: getEffectiveReservationStatus(reservation, referenceDate),
+})
+
 export const isRevenueEligibleReservation = (reservation) =>
-  reservation.reservationStatus === RES_STATUS.ACTIVE || reservation.reservationStatus === RES_STATUS.COMPLETED
+  [RES_STATUS.ACTIVE, RES_STATUS.COMPLETED].includes(
+    getEffectiveReservationStatus(reservation),
+  )
 
 export const getReservationStatusCounts = (reservations) =>
   reservations.reduce(
     (acc, reservation) => {
-      if (reservation.reservationStatus === RES_STATUS.ACTIVE) acc.active += 1
-      if (reservation.reservationStatus === RES_STATUS.COMPLETED) acc.completed += 1
-      if (reservation.reservationStatus === RES_STATUS.CANCELLED) acc.cancelled += 1
+      const status = getEffectiveReservationStatus(reservation)
+      if (status === RES_STATUS.ACTIVE) acc.active += 1
+      if (status === RES_STATUS.COMPLETED) acc.completed += 1
+      if (status === RES_STATUS.CANCELLED) acc.cancelled += 1
       return acc
     },
     { total: reservations.length, active: 0, completed: 0, cancelled: 0 },
@@ -99,7 +130,15 @@ export const getMonthlyReservationIncomeSeries = (reservations, months = 6, refe
 
 export const getDashboardReservationMetrics = (reservations, referenceDate = new Date()) => {
   const today = startOfDay(referenceDate)
-  const activeReservations = reservations.filter((reservation) => reservation.reservationStatus === RES_STATUS.ACTIVE)
+  const mappedReservations = reservations.map((reservation) =>
+    withEffectiveReservationStatus(reservation, referenceDate),
+  )
+  const activeReservations = mappedReservations.filter(
+    (reservation) => reservation.effectiveStatus === RES_STATUS.ACTIVE,
+  )
+  const nonCancelledReservations = mappedReservations.filter(
+    (reservation) => reservation.effectiveStatus !== RES_STATUS.CANCELLED,
+  )
 
   const todaysOccupancyCount = activeReservations.filter((reservation) => isReservationStayOnDate(reservation, today)).length
   const todaysCheckIns = activeReservations.filter((reservation) => {
@@ -118,8 +157,25 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
     .sort((a, b) => a.checkInDate.localeCompare(b.checkInDate))
     .slice(0, 5)
 
-  const monthlyReservationIncome = getMonthlyReservationIncome(reservations, today)
-  const statusCounts = getReservationStatusCounts(reservations)
+  const monthlyReservationIncome = getMonthlyReservationIncome(mappedReservations, today)
+  const statusCounts = getReservationStatusCounts(mappedReservations)
+  const totalPendingPayment = nonCancelledReservations.reduce(
+    (sum, reservation) => sum + (Number(reservation.remainingPayment) || 0),
+    0,
+  )
+  const monthStart = startOfMonth(today)
+  const monthEnd = endOfMonth(today)
+  const monthlyDeposit = nonCancelledReservations.reduce((sum, reservation) => {
+    const checkInDate = parseISODateSafe(reservation.checkInDate)
+    if (!checkInDate || !isWithinInterval(checkInDate, { start: monthStart, end: monthEnd })) return sum
+    if (reservation.paymentStatus !== PAYMENT_STATUS.DEPOSIT) return sum
+    return sum + (Number(reservation.deposit) || 0)
+  }, 0)
+  const monthlyFullyPaidCount = nonCancelledReservations.filter((reservation) => {
+    const checkInDate = parseISODateSafe(reservation.checkInDate)
+    if (!checkInDate || !isWithinInterval(checkInDate, { start: monthStart, end: monthEnd })) return false
+    return reservation.paymentStatus === PAYMENT_STATUS.PAID
+  }).length
 
   return {
     todaysOccupancyCount,
@@ -127,7 +183,22 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
     todaysCheckOuts,
     upcomingReservations,
     monthlyReservationIncome,
+    totalPendingPayment,
+    monthlyDeposit,
+    monthlyFullyPaidCount,
     activeCount: statusCounts.active,
     cancelledCount: statusCounts.cancelled,
   }
 }
+
+export const getPaymentStatusCounts = (reservations, referenceDate = new Date()) =>
+  reservations.reduce(
+    (acc, reservation) => {
+      if (getEffectiveReservationStatus(reservation, referenceDate) === RES_STATUS.CANCELLED) return acc
+      if (reservation.paymentStatus === PAYMENT_STATUS.UNPAID) acc.unpaid += 1
+      if (reservation.paymentStatus === PAYMENT_STATUS.DEPOSIT) acc.deposit += 1
+      if (reservation.paymentStatus === PAYMENT_STATUS.PAID) acc.paid += 1
+      return acc
+    },
+    { unpaid: 0, deposit: 0, paid: 0 },
+  )
