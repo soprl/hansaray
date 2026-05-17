@@ -9,6 +9,7 @@ import {
   startOfMonth,
   subDays,
 } from 'date-fns'
+import { normalizeRoomName } from '../config/rooms'
 import { parseISODateSafe } from './formatters'
 
 export const RES_STATUS = {
@@ -24,6 +25,52 @@ export const PAYMENT_STATUS = {
 }
 
 export const isCancelledReservation = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
+
+export const blocksRoomAvailability = (reservation) => reservation.reservationStatus !== RES_STATUS.CANCELLED
+
+export const hasReservationDateConflict = (incoming, existing) =>
+  incoming.checkInDate < existing.checkOutDate && incoming.checkOutDate > existing.checkInDate
+
+export const findConflictingReservation = (
+  reservations,
+  { roomName, checkInDate, checkOutDate, excludeId },
+) => {
+  const trimmedRoom = roomName?.trim()
+  if (!trimmedRoom || !checkInDate || !checkOutDate || checkOutDate <= checkInDate) return null
+
+  const incoming = { checkInDate, checkOutDate }
+
+  return (
+    reservations.find((reservation) => {
+      if (excludeId && reservation.id === excludeId) return false
+      if (!blocksRoomAvailability(reservation)) return false
+      if (normalizeRoomName(reservation.roomName) !== normalizeRoomName(trimmedRoom)) return false
+      return hasReservationDateConflict(incoming, reservation)
+    }) ?? null
+  )
+}
+
+export const getRoomAvailabilityList = (
+  reservations,
+  { checkInDate, checkOutDate, excludeId, roomNames },
+) => {
+  if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) return []
+
+  return roomNames.map((roomName) => {
+    const conflict = findConflictingReservation(reservations, {
+      roomName,
+      checkInDate,
+      checkOutDate,
+      excludeId,
+    })
+
+    return {
+      roomName,
+      available: !conflict,
+      conflict,
+    }
+  })
+}
 
 export const getEffectiveReservationStatus = (reservation, referenceDate = new Date()) => {
   if (reservation.reservationStatus === RES_STATUS.CANCELLED) return RES_STATUS.CANCELLED

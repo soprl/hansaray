@@ -1,5 +1,8 @@
+import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { useMemo, useState } from 'react'
+import { ROOMS, normalizeRoomName } from '../config/rooms'
 import { formatDateTR } from '../utils/formatters'
+import { findConflictingReservation, getRoomAvailabilityList } from '../utils/reservationUtils'
 
 const DEFAULT_FORM = {
   customerName: '',
@@ -14,8 +17,26 @@ const DEFAULT_FORM = {
   note: '',
 }
 
-function ReservationForm({ initialValues, onSubmit, onCancel, submitting }) {
-  const [form, setForm] = useState(() => (initialValues ? { ...DEFAULT_FORM, ...initialValues } : DEFAULT_FORM))
+const NIGHT_PRESETS = [1, 2, 3, 7]
+
+function ReservationForm({
+  initialValues,
+  onSubmit,
+  onCancel,
+  submitting,
+  reservations = [],
+  excludeId,
+}) {
+  const isEditing = Boolean(initialValues)
+
+  const [form, setForm] = useState(() => {
+    if (!initialValues) return DEFAULT_FORM
+    return {
+      ...DEFAULT_FORM,
+      ...initialValues,
+      roomName: normalizeRoomName(initialValues.roomName),
+    }
+  })
   const [errors, setErrors] = useState({})
 
   const remainingPayment = useMemo(() => {
@@ -24,9 +45,57 @@ function ReservationForm({ initialValues, onSubmit, onCancel, submitting }) {
     return totalPrice - deposit
   }, [form.totalPrice, form.deposit])
 
+  const datesValid =
+    form.checkInDate && form.checkOutDate && form.checkOutDate > form.checkInDate
+
+  const nightCount = useMemo(() => {
+    if (!datesValid) return 0
+    return differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
+  }, [form.checkInDate, form.checkOutDate, datesValid])
+
+  const roomAvailabilityList = useMemo(() => {
+    if (!datesValid) return []
+    return getRoomAvailabilityList(reservations, {
+      checkInDate: form.checkInDate,
+      checkOutDate: form.checkOutDate,
+      excludeId,
+      roomNames: ROOMS,
+    })
+  }, [reservations, form.checkInDate, form.checkOutDate, excludeId, datesValid])
+
+  const selectedRoomConflict = useMemo(() => {
+    if (!datesValid || !form.roomName) return null
+    return findConflictingReservation(reservations, {
+      roomName: form.roomName,
+      checkInDate: form.checkInDate,
+      checkOutDate: form.checkOutDate,
+      excludeId,
+    })
+  }, [reservations, form.roomName, form.checkInDate, form.checkOutDate, excludeId, datesValid])
+
   const handleChange = (event) => {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const setCheckIn = (checkInDate) => {
+    setForm((prev) => {
+      const next = { ...prev, checkInDate }
+      if (prev.checkOutDate && checkInDate && prev.checkOutDate <= checkInDate) {
+        next.checkOutDate = ''
+      }
+      return next
+    })
+  }
+
+  const applyNightPreset = (nights) => {
+    if (!form.checkInDate) return
+    const checkOutDate = format(addDays(parseISO(form.checkInDate), nights), 'yyyy-MM-dd')
+    setForm((prev) => ({ ...prev, checkOutDate }))
+  }
+
+  const selectRoom = (roomName) => {
+    setForm((prev) => ({ ...prev, roomName }))
   }
 
   const validate = () => {
@@ -34,11 +103,11 @@ function ReservationForm({ initialValues, onSubmit, onCancel, submitting }) {
     const totalPrice = Number(form.totalPrice)
     const deposit = Number(form.deposit)
 
-    if (!form.customerName.trim()) nextErrors.customerName = 'Müşteri adı zorunludur.'
-    if (!form.customerPhone.trim()) nextErrors.customerPhone = 'Telefon zorunludur.'
-    if (!form.roomName.trim()) nextErrors.roomName = 'Oda adı zorunludur.'
     if (!form.checkInDate) nextErrors.checkInDate = 'Giriş tarihi zorunludur.'
     if (!form.checkOutDate) nextErrors.checkOutDate = 'Çıkış tarihi zorunludur.'
+    if (!form.roomName) nextErrors.roomName = 'Oda seçin.'
+    if (!form.customerName.trim()) nextErrors.customerName = 'Müşteri adı zorunludur.'
+    if (!form.customerPhone.trim()) nextErrors.customerPhone = 'Telefon zorunludur.'
 
     if (!Number.isFinite(totalPrice) || totalPrice < 0) {
       nextErrors.totalPrice = 'Toplam ücret 0 veya daha büyük olmalıdır.'
@@ -56,6 +125,10 @@ function ReservationForm({ initialValues, onSubmit, onCancel, submitting }) {
       nextErrors.checkOutDate = 'Çıkış tarihi giriş tarihinden sonra olmalıdır.'
     }
 
+    if (selectedRoomConflict) {
+      nextErrors.roomName = 'Seçilen oda bu tarihlerde dolu.'
+    }
+
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
@@ -66,6 +139,7 @@ function ReservationForm({ initialValues, onSubmit, onCancel, submitting }) {
 
     await onSubmit({
       ...form,
+      roomName: normalizeRoomName(form.roomName),
       totalPrice: Number(form.totalPrice) || 0,
       deposit: Number(form.deposit) || 0,
       remainingPayment,
@@ -75,126 +149,225 @@ function ReservationForm({ initialValues, onSubmit, onCancel, submitting }) {
   return (
     <section className='card'>
       <h2 className='text-lg font-semibold text-blue-950'>
-        {initialValues ? 'Rezervasyon Düzenle' : 'Yeni Rezervasyon'}
+        {isEditing ? 'Rezervasyon Düzenle' : 'Yeni Rezervasyon'}
       </h2>
 
-      <form onSubmit={handleSubmit} className='mt-4 grid gap-4 md:grid-cols-2'>
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Müşteri Adı</label>
-          <input name='customerName' value={form.customerName} onChange={handleChange} className='input' />
-          {errors.customerName ? <p className='mt-1 text-xs text-rose-600'>{errors.customerName}</p> : null}
-        </div>
+      <form onSubmit={handleSubmit} className='mt-4 space-y-6'>
+        <fieldset className='space-y-3'>
+          <legend className='text-sm font-semibold text-slate-800'>1. Tarihler</legend>
+          <div className='grid gap-4 sm:grid-cols-2'>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Giriş</label>
+              <input
+                type='date'
+                name='checkInDate'
+                value={form.checkInDate}
+                onChange={(event) => setCheckIn(event.target.value)}
+                className='input'
+              />
+              {errors.checkInDate ? <p className='mt-1 text-xs text-rose-600'>{errors.checkInDate}</p> : null}
+            </div>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Çıkış</label>
+              <input
+                type='date'
+                name='checkOutDate'
+                value={form.checkOutDate}
+                min={form.checkInDate || undefined}
+                onChange={handleChange}
+                className='input'
+                disabled={!form.checkInDate}
+              />
+              {errors.checkOutDate ? <p className='mt-1 text-xs text-rose-600'>{errors.checkOutDate}</p> : null}
+            </div>
+          </div>
 
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Telefon</label>
-          <input name='customerPhone' value={form.customerPhone} onChange={handleChange} className='input' />
-          {errors.customerPhone ? <p className='mt-1 text-xs text-rose-600'>{errors.customerPhone}</p> : null}
-        </div>
-
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Oda Adı</label>
-          <input name='roomName' value={form.roomName} onChange={handleChange} className='input' />
-          {errors.roomName ? <p className='mt-1 text-xs text-rose-600'>{errors.roomName}</p> : null}
-        </div>
-
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Ödeme Durumu</label>
-          <select name='paymentStatus' value={form.paymentStatus} onChange={handleChange} className='input'>
-            <option>Ödenmedi</option>
-            <option>Kapora Alındı</option>
-            <option>Tamamı Ödendi</option>
-          </select>
-        </div>
-
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Giriş Tarihi</label>
-          <input
-            type='date'
-            name='checkInDate'
-            value={form.checkInDate}
-            onChange={handleChange}
-            className='input'
-          />
           {form.checkInDate ? (
-            <p className='mt-1 text-xs text-slate-500'>Seçilen tarih: {formatDateTR(form.checkInDate, 'dd MMMM yyyy')}</p>
+            <div className='flex flex-wrap items-center gap-2'>
+              <span className='text-xs text-slate-500'>Hızlı seçim:</span>
+              {NIGHT_PRESETS.map((nights) => (
+                <button
+                  key={nights}
+                  type='button'
+                  onClick={() => applyNightPreset(nights)}
+                  className='rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:border-blue-300 hover:bg-blue-50'
+                >
+                  {nights} gece
+                </button>
+              ))}
+            </div>
           ) : null}
-          {errors.checkInDate ? <p className='mt-1 text-xs text-rose-600'>{errors.checkInDate}</p> : null}
-        </div>
+
+          {datesValid ? (
+            <p className='text-sm text-slate-600'>
+              {formatDateTR(form.checkInDate)} → {formatDateTR(form.checkOutDate)} ·{' '}
+              <span className='font-medium text-blue-950'>{nightCount} gece</span>
+            </p>
+          ) : (
+            <p className='text-xs text-slate-500'>Önce giriş tarihini, sonra çıkışı veya gece sayısını seçin.</p>
+          )}
+        </fieldset>
+
+        <fieldset className='space-y-3' disabled={!datesValid}>
+          <legend className='text-sm font-semibold text-slate-800'>2. Oda seç</legend>
+          {!datesValid ? (
+            <p className='text-sm text-slate-500'>Oda müsaitliği için tarihleri seçin.</p>
+          ) : (
+            <>
+              <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+                {roomAvailabilityList.map(({ roomName, available, conflict }) => {
+                  const isSelected = form.roomName === roomName
+                  return (
+                    <button
+                      key={roomName}
+                      type='button'
+                      onClick={() => available && selectRoom(roomName)}
+                      disabled={!available}
+                      className={`rounded-xl border-2 p-4 text-left transition ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                          : available
+                            ? 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50'
+                            : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-70'
+                      }`}
+                    >
+                      <p className='text-lg font-bold text-blue-950'>{roomName}</p>
+                      <p
+                        className={`mt-1 text-xs font-semibold ${
+                          available ? 'text-emerald-700' : 'text-rose-700'
+                        }`}
+                      >
+                        {available ? 'Müsait' : 'Dolu'}
+                      </p>
+                      {!available && conflict ? (
+                        <p className='mt-1 truncate text-xs text-slate-500' title={conflict.customerName}>
+                          {conflict.customerName}
+                        </p>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+              {errors.roomName ? <p className='text-xs text-rose-600'>{errors.roomName}</p> : null}
+              {form.roomName && selectedRoomConflict ? (
+                <p className='text-xs font-medium text-rose-600'>
+                  {form.roomName} dolu: {selectedRoomConflict.customerName} (
+                  {formatDateTR(selectedRoomConflict.checkInDate)} –{' '}
+                  {formatDateTR(selectedRoomConflict.checkOutDate)})
+                </p>
+              ) : null}
+            </>
+          )}
+        </fieldset>
+
+        <fieldset className='space-y-3'>
+          <legend className='text-sm font-semibold text-slate-800'>3. Müşteri</legend>
+          <div className='grid gap-4 sm:grid-cols-2'>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Ad Soyad</label>
+              <input name='customerName' value={form.customerName} onChange={handleChange} className='input' />
+              {errors.customerName ? (
+                <p className='mt-1 text-xs text-rose-600'>{errors.customerName}</p>
+              ) : null}
+            </div>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Telefon</label>
+              <input
+                name='customerPhone'
+                value={form.customerPhone}
+                onChange={handleChange}
+                className='input'
+                type='tel'
+              />
+              {errors.customerPhone ? (
+                <p className='mt-1 text-xs text-rose-600'>{errors.customerPhone}</p>
+              ) : null}
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset className='space-y-3'>
+          <legend className='text-sm font-semibold text-slate-800'>4. Ödeme</legend>
+          <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Toplam (TL)</label>
+              <input
+                type='number'
+                min='0'
+                step='0.01'
+                name='totalPrice'
+                value={form.totalPrice}
+                onChange={handleChange}
+                className='input'
+              />
+              {errors.totalPrice ? <p className='mt-1 text-xs text-rose-600'>{errors.totalPrice}</p> : null}
+            </div>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Kapora (TL)</label>
+              <input
+                type='number'
+                min='0'
+                step='0.01'
+                name='deposit'
+                value={form.deposit}
+                onChange={handleChange}
+                className='input'
+              />
+              {errors.deposit ? <p className='mt-1 text-xs text-rose-600'>{errors.deposit}</p> : null}
+            </div>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Kalan</label>
+              <input
+                value={Number.isFinite(remainingPayment) ? remainingPayment : 0}
+                readOnly
+                className='input bg-slate-100'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Ödeme durumu</label>
+              <select name='paymentStatus' value={form.paymentStatus} onChange={handleChange} className='input'>
+                <option>Ödenmedi</option>
+                <option>Kapora Alındı</option>
+                <option>Tamamı Ödendi</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        {isEditing ? (
+          <div className='grid gap-4 sm:grid-cols-2'>
+            <div>
+              <label className='mb-1 block text-sm font-medium'>Rezervasyon durumu</label>
+              <select
+                name='reservationStatus'
+                value={form.reservationStatus}
+                onChange={handleChange}
+                className='input'
+              >
+                <option>Aktif</option>
+                <option>Tamamlandı</option>
+                <option>İptal</option>
+              </select>
+            </div>
+          </div>
+        ) : null}
 
         <div>
-          <label className='mb-1 block text-sm font-medium'>Çıkış Tarihi</label>
-          <input
-            type='date'
-            name='checkOutDate'
-            value={form.checkOutDate}
-            onChange={handleChange}
-            className='input'
-          />
-          {form.checkOutDate ? (
-            <p className='mt-1 text-xs text-slate-500'>Seçilen tarih: {formatDateTR(form.checkOutDate, 'dd MMMM yyyy')}</p>
-          ) : null}
-          {errors.checkOutDate ? <p className='mt-1 text-xs text-rose-600'>{errors.checkOutDate}</p> : null}
+          <label className='mb-1 block text-sm font-medium'>Not (isteğe bağlı)</label>
+          <textarea name='note' value={form.note} onChange={handleChange} rows={2} className='input' />
         </div>
 
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Toplam Ücret (TL)</label>
-          <input
-            type='number'
-            min='0'
-            step='0.01'
-            name='totalPrice'
-            value={form.totalPrice}
-            onChange={handleChange}
-            className='input'
-          />
-          {errors.totalPrice ? <p className='mt-1 text-xs text-rose-600'>{errors.totalPrice}</p> : null}
-        </div>
-
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Kapora (TL)</label>
-          <input
-            type='number'
-            min='0'
-            step='0.01'
-            name='deposit'
-            value={form.deposit}
-            onChange={handleChange}
-            className='input'
-          />
-          {errors.deposit ? <p className='mt-1 text-xs text-rose-600'>{errors.deposit}</p> : null}
-        </div>
-
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Kalan Ödeme (Otomatik)</label>
-          <input value={Number.isFinite(remainingPayment) ? remainingPayment : 0} readOnly className='input bg-slate-100' />
-        </div>
-
-        <div>
-          <label className='mb-1 block text-sm font-medium'>Rezervasyon Durumu</label>
-          <select
-            name='reservationStatus'
-            value={form.reservationStatus}
-            onChange={handleChange}
-            className='input'
+        <div className='flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4'>
+          <button
+            type='submit'
+            className='btn-success'
+            disabled={submitting || !datesValid || !form.roomName || Boolean(selectedRoomConflict)}
           >
-            <option>Aktif</option>
-            <option>Tamamlandı</option>
-            <option>İptal</option>
-          </select>
-        </div>
-
-        <div className='md:col-span-2'>
-          <label className='mb-1 block text-sm font-medium'>Not</label>
-          <textarea name='note' value={form.note} onChange={handleChange} rows={3} className='input' />
-        </div>
-
-        <div className='flex items-center gap-2 md:col-span-2'>
-          <button type='submit' className='btn-success' disabled={submitting}>
-            {submitting ? 'Kaydediliyor...' : initialValues ? 'Güncelle' : 'Rezervasyon Ekle'}
+            {submitting ? 'Kaydediliyor...' : isEditing ? 'Güncelle' : 'Rezervasyon Ekle'}
           </button>
-          {initialValues ? (
+          {isEditing ? (
             <button type='button' className='btn border border-slate-300 bg-white' onClick={onCancel}>
-              İptal
+              Vazgeç
             </button>
           ) : null}
         </div>

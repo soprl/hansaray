@@ -8,6 +8,7 @@ import {
   updateReservation,
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
+import { ROOMS, normalizeRoomName } from '../config/rooms'
 import { getEffectiveReservationStatus, RES_STATUS } from '../utils/reservationUtils'
 const statusBadgeClass = {
   Aktif: 'bg-emerald-100 text-emerald-700',
@@ -75,14 +76,6 @@ function Reservations() {
     }
   }, [])
 
-  const uniqueRooms = useMemo(
-    () =>
-      [...new Set(reservations.map((reservation) => reservation.roomName).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b, 'tr'),
-      ),
-    [reservations],
-  )
-
   const filteredReservations = useMemo(() => {
     const searchTerm = filters.search.trim().toLowerCase('tr')
 
@@ -92,7 +85,8 @@ function Reservations() {
         !searchTerm ||
         reservation.customerName?.toLowerCase('tr').includes(searchTerm) ||
         reservation.customerPhone?.toLowerCase('tr').includes(searchTerm)
-      const matchRoom = !filters.roomName || reservation.roomName === filters.roomName
+      const matchRoom =
+        !filters.roomName || normalizeRoomName(reservation.roomName) === filters.roomName
       const matchStatus = filters.status === 'Tümü' || effectiveStatus === filters.status
 
       return matchSearch && matchRoom && matchStatus
@@ -126,6 +120,26 @@ function Reservations() {
       console.error(submitError)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleCompleteReservation = async (reservation) => {
+    const confirmed = window.confirm('Rezervasyon tamamlandı olarak işaretlensin mi?')
+    if (!confirmed) return
+
+    setError('')
+    try {
+      await updateReservation(reservation.id, {
+        ...reservation,
+        reservationStatus: RES_STATUS.COMPLETED,
+      })
+      if (editingReservation?.id === reservation.id) {
+        setEditingReservation(null)
+      }
+      await loadReservations()
+    } catch (completeError) {
+      setError('Rezervasyon tamamlanırken bir hata oluştu.')
+      console.error(completeError)
     }
   }
 
@@ -172,6 +186,8 @@ function Reservations() {
         onSubmit={handleSubmitReservation}
         onCancel={() => setEditingReservation(null)}
         submitting={submitting}
+        reservations={reservations}
+        excludeId={editingReservation?.id}
       />
 
       <div className='card space-y-4'>
@@ -188,7 +204,7 @@ function Reservations() {
             onChange={(event) => setFilters((prev) => ({ ...prev, roomName: event.target.value }))}
           >
             <option value=''>Tüm Odalar</option>
-            {uniqueRooms.map((room) => (
+            {ROOMS.map((room) => (
               <option key={room} value={room}>
                 {room}
               </option>
@@ -223,7 +239,7 @@ function Reservations() {
                   <div className='space-y-1'>
                     <p className='text-lg font-semibold text-blue-950'>{reservation.customerName}</p>
                     <p className='text-sm text-slate-600'>
-                      {reservation.roomName} - {formatDateTR(reservation.checkInDate)} /{' '}
+                      {normalizeRoomName(reservation.roomName)} - {formatDateTR(reservation.checkInDate)} /{' '}
                       {formatDateTR(reservation.checkOutDate)}
                     </p>
                     <p className='text-sm text-slate-600'>Telefon: {reservation.customerPhone || '-'}</p>
@@ -243,13 +259,24 @@ function Reservations() {
                   </div>
                 </div>
 
-                <div className='mt-3 flex gap-2'>
+                <div className='mt-3 flex flex-wrap gap-2'>
                   <button
                     type='button'
                     className='btn border border-slate-300 bg-white'
                     onClick={() => setEditingReservation(reservation)}
                   >
                     Düzenle
+                  </button>
+                  <button
+                    type='button'
+                    className='btn-success'
+                    onClick={() => handleCompleteReservation(reservation)}
+                    disabled={
+                      reservation.reservationStatus === RES_STATUS.COMPLETED ||
+                      reservation.reservationStatus === RES_STATUS.CANCELLED
+                    }
+                  >
+                    Tamamlandı
                   </button>
                   <button
                     type='button'

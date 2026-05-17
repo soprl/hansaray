@@ -12,6 +12,8 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { getRoomNameVariants, normalizeRoomName } from '../config/rooms'
+import { blocksRoomAvailability, hasReservationDateConflict } from '../utils/reservationUtils'
 
 const reservationsRef = collection(db, 'reservations')
 
@@ -20,9 +22,6 @@ const toNumber = (value) => {
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
-const hasDateConflict = (incoming, existing) =>
-  incoming.checkInDate < existing.checkOutDate && incoming.checkOutDate > existing.checkInDate
-
 const normalizeReservationPayload = (data) => {
   const totalPrice = toNumber(data.totalPrice)
   const deposit = toNumber(data.deposit)
@@ -30,7 +29,7 @@ const normalizeReservationPayload = (data) => {
   return {
     customerName: data.customerName?.trim() ?? '',
     customerPhone: data.customerPhone?.trim() ?? '',
-    roomName: data.roomName?.trim() ?? '',
+    roomName: normalizeRoomName(data.roomName),
     checkInDate: data.checkInDate,
     checkOutDate: data.checkOutDate,
     totalPrice,
@@ -44,16 +43,17 @@ const normalizeReservationPayload = (data) => {
 }
 
 const checkReservationConflict = async ({ roomName, checkInDate, checkOutDate, excludeId }) => {
-  const roomQuery = query(reservationsRef, where('roomName', '==', roomName))
+  const variants = getRoomNameVariants(roomName)
+  const roomQuery = query(reservationsRef, where('roomName', 'in', variants))
   const snapshot = await getDocs(roomQuery)
 
   return snapshot.docs.some((document) => {
     if (document.id === excludeId) return false
 
     const data = document.data()
-    if (data.reservationStatus === 'İptal') return false
+    if (!blocksRoomAvailability(data)) return false
 
-    return hasDateConflict(
+    return hasReservationDateConflict(
       { checkInDate, checkOutDate },
       {
         checkInDate: data.checkInDate,
