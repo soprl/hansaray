@@ -1,5 +1,6 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { useMemo, useState } from 'react'
+import DatePickerField from './DatePickerField'
 import { ROOMS, normalizeRoomName } from '../config/rooms'
 import { formatDateTR } from '../utils/formatters'
 import { findConflictingReservation, getRoomAvailabilityList } from '../utils/reservationUtils'
@@ -156,30 +157,26 @@ function ReservationForm({
         <fieldset className='space-y-3'>
           <legend className='text-sm font-semibold text-slate-800'>1. Tarihler</legend>
           <div className='grid gap-4 sm:grid-cols-2'>
-            <div>
-              <label className='mb-1 block text-sm font-medium'>Giriş</label>
-              <input
-                type='date'
-                name='checkInDate'
-                value={form.checkInDate}
-                onChange={(event) => setCheckIn(event.target.value)}
-                className='input'
-              />
-              {errors.checkInDate ? <p className='mt-1 text-xs text-rose-600'>{errors.checkInDate}</p> : null}
-            </div>
-            <div>
-              <label className='mb-1 block text-sm font-medium'>Çıkış</label>
-              <input
-                type='date'
-                name='checkOutDate'
-                value={form.checkOutDate}
-                min={form.checkInDate || undefined}
-                onChange={handleChange}
-                className='input'
-                disabled={!form.checkInDate}
-              />
-              {errors.checkOutDate ? <p className='mt-1 text-xs text-rose-600'>{errors.checkOutDate}</p> : null}
-            </div>
+            <DatePickerField
+              label='Giriş'
+              value={form.checkInDate}
+              onChange={setCheckIn}
+              error={errors.checkInDate}
+              placeholder='Giriş tarihi seçin'
+            />
+            <DatePickerField
+              label='Çıkış'
+              value={form.checkOutDate}
+              onChange={(checkOutDate) => setForm((prev) => ({ ...prev, checkOutDate }))}
+              minDate={
+                form.checkInDate
+                  ? format(addDays(parseISO(form.checkInDate), 1), 'yyyy-MM-dd')
+                  : undefined
+              }
+              disabled={!form.checkInDate}
+              error={errors.checkOutDate}
+              placeholder='Çıkış tarihi seçin'
+            />
           </div>
 
           {form.checkInDate ? (

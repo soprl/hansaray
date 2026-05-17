@@ -78,3 +78,27 @@ body {
 .calendar-shell .tile-chip {
   @apply mt-1 inline-block rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-medium text-white;
 }
+
+.date-picker-popover .react-calendar {
+  @apply w-[280px] rounded-xl border border-slate-200 bg-white p-2 shadow-lg;
+}
+
+.date-picker-popover .react-calendar__navigation button {
+  @apply rounded-md text-sm font-medium text-blue-950 hover:bg-slate-100;
+}
+
+.date-picker-popover .react-calendar__month-view__weekdays {
+  @apply text-xs uppercase text-slate-500;
+}
+
+.date-picker-popover .react-calendar__tile {
+  @apply rounded-lg text-sm;
+}
+
+.date-picker-popover .react-calendar__tile--now {
+  @apply border border-amber-300 bg-amber-50;
+}
+
+.date-picker-popover .react-calendar__tile--active {
+  @apply border-blue-800 bg-blue-900 text-white;
+}
