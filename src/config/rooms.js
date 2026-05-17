@@ -18,6 +18,19 @@ export const normalizeRoomName = (name) => {
   return ROOM_ALIASES[trimmed] ?? trimmed
 }
 
+export const getRoomOptions = (reservations = []) => {
+  const extras = new Set()
+
+  reservations.forEach((reservation) => {
+    const normalized = normalizeRoomName(reservation.roomName)
+    if (normalized && !ROOMS.includes(normalized)) {
+      extras.add(normalized)
+    }
+  })
+
+  return [...ROOMS, ...[...extras].sort((a, b) => a.localeCompare(b, 'tr'))]
+}
+
 export const getRoomNameVariants = (canonicalName) => {
   const canonical = normalizeRoomName(canonicalName)
   const variants = new Set([canonical])

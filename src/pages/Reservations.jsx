@@ -8,7 +8,7 @@ import {
   updateReservation,
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
-import { ROOMS, normalizeRoomName } from '../config/rooms'
+import { getRoomOptions, normalizeRoomName } from '../config/rooms'
 import { getEffectiveReservationStatus, RES_STATUS } from '../utils/reservationUtils'
 const statusBadgeClass = {
   Aktif: 'bg-emerald-100 text-emerald-700',
@@ -80,6 +80,8 @@ function Reservations() {
       cancelled = true
     }
   }, [])
+
+  const roomOptions = useMemo(() => getRoomOptions(reservations), [reservations])
 
   const tabCounts = useMemo(() => {
     return reservations.reduce(
@@ -261,7 +263,7 @@ function Reservations() {
             onChange={(event) => setFilters((prev) => ({ ...prev, roomName: event.target.value }))}
           >
             <option value=''>Tüm Odalar</option>
-            {ROOMS.map((room) => (
+            {roomOptions.map((room) => (
               <option key={room} value={room}>
                 {room}
               </option>

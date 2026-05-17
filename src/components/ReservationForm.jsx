@@ -1,7 +1,7 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { useMemo, useState } from 'react'
 import DatePickerField from './DatePickerField'
-import { ROOMS, normalizeRoomName } from '../config/rooms'
+import { getRoomOptions, normalizeRoomName } from '../config/rooms'
 import { formatDateTR } from '../utils/formatters'
 import { findConflictingReservation, getRoomAvailabilityList } from '../utils/reservationUtils'
 
@@ -49,6 +49,8 @@ function ReservationForm({
   const datesValid =
     form.checkInDate && form.checkOutDate && form.checkOutDate > form.checkInDate
 
+  const roomOptions = useMemo(() => getRoomOptions(reservations), [reservations])
+
   const nightCount = useMemo(() => {
     if (!datesValid) return 0
     return differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
@@ -60,9 +62,9 @@ function ReservationForm({
       checkInDate: form.checkInDate,
       checkOutDate: form.checkOutDate,
       excludeId,
-      roomNames: ROOMS,
+      roomNames: roomOptions,
     })
-  }, [reservations, form.checkInDate, form.checkOutDate, excludeId, datesValid])
+  }, [reservations, roomOptions, form.checkInDate, form.checkOutDate, excludeId, datesValid])
 
   const selectedRoomConflict = useMemo(() => {
     if (!datesValid || !form.roomName) return null
