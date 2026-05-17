@@ -9,7 +9,7 @@ import {
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomOptions, normalizeRoomName } from '../config/rooms'
-import { getEffectiveReservationStatus, RES_STATUS } from '../utils/reservationUtils'
+import { getEffectiveReservationStatus, PAYMENT_STATUS, RES_STATUS } from '../utils/reservationUtils'
 const statusBadgeClass = {
   Aktif: 'bg-emerald-100 text-emerald-700',
   Tamamlandı: 'bg-slate-200 text-slate-700',
@@ -175,6 +175,26 @@ function Reservations() {
     }
   }
 
+  const handleMarkFullyPaid = async (reservation) => {
+    const totalPrice = Number(reservation.totalPrice) || 0
+
+    setError('')
+    try {
+      await updateReservation(reservation.id, {
+        ...reservation,
+        paymentStatus: PAYMENT_STATUS.PAID,
+        deposit: totalPrice,
+      })
+      if (editingReservation?.id === reservation.id) {
+        setEditingReservation(null)
+      }
+      await loadReservations()
+    } catch (paymentError) {
+      setError('Ödeme durumu güncellenirken bir hata oluştu.')
+      console.error(paymentError)
+    }
+  }
+
   const handleCancelReservation = async (reservation) => {
     const confirmed = window.confirm('Rezervasyon iptal edilsin mi?')
     if (!confirmed) return
@@ -322,6 +342,15 @@ function Reservations() {
                   </button>
                   {listTab === LIST_TABS.ACTIVE ? (
                     <>
+                      {reservation.paymentStatus !== PAYMENT_STATUS.PAID ? (
+                        <button
+                          type='button'
+                          className='btn border border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                          onClick={() => handleMarkFullyPaid(reservation)}
+                        >
+                          Tamamı Ödendi
+                        </button>
+                      ) : null}
                       <button
                         type='button'
                         className='btn-success'
