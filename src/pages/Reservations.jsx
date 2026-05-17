@@ -22,6 +22,11 @@ const paymentBadgeClass = {
   'Tamamı Ödendi': 'bg-emerald-100 text-emerald-700',
 }
 
+const LIST_TABS = {
+  ACTIVE: 'active',
+  COMPLETED: 'completed',
+}
+
 function Reservations() {
   const { user } = useAuth()
   const [reservations, setReservations] = useState([])
@@ -30,10 +35,10 @@ function Reservations() {
   const [submitting, setSubmitting] = useState(false)
   const [editingReservation, setEditingReservation] = useState(null)
 
+  const [listTab, setListTab] = useState(LIST_TABS.ACTIVE)
   const [filters, setFilters] = useState({
     search: '',
     roomName: '',
-    status: 'Tümü',
   })
 
   const loadReservations = async () => {
@@ -76,22 +81,46 @@ function Reservations() {
     }
   }, [])
 
+  const tabCounts = useMemo(() => {
+    return reservations.reduce(
+      (counts, reservation) => {
+        const status = getEffectiveReservationStatus(reservation)
+        if (status === RES_STATUS.COMPLETED) counts.completed += 1
+        else counts.active += 1
+        return counts
+      },
+      { active: 0, completed: 0 },
+    )
+  }, [reservations])
+
   const filteredReservations = useMemo(() => {
     const searchTerm = filters.search.trim().toLowerCase('tr')
+    const targetStatus =
+      listTab === LIST_TABS.COMPLETED ? RES_STATUS.COMPLETED : RES_STATUS.ACTIVE
 
-    return reservations.filter((reservation) => {
-      const effectiveStatus = getEffectiveReservationStatus(reservation)
-      const matchSearch =
-        !searchTerm ||
-        reservation.customerName?.toLowerCase('tr').includes(searchTerm) ||
-        reservation.customerPhone?.toLowerCase('tr').includes(searchTerm)
-      const matchRoom =
-        !filters.roomName || normalizeRoomName(reservation.roomName) === filters.roomName
-      const matchStatus = filters.status === 'Tümü' || effectiveStatus === filters.status
+    return reservations
+      .filter((reservation) => {
+        const effectiveStatus = getEffectiveReservationStatus(reservation)
+        const matchTab =
+          listTab === LIST_TABS.COMPLETED
+            ? effectiveStatus === RES_STATUS.COMPLETED
+            : effectiveStatus !== RES_STATUS.COMPLETED
+        const matchSearch =
+          !searchTerm ||
+          reservation.customerName?.toLowerCase('tr').includes(searchTerm) ||
+          reservation.customerPhone?.toLowerCase('tr').includes(searchTerm)
+        const matchRoom =
+          !filters.roomName || normalizeRoomName(reservation.roomName) === filters.roomName
 
-      return matchSearch && matchRoom && matchStatus
-    })
-  }, [reservations, filters])
+        return matchTab && matchSearch && matchRoom
+      })
+      .sort((a, b) => {
+        if (targetStatus === RES_STATUS.COMPLETED) {
+          return b.checkOutDate.localeCompare(a.checkOutDate)
+        }
+        return a.checkInDate.localeCompare(b.checkInDate)
+      })
+  }, [reservations, filters, listTab])
 
   const handleSubmitReservation = async (formData) => {
     setSubmitting(true)
@@ -136,6 +165,7 @@ function Reservations() {
       if (editingReservation?.id === reservation.id) {
         setEditingReservation(null)
       }
+      setListTab(LIST_TABS.COMPLETED)
       await loadReservations()
     } catch (completeError) {
       setError('Rezervasyon tamamlanırken bir hata oluştu.')
@@ -191,7 +221,34 @@ function Reservations() {
       />
 
       <div className='card space-y-4'>
-        <div className='flex flex-col gap-3 md:flex-row'>
+        <div className='flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1'>
+          <button
+            type='button'
+            onClick={() => setListTab(LIST_TABS.ACTIVE)}
+            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
+              listTab === LIST_TABS.ACTIVE
+                ? 'bg-white text-blue-950 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Aktif ve yaklaşan
+            <span className='ml-1.5 text-xs text-slate-500'>({tabCounts.active})</span>
+          </button>
+          <button
+            type='button'
+            onClick={() => setListTab(LIST_TABS.COMPLETED)}
+            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
+              listTab === LIST_TABS.COMPLETED
+                ? 'bg-white text-blue-950 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Tamamlanan
+            <span className='ml-1.5 text-xs text-slate-500'>({tabCounts.completed})</span>
+          </button>
+        </div>
+
+        <div className='flex flex-col gap-3 sm:flex-row'>
           <input
             className='input'
             placeholder='Müşteri adı veya telefon ara...'
@@ -199,7 +256,7 @@ function Reservations() {
             onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
           />
           <select
-            className='input'
+            className='input sm:max-w-xs'
             value={filters.roomName}
             onChange={(event) => setFilters((prev) => ({ ...prev, roomName: event.target.value }))}
           >
@@ -210,16 +267,6 @@ function Reservations() {
               </option>
             ))}
           </select>
-          <select
-            className='input'
-            value={filters.status}
-            onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}
-          >
-            <option>Tümü</option>
-            <option>Aktif</option>
-            <option>Tamamlandı</option>
-            <option>İptal</option>
-          </select>
         </div>
 
         {error ? <p className='text-sm text-rose-600'>{error}</p> : null}
@@ -227,7 +274,11 @@ function Reservations() {
         {loading ? (
           <p className='text-sm text-slate-500'>Rezervasyonlar yükleniyor...</p>
         ) : filteredReservations.length === 0 ? (
-          <p className='text-sm text-slate-500'>Filtreye uygun rezervasyon yok.</p>
+          <p className='text-sm text-slate-500'>
+            {listTab === LIST_TABS.COMPLETED
+              ? 'Tamamlanan rezervasyon yok.'
+              : 'Aktif veya yaklaşan rezervasyon yok.'}
+          </p>
         ) : (
           <div className='grid gap-3'>
             {filteredReservations.map((reservation) => {
@@ -267,25 +318,29 @@ function Reservations() {
                   >
                     Düzenle
                   </button>
-                  <button
-                    type='button'
-                    className='btn-success'
-                    onClick={() => handleCompleteReservation(reservation)}
-                    disabled={
-                      reservation.reservationStatus === RES_STATUS.COMPLETED ||
-                      reservation.reservationStatus === RES_STATUS.CANCELLED
-                    }
-                  >
-                    Tamamlandı
-                  </button>
-                  <button
-                    type='button'
-                    className='btn-danger'
-                    onClick={() => handleCancelReservation(reservation)}
-                    disabled={effectiveStatus === RES_STATUS.CANCELLED}
-                  >
-                    Rezervasyonu İptal Et
-                  </button>
+                  {listTab === LIST_TABS.ACTIVE ? (
+                    <>
+                      <button
+                        type='button'
+                        className='btn-success'
+                        onClick={() => handleCompleteReservation(reservation)}
+                        disabled={
+                          reservation.reservationStatus === RES_STATUS.COMPLETED ||
+                          reservation.reservationStatus === RES_STATUS.CANCELLED
+                        }
+                      >
+                        Tamamlandı
+                      </button>
+                      <button
+                        type='button'
+                        className='btn-danger'
+                        onClick={() => handleCancelReservation(reservation)}
+                        disabled={effectiveStatus === RES_STATUS.CANCELLED}
+                      >
+                        Rezervasyonu İptal Et
+                      </button>
+                    </>
+                  ) : null}
                   <button
                     type='button'
                     className='btn border border-slate-300 bg-white text-xs'
