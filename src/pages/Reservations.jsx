@@ -9,7 +9,13 @@ import {
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomOptions, normalizeRoomName } from '../config/rooms'
-import { getEffectiveReservationStatus, PAYMENT_STATUS, RES_STATUS } from '../utils/reservationUtils'
+import {
+  getEffectiveReservationStatus,
+  getOutstandingPayment,
+  isFullyPaidReservation,
+  PAYMENT_STATUS,
+  RES_STATUS,
+} from '../utils/reservationUtils'
 const statusBadgeClass = {
   Aktif: 'bg-emerald-100 text-emerald-700',
   Tamamlandı: 'bg-slate-200 text-slate-700',
@@ -328,7 +334,11 @@ function Reservations() {
                   <div className='space-y-1 text-sm'>
                     <p className='font-medium text-slate-700'>Toplam: {formatCurrencyTRY(reservation.totalPrice)}</p>
                     <p className='text-slate-600'>Kapora: {formatCurrencyTRY(reservation.deposit)}</p>
-                    <p className='text-slate-600'>Kalan: {formatCurrencyTRY(reservation.remainingPayment)}</p>
+                    {isFullyPaidReservation(reservation) ? (
+                      <p className='text-emerald-700'>Ödeme tamam</p>
+                    ) : (
+                      <p className='text-slate-600'>Kalan: {formatCurrencyTRY(getOutstandingPayment(reservation))}</p>
+                    )}
                   </div>
                 </div>
 

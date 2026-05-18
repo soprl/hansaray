@@ -13,7 +13,7 @@ import {
   shiftMonth,
 } from '../utils/financeUtils'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
-import { getMonthlyReservationBreakdown } from '../utils/reservationUtils'
+import { getMonthlyReservationBreakdown, getOutstandingPayment, isFullyPaidReservation } from '../utils/reservationUtils'
 
 function Reports() {
   const [reservations, setReservations] = useState([])
@@ -238,12 +238,12 @@ function Reports() {
                   </div>
                   <div className='text-right'>
                     <p className='font-semibold text-emerald-600'>{formatCurrencyTRY(reservation.totalPrice)}</p>
-                    {Number(reservation.remainingPayment) > 0 ? (
-                      <p className='text-sm text-amber-600'>
-                        Kalan {formatCurrencyTRY(reservation.remainingPayment)}
-                      </p>
+                    {isFullyPaidReservation(reservation) ? (
+                      <p className='text-sm text-slate-500'>Tamamı ödendi</p>
                     ) : (
-                      <p className='text-sm text-slate-500'>Ödendi</p>
+                      <p className='text-sm text-amber-600'>
+                        Kalan {formatCurrencyTRY(getOutstandingPayment(reservation))}
+                      </p>
                     )}
                   </div>
                 </div>

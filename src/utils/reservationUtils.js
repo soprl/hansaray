@@ -24,6 +24,19 @@ export const PAYMENT_STATUS = {
   PAID: 'Tamamı Ödendi',
 }
 
+export const getOutstandingPayment = (reservation) => {
+  if (reservation.paymentStatus === PAYMENT_STATUS.PAID) return 0
+
+  const remaining = Number(reservation.remainingPayment)
+  if (Number.isFinite(remaining) && remaining >= 0) return remaining
+
+  const totalPrice = Number(reservation.totalPrice) || 0
+  const deposit = Number(reservation.deposit) || 0
+  return Math.max(totalPrice - deposit, 0)
+}
+
+export const isFullyPaidReservation = (reservation) => getOutstandingPayment(reservation) <= 0
+
 export const isCancelledReservation = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
 
 export const blocksRoomAvailability = (reservation) => reservation.reservationStatus !== RES_STATUS.CANCELLED
@@ -207,7 +220,7 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
   const monthlyReservationIncome = getMonthlyReservationIncome(mappedReservations, today)
   const statusCounts = getReservationStatusCounts(mappedReservations)
   const totalPendingPayment = nonCancelledReservations.reduce(
-    (sum, reservation) => sum + (Number(reservation.remainingPayment) || 0),
+    (sum, reservation) => sum + getOutstandingPayment(reservation),
     0,
   )
   const monthStart = startOfMonth(today)

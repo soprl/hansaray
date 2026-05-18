@@ -13,7 +13,11 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { getRoomNameVariants, normalizeRoomName } from '../config/rooms'
-import { blocksRoomAvailability, hasReservationDateConflict } from '../utils/reservationUtils'
+import {
+  blocksRoomAvailability,
+  hasReservationDateConflict,
+  PAYMENT_STATUS,
+} from '../utils/reservationUtils'
 
 const reservationsRef = collection(db, 'reservations')
 
@@ -24,7 +28,8 @@ const toNumber = (value) => {
 
 const normalizeReservationPayload = (data) => {
   const totalPrice = toNumber(data.totalPrice)
-  const deposit = toNumber(data.deposit)
+  const isPaid = data.paymentStatus === PAYMENT_STATUS.PAID
+  const deposit = isPaid ? totalPrice : toNumber(data.deposit)
 
   return {
     customerName: data.customerName?.trim() ?? '',
@@ -34,7 +39,7 @@ const normalizeReservationPayload = (data) => {
     checkOutDate: data.checkOutDate,
     totalPrice,
     deposit,
-    remainingPayment: totalPrice - deposit,
+    remainingPayment: isPaid ? 0 : Math.max(totalPrice - deposit, 0),
     paymentStatus: data.paymentStatus,
     reservationStatus: data.reservationStatus,
     note: data.note?.trim() ?? '',

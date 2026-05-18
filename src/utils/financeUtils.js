@@ -5,6 +5,7 @@ import {
   getAllTimeReservationIncome,
   getEffectiveReservationStatus,
   getMonthlyReservationIncome,
+  getOutstandingPayment,
   isRevenueEligibleReservation,
   RES_STATUS,
 } from './reservationUtils'
@@ -52,7 +53,7 @@ export const getPendingCollectionForMonth = (reservations, referenceDate = new D
     const checkInDate = parseISODateSafe(reservation.checkInDate)
     if (!checkInDate || !isWithinInterval(checkInDate, { start: monthStart, end: monthEnd })) return total
 
-    return total + (Number(reservation.remainingPayment) || 0)
+    return total + getOutstandingPayment(reservation)
   }, 0)
 }
 
