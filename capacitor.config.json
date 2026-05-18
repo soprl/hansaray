@@ -1,0 +1,9 @@
+{
+  "appId": "com.hansaray.otel",
+  "appName": "Otel Paneli",
+  "webDir": "dist",
+  "server": {
+    "url": "https://REPLACE_WITH_YOUR_VERCEL_URL.vercel.app",
+    "cleartext": false
+  }
+}

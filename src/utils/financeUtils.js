@@ -1,6 +1,12 @@
-import { addMonths, endOfMonth, format, isWithinInterval, startOfMonth } from 'date-fns'
+import { addMonths, endOfMonth, format, isWithinInterval, startOfMonth, subMonths } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { parseISODateSafe } from './formatters'
+import {
+  getEffectiveReservationStatus,
+  getMonthlyReservationIncome,
+  isRevenueEligibleReservation,
+  RES_STATUS,
+} from './reservationUtils'
 
 export const getMonthlyTransactionTotals = (transactions, referenceDate = new Date()) => {
   const monthStart = startOfMonth(referenceDate)
@@ -24,6 +30,60 @@ export const getMonthlyTransactionTotals = (transactions, referenceDate = new Da
     monthlyNet: monthlyIncome - monthlyExpense,
   }
 }
+
+export const getTransactionsForMonth = (transactions, referenceDate = new Date()) => {
+  const monthStart = startOfMonth(referenceDate)
+  const monthEnd = endOfMonth(referenceDate)
+
+  return transactions.filter((transaction) => {
+    const transactionDate = parseISODateSafe(transaction.date)
+    return transactionDate && isWithinInterval(transactionDate, { start: monthStart, end: monthEnd })
+  })
+}
+
+export const getPendingCollectionForMonth = (reservations, referenceDate = new Date()) => {
+  const monthStart = startOfMonth(referenceDate)
+  const monthEnd = endOfMonth(referenceDate)
+
+  return reservations.reduce((total, reservation) => {
+    if (getEffectiveReservationStatus(reservation) === RES_STATUS.CANCELLED) return total
+
+    const checkInDate = parseISODateSafe(reservation.checkInDate)
+    if (!checkInDate || !isWithinInterval(checkInDate, { start: monthStart, end: monthEnd })) return total
+
+    return total + (Number(reservation.remainingPayment) || 0)
+  }, 0)
+}
+
+export const getFinanceMonthSummary = (reservations, transactions, referenceDate = new Date()) => {
+  const lodgingIncome = getMonthlyReservationIncome(reservations, referenceDate)
+  const { monthlyIncome: extraIncome, monthlyExpense } = getMonthlyTransactionTotals(transactions, referenceDate)
+  const pendingCollection = getPendingCollectionForMonth(reservations, referenceDate)
+
+  return {
+    lodgingIncome,
+    extraIncome,
+    expense: monthlyExpense,
+    net: lodgingIncome + extraIncome - monthlyExpense,
+    pendingCollection,
+  }
+}
+
+export const getReservationsForMonth = (reservations, referenceDate = new Date()) => {
+  const monthStart = startOfMonth(referenceDate)
+  const monthEnd = endOfMonth(referenceDate)
+
+  return reservations
+    .filter((reservation) => {
+      if (!isRevenueEligibleReservation(reservation)) return false
+      const checkInDate = parseISODateSafe(reservation.checkInDate)
+      return checkInDate && isWithinInterval(checkInDate, { start: monthStart, end: monthEnd })
+    })
+    .sort((a, b) => a.checkInDate.localeCompare(b.checkInDate))
+}
+
+export const formatMonthLabel = (referenceDate = new Date()) =>
+  format(startOfMonth(referenceDate), 'MMMM yyyy', { locale: tr })
 
 export const getAllTimeTransactionNet = (transactions) => {
   let income = 0
@@ -65,3 +125,15 @@ export const getMonthlyTransactionSeries = (transactions, months = 6, referenceD
     }
   })
 }
+
+export const shiftMonth = (referenceDate, delta) => startOfMonth(addMonths(referenceDate, delta))
+
+export const getRecentMonthOptions = (count = 12, referenceDate = new Date()) =>
+  Array.from({ length: count }).map((_, index) => {
+    const monthDate = startOfMonth(subMonths(referenceDate, index))
+    return {
+      value: format(monthDate, 'yyyy-MM'),
+      label: format(monthDate, 'MMMM yyyy', { locale: tr }),
+      date: monthDate,
+    }
+  })

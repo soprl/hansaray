@@ -10,6 +10,7 @@ const Calendar = lazy(() => import('./pages/Calendar'))
 const Reservations = lazy(() => import('./pages/Reservations'))
 const Finance = lazy(() => import('./pages/Finance'))
 const Reports = lazy(() => import('./pages/Reports'))
+const Notifications = lazy(() => import('./pages/Notifications'))
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
               <Route path='rezervasyonlar' element={<Reservations />} />
               <Route path='gelir-gider' element={<Finance />} />
               <Route path='raporlar' element={<Reports />} />
+              <Route path='bildirimler' element={<Notifications />} />
             </Route>
 
             <Route path='*' element={<Navigate to='/' replace />} />

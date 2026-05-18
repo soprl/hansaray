@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { AuthContext } from './authContextValue'
 import { auth } from '../firebase'
+import { initNativePush } from '../utils/nativePush'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -11,6 +12,11 @@ export function AuthProvider({ children }) {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser)
       setLoading(false)
+      if (currentUser) {
+        initNativePush(currentUser).catch((error) => {
+          console.warn('Native push init skipped', error)
+        })
+      }
     })
 
     return () => unsub()

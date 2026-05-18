@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react'
+import { EXPENSE_CATEGORIES, EXTRA_INCOME_CATEGORIES } from '../config/financeCategories'
 
 const CATEGORY_MAP = {
-  income: ['Rezervasyon', 'Ekstra Hizmet', 'Diğer'],
-  expense: ['Temizlik', 'Personel', 'Bakım', 'Fatura', 'Malzeme', 'Diğer'],
+  income: EXTRA_INCOME_CATEGORIES,
+  expense: EXPENSE_CATEGORIES,
 }
 
 const DEFAULT_FORM = {
-  type: 'income',
+  type: 'expense',
   title: '',
   amount: '',
   date: '',
-  category: 'Rezervasyon',
+  category: EXPENSE_CATEGORIES[0],
   note: '',
 }
 
@@ -58,7 +59,14 @@ function TransactionForm({ initialValues, onSubmit, onCancel, submitting }) {
 
   return (
     <section className='card'>
-      <h2 className='text-lg font-semibold text-blue-950'>{initialValues ? 'İşlem Düzenle' : 'Gelir / Gider Ekle'}</h2>
+      <h2 className='text-lg font-semibold text-blue-950'>
+        {initialValues ? 'İşlem Düzenle' : 'Gider veya ek gelir ekle'}
+      </h2>
+      {!initialValues ? (
+        <p className='mt-1 text-sm text-slate-500'>
+          Konaklama geliri rezervasyonlardan gelir; buraya sadece ek gelir veya gider yazın.
+        </p>
+      ) : null}
 
       <form onSubmit={handleSubmit} className='mt-4 grid gap-4 md:grid-cols-2'>
         <div>

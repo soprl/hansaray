@@ -1,364 +1,251 @@
-import { format, parseISO, startOfMonth } from 'date-fns'
-import { tr } from 'date-fns/locale'
+import { format, parse, startOfMonth } from 'date-fns'
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import { getReservations } from '../services/reservationService'
 import { getTransactions } from '../services/transactionService'
+import { printFinancePdf } from '../utils/financeExport'
 import {
-  getAllTimeTransactionNet,
-  getMonthlyTransactionSeries,
-  getMonthlyTransactionTotals,
+  formatMonthLabel,
+  getFinanceMonthSummary,
+  getReservationsForMonth,
+  getTransactionsForMonth,
+  shiftMonth,
 } from '../utils/financeUtils'
-import { formatCurrencyTRY } from '../utils/formatters'
-import {
-  getAllTimeReservationIncome,
-  getEffectiveReservationStatus,
-  getMonthlyReservationIncome,
-  getMonthlyReservationIncomeSeries,
-  getPaymentStatusCounts,
-  getReservationStatusCounts,
-  getTopUsedRooms,
-  RES_STATUS,
-} from '../utils/reservationUtils'
-
-const STATUS_COLORS = ['#10b981', '#1d4ed8', '#ef4444']
+import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 
 function Reports() {
-  const now = new Date()
-  const currentYear = now.getFullYear()
-  const currentMonth = now.getMonth() + 1
-
   const [reservations, setReservations] = useState([])
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selectedYear, setSelectedYear] = useState(currentYear)
-  const [selectedMonthNumber, setSelectedMonthNumber] = useState(currentMonth)
+  const [monthDate, setMonthDate] = useState(() => startOfMonth(new Date()))
 
   useEffect(() => {
-    const fetchReportData = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const [reservationData, transactionData] = await Promise.all([getReservations(), getTransactions()])
-        setReservations(reservationData)
-        setTransactions(transactionData)
-      } catch (fetchError) {
-        setError('Rapor verileri yüklenirken bir hata oluştu.')
-        console.error(fetchError)
-      } finally {
-        setLoading(false)
-      }
-    }
+    let cancelled = false
 
-    fetchReportData()
+    Promise.all([getReservations(), getTransactions()])
+      .then(([reservationData, transactionData]) => {
+        if (!cancelled) {
+          setReservations(reservationData)
+          setTransactions(transactionData)
+        }
+      })
+      .catch((fetchError) => {
+        if (!cancelled) setError('Rapor verileri yüklenirken bir hata oluştu.')
+        console.error(fetchError)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const monthOptions = useMemo(() => {
-    const available = new Set()
+  const monthKey = format(monthDate, 'yyyy-MM')
 
-    reservations.forEach((reservation) => {
-      if (!reservation.checkInDate) return
-      const date = parseISO(reservation.checkInDate)
-      if (Number.isNaN(date.getTime())) return
-      if (date.getFullYear() === selectedYear) {
-        available.add(date.getMonth() + 1)
-      }
-    })
+  const summary = useMemo(
+    () => getFinanceMonthSummary(reservations, transactions, monthDate),
+    [reservations, transactions, monthDate],
+  )
 
-    transactions.forEach((transaction) => {
-      if (!transaction.date) return
-      const date = parseISO(transaction.date)
-      if (Number.isNaN(date.getTime())) return
-      if (date.getFullYear() === selectedYear) {
-        available.add(date.getMonth() + 1)
-      }
-    })
+  const lodgingReservations = useMemo(
+    () => getReservationsForMonth(reservations, monthDate),
+    [reservations, monthDate],
+  )
 
-    const maxMonth = selectedYear === currentYear ? currentMonth : 12
-    const base = Array.from({ length: maxMonth }, (_, index) => index + 1)
-    const merged = [...new Set([...base, ...available])]
+  const monthTransactions = useMemo(
+    () =>
+      getTransactionsForMonth(transactions, monthDate).sort((a, b) =>
+        (b.date || '').localeCompare(a.date || ''),
+      ),
+    [transactions, monthDate],
+  )
 
-    return merged.sort((a, b) => a - b)
-  }, [reservations, transactions, selectedYear, currentYear, currentMonth])
+  const expenses = useMemo(
+    () => monthTransactions.filter((t) => t.type === 'expense'),
+    [monthTransactions],
+  )
 
-  const effectiveMonthNumber = monthOptions.includes(selectedMonthNumber)
-    ? selectedMonthNumber
-    : (monthOptions[0] ?? 1)
+  const extraIncomes = useMemo(
+    () => monthTransactions.filter((t) => t.type === 'income'),
+    [monthTransactions],
+  )
 
-  const reportData = useMemo(() => {
-    const monthText = String(effectiveMonthNumber).padStart(2, '0')
-    const referenceDate = parseISO(`${selectedYear}-${monthText}-01`)
-    const reservationCounts = getReservationStatusCounts(reservations)
-    const monthlyReservationIncome = getMonthlyReservationIncome(reservations, referenceDate)
-    const { monthlyIncome: monthlyManualIncome, monthlyExpense } = getMonthlyTransactionTotals(
-      transactions,
-      referenceDate,
-    )
-    const monthlyTotalIncome = monthlyReservationIncome + monthlyManualIncome
-    const monthlyNet = monthlyTotalIncome - monthlyExpense
-    const allTimeNet = getAllTimeReservationIncome(reservations) + getAllTimeTransactionNet(transactions)
-
-    const roomUsage = getTopUsedRooms(reservations)
-    const topRoom = roomUsage[0]?.roomName ?? '-'
-
-    const statusPieData = [
-      { name: 'Aktif', value: reservationCounts.active },
-      { name: 'Tamamlandı', value: reservationCounts.completed },
-      { name: 'İptal', value: reservationCounts.cancelled },
-    ]
-    const paymentSummary = getPaymentStatusCounts(reservations, referenceDate)
-
-    const reservationSeries = getMonthlyReservationIncomeSeries(reservations, 6, referenceDate)
-    const transactionSeries = getMonthlyTransactionSeries(transactions, 6, referenceDate)
-    const monthlyBarData = reservationSeries.map((item, index) => ({
-      month: format(item.monthDate || startOfMonth(referenceDate), 'MMM yy', { locale: tr }),
-      gelir: item.reservationIncome + (transactionSeries[index]?.income ?? 0),
-      gider: transactionSeries[index]?.expense ?? 0,
-    }))
-
-    const monthlyReservationCount = reservations.filter((reservation) => {
-      const status = getEffectiveReservationStatus(reservation, referenceDate)
-      if (status === RES_STATUS.CANCELLED) return false
-      const checkInDate = reservation.checkInDate ? parseISO(reservation.checkInDate) : null
-      if (!checkInDate || Number.isNaN(checkInDate.getTime())) return false
-      return checkInDate.getFullYear() === selectedYear && checkInDate.getMonth() + 1 === effectiveMonthNumber
-    }).length
-
-    return {
-      reservationCounts,
-      monthlyReservationIncome,
-      monthlyManualIncome,
-      monthlyTotalIncome,
-      monthlyExpense,
-      monthlyNet,
-      allTimeNet,
-      topRoom,
-      roomUsage,
-      statusPieData,
-      paymentSummary,
-      monthlyBarData,
-      monthlyReservationCount,
-      selectedMonthLabel: format(referenceDate, 'MMMM yyyy', { locale: tr }),
-      selectedMonthChartData: [{ ay: format(referenceDate, 'MMMM yyyy', { locale: tr }), gelir: monthlyTotalIncome, gider: monthlyExpense }],
+  const handleMonthSelect = (event) => {
+    const parsed = parse(`${event.target.value}-01`, 'yyyy-MM-dd', new Date())
+    if (!Number.isNaN(parsed.getTime())) {
+      setMonthDate(startOfMonth(parsed))
     }
-  }, [reservations, transactions, selectedYear, effectiveMonthNumber])
+  }
+
+  const handleExportPdf = () => {
+    const opened = printFinancePdf({ monthDate, summary })
+    if (!opened) {
+      setError('PDF için açılır pencere engellendi. Tarayıcıda izin verin.')
+    }
+  }
+
+  const monthLabel = formatMonthLabel(monthDate)
 
   return (
     <section className='space-y-4'>
-      <div className='card'>
-        <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-          <h2 className='text-lg font-semibold text-blue-950'>Raporlar - {reportData.selectedMonthLabel}</h2>
-          <div>
-            <label className='mb-1 block text-xs font-medium text-slate-600'>Ay / Yıl Seç</label>
-            <div className='flex gap-2'>
-              <select
-                className='input'
-                value={effectiveMonthNumber}
-                onChange={(event) => setSelectedMonthNumber(Number(event.target.value))}
-              >
-                {monthOptions.map((monthValue) => (
-                  <option key={monthValue} value={monthValue}>
-                    {format(parseISO(`${selectedYear}-${String(monthValue).padStart(2, '0')}-01`), 'MMMM', {
-                      locale: tr,
-                    })}
-                  </option>
-                ))}
-              </select>
-              <select
-                className='input'
-                value={selectedYear}
-                onChange={(event) => setSelectedYear(Number(event.target.value))}
-              >
-                {[currentYear, currentYear - 1].map((yearValue) => (
-                  <option key={yearValue} value={yearValue}>
-                    {yearValue}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+      <div className='card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='flex items-center justify-center gap-2'>
+          <button
+            type='button'
+            className='btn border border-slate-300 bg-white px-3'
+            onClick={() => setMonthDate((d) => shiftMonth(d, -1))}
+            aria-label='Önceki ay'
+          >
+            ←
+          </button>
+          <select
+            className='input max-w-[200px] text-center font-medium capitalize'
+            value={monthKey}
+            onChange={handleMonthSelect}
+          >
+            {Array.from({ length: 24 }).map((_, index) => {
+              const optionDate = shiftMonth(startOfMonth(new Date()), -index)
+              const value = format(optionDate, 'yyyy-MM')
+              const label = formatMonthLabel(optionDate)
+              return (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              )
+            })}
+          </select>
+          <button
+            type='button'
+            className='btn border border-slate-300 bg-white px-3'
+            onClick={() => setMonthDate((d) => shiftMonth(d, 1))}
+            aria-label='Sonraki ay'
+          >
+            →
+          </button>
         </div>
+
+        <button type='button' className='btn border border-slate-300 bg-white' onClick={handleExportPdf}>
+          PDF özeti (A4)
+        </button>
       </div>
 
-      <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Toplam Rezervasyon</p>
-          <p className='mt-2 text-2xl font-semibold text-blue-950'>{loading ? '...' : reportData.reservationCounts.total}</p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Aktif Rezervasyon</p>
-          <p className='mt-2 text-2xl font-semibold text-emerald-600'>{loading ? '...' : reportData.reservationCounts.active}</p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Tamamlanan Rezervasyon</p>
-          <p className='mt-2 text-2xl font-semibold text-indigo-600'>
-            {loading ? '...' : reportData.reservationCounts.completed}
-          </p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>İptal Rezervasyon</p>
-          <p className='mt-2 text-2xl font-semibold text-rose-600'>{loading ? '...' : reportData.reservationCounts.cancelled}</p>
-        </article>
-      </div>
+      <p className='text-center text-sm capitalize text-slate-500'>{monthLabel} raporu</p>
 
-      <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
+      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
         <article className='card'>
-          <p className='text-sm text-slate-500'>Seçili Ay Rezervasyon Sayısı</p>
-          <p className='mt-2 text-xl font-semibold text-blue-950'>
-            {loading ? '...' : reportData.monthlyReservationCount}
+          <p className='text-sm text-slate-500'>Konaklama geliri</p>
+          <p className='mt-1 text-xl font-semibold text-emerald-600'>
+            {loading ? '...' : formatCurrencyTRY(summary.lodgingIncome)}
+          </p>
+          <p className='mt-1 text-xs text-slate-400'>Rezervasyonlardan</p>
+        </article>
+        <article className='card'>
+          <p className='text-sm text-slate-500'>Gider</p>
+          <p className='mt-1 text-xl font-semibold text-rose-600'>
+            {loading ? '...' : formatCurrencyTRY(summary.expense)}
           </p>
         </article>
         <article className='card'>
-          <p className='text-sm text-slate-500'>Rezervasyon Geliri</p>
-          <p className='mt-2 text-xl font-semibold text-blue-950'>
-            {loading ? '...' : formatCurrencyTRY(reportData.monthlyReservationIncome)}
+          <p className='text-sm text-slate-500'>Net</p>
+          <p className='mt-1 text-xl font-semibold text-blue-950'>
+            {loading ? '...' : formatCurrencyTRY(summary.net)}
+          </p>
+          <p className='mt-1 text-xs text-slate-400'>
+            Ek gelir {loading ? '...' : formatCurrencyTRY(summary.extraIncome)} dahil
           </p>
         </article>
         <article className='card'>
-          <p className='text-sm text-slate-500'>Manuel Gelir</p>
-          <p className='mt-2 text-xl font-semibold text-emerald-600'>
-            {loading ? '...' : formatCurrencyTRY(reportData.monthlyManualIncome)}
+          <p className='text-sm text-slate-500'>Bekleyen</p>
+          <p className='mt-1 text-xl font-semibold text-amber-600'>
+            {loading ? '...' : formatCurrencyTRY(summary.pendingCollection)}
           </p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Toplam Gelir</p>
-          <p className='mt-2 text-xl font-semibold text-emerald-600'>
-            {loading ? '...' : formatCurrencyTRY(reportData.monthlyTotalIncome)}
-          </p>
-        </article>
-      </div>
-
-      <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Toplam Gider</p>
-          <p className='mt-2 text-xl font-semibold text-rose-600'>
-            {loading ? '...' : formatCurrencyTRY(reportData.monthlyExpense)}
-          </p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Net Kazanç</p>
-          <p className='mt-2 text-2xl font-semibold text-blue-950'>
-            {loading ? '...' : formatCurrencyTRY(reportData.monthlyNet)}
-          </p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Tüm Zamanlar Net Kazanç</p>
-          <p className='mt-2 text-2xl font-semibold text-blue-950'>
-            {loading ? '...' : formatCurrencyTRY(reportData.allTimeNet)}
-          </p>
-        </article>
-      </div>
-
-      <article className='card'>
-        <p className='text-sm text-slate-500'>En Çok Kullanılan Oda / Bungalov</p>
-        <p className='mt-2 text-2xl font-semibold text-blue-950'>{loading ? '...' : reportData.topRoom}</p>
-      </article>
-      <div className='grid gap-4 sm:grid-cols-3'>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Ödenmedi</p>
-          <p className='mt-2 text-2xl font-semibold text-rose-600'>{loading ? '...' : reportData.paymentSummary.unpaid}</p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Kapora Alındı</p>
-          <p className='mt-2 text-2xl font-semibold text-amber-600'>{loading ? '...' : reportData.paymentSummary.deposit}</p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Tamamı Ödendi</p>
-          <p className='mt-2 text-2xl font-semibold text-emerald-600'>{loading ? '...' : reportData.paymentSummary.paid}</p>
+          <p className='mt-1 text-xs text-slate-400'>Bu ay giriş yapan misafirler</p>
         </article>
       </div>
 
       {error ? <p className='text-sm text-rose-600'>{error}</p> : null}
 
       {loading ? (
-        <div className='card'>
-          <p className='text-sm text-slate-500'>Rapor grafikleri yükleniyor...</p>
-        </div>
-      ) : reservations.length === 0 && transactions.length === 0 ? (
-        <div className='card'>
-          <p className='text-sm text-slate-500'>Rapor oluşturmak için henüz veri bulunmuyor.</p>
-        </div>
+        <p className='text-sm text-slate-500'>Yükleniyor...</p>
       ) : (
-        <div className='grid gap-4 lg:grid-cols-2'>
-          <div className='card'>
-            <h3 className='text-base font-semibold text-blue-950'>Seçili Ay Gelir / Gider</h3>
-            <div className='mt-4 h-72 w-full'>
-              <ResponsiveContainer width='100%' height='100%'>
-                <BarChart data={reportData.selectedMonthChartData}>
-                  <XAxis dataKey='ay' />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrencyTRY(value)} />
-                  <Legend />
-                  <Bar dataKey='gelir' fill='#10b981' name='Gelir' radius={[6, 6, 0, 0]} />
-                  <Bar dataKey='gider' fill='#ef4444' name='Gider' radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+        <div className='space-y-4'>
+          <ReportSection title='Konaklama gelirleri' count={lodgingReservations.length} emptyText='Bu ay konaklama geliri yok.'>
+            {lodgingReservations.map((reservation) => (
+              <article key={reservation.id} className='rounded-lg border border-slate-200 p-4'>
+                <div className='flex flex-col justify-between gap-2 sm:flex-row sm:items-start'>
+                  <div>
+                    <p className='font-semibold text-blue-950'>{reservation.customerName}</p>
+                    <p className='text-sm text-slate-600'>
+                      {reservation.roomName} · Giriş {formatDateTR(reservation.checkInDate)}
+                    </p>
+                  </div>
+                  <div className='text-right'>
+                    <p className='font-semibold text-emerald-600'>{formatCurrencyTRY(reservation.totalPrice)}</p>
+                    {Number(reservation.remainingPayment) > 0 ? (
+                      <p className='text-sm text-amber-600'>
+                        Kalan {formatCurrencyTRY(reservation.remainingPayment)}
+                      </p>
+                    ) : (
+                      <p className='text-sm text-slate-500'>Ödendi</p>
+                    )}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </ReportSection>
 
-          <div className='card'>
-            <h3 className='text-base font-semibold text-blue-950'>Rezervasyon Durum Dağılımı</h3>
-            <div className='mt-4 h-72 w-full'>
-              <ResponsiveContainer width='100%' height='100%'>
-                <PieChart>
-                  <Pie data={reportData.statusPieData} dataKey='value' nameKey='name' outerRadius={90} label>
-                    {reportData.statusPieData.map((entry, index) => (
-                      <Cell key={entry.name} fill={STATUS_COLORS[index % STATUS_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ReportSection title='Giderler' count={expenses.length} emptyText='Bu ay gider kaydı yok.'>
+            {expenses.map((transaction) => (
+              <TransactionLine key={transaction.id} transaction={transaction} />
+            ))}
+          </ReportSection>
 
-          <div className='card lg:col-span-2'>
-            <h3 className='text-base font-semibold text-blue-950'>Son 6 Ay Gelir / Gider</h3>
-            <div className='mt-4 h-72 w-full'>
-              <ResponsiveContainer width='100%' height='100%'>
-                <BarChart data={reportData.monthlyBarData}>
-                  <XAxis dataKey='month' />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrencyTRY(value)} />
-                  <Legend />
-                  <Bar dataKey='gelir' fill='#10b981' name='Gelir' radius={[6, 6, 0, 0]} />
-                  <Bar dataKey='gider' fill='#ef4444' name='Gider' radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className='card lg:col-span-2'>
-            <h3 className='text-base font-semibold text-blue-950'>En Çok Kullanılan Odalar</h3>
-            {reportData.roomUsage.length === 0 ? (
-              <p className='mt-2 text-sm text-slate-500'>Henüz oda kullanım verisi yok.</p>
-            ) : (
-              <div className='mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3'>
-                {reportData.roomUsage.slice(0, 6).map((room) => (
-                  <article key={room.roomName} className='rounded-lg border border-slate-200 p-3'>
-                    <p className='text-sm font-medium text-blue-950'>{room.roomName}</p>
-                    <p className='text-xs text-slate-500'>{room.count} rezervasyon</p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
+          <ReportSection title='Ek gelirler' count={extraIncomes.length} emptyText='Bu ay ek gelir kaydı yok.'>
+            {extraIncomes.map((transaction) => (
+              <TransactionLine key={transaction.id} transaction={transaction} />
+            ))}
+          </ReportSection>
         </div>
       )}
     </section>
+  )
+}
+
+function ReportSection({ title, count, emptyText, children }) {
+  return (
+    <section className='card'>
+      <h2 className='text-base font-semibold text-blue-950'>
+        {title} <span className='font-normal text-slate-400'>({count})</span>
+      </h2>
+      {count === 0 ? (
+        <p className='mt-3 text-sm text-slate-500'>{emptyText}</p>
+      ) : (
+        <div className='mt-3 grid gap-2'>{children}</div>
+      )}
+    </section>
+  )
+}
+
+function TransactionLine({ transaction }) {
+  const isIncome = transaction.type === 'income'
+
+  return (
+    <article className='rounded-lg border border-slate-200 p-4'>
+      <div className='flex flex-col justify-between gap-2 sm:flex-row sm:items-start'>
+        <div>
+          <p className='font-semibold text-blue-950'>{transaction.title}</p>
+          <p className='text-sm text-slate-600'>{transaction.category}</p>
+          <p className='text-sm text-slate-500'>{formatDateTR(transaction.date)}</p>
+          {transaction.note ? <p className='text-sm text-slate-500'>{transaction.note}</p> : null}
+        </div>
+        <p className={`font-semibold ${isIncome ? 'text-emerald-600' : 'text-rose-600'}`}>
+          {isIncome ? '+' : '-'}
+          {formatCurrencyTRY(transaction.amount)}
+        </p>
+      </div>
+    </article>
   )
 }
 

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { FiBarChart2, FiCalendar, FiDollarSign, FiHome, FiLogOut, FiUsers } from 'react-icons/fi'
+import { FiBarChart2, FiBell, FiCalendar, FiDollarSign, FiHome, FiLogOut, FiUsers } from 'react-icons/fi'
 import { useAuth } from '../context/useAuth'
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { to: '/rezervasyonlar', label: 'Rezervasyonlar', icon: FiUsers },
   { to: '/gelir-gider', label: 'Gelir / Gider', icon: FiDollarSign },
   { to: '/raporlar', label: 'Raporlar', icon: FiBarChart2 },
+  { to: '/bildirimler', label: 'Bildirimler', icon: FiBell },
 ]
 
 function Sidebar() {
