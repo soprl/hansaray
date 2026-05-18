@@ -2,6 +2,7 @@ import { addMonths, endOfMonth, format, isWithinInterval, startOfMonth, subMonth
 import { tr } from 'date-fns/locale'
 import { parseISODateSafe } from './formatters'
 import {
+  getAllTimeReservationIncome,
   getEffectiveReservationStatus,
   getMonthlyReservationIncome,
   isRevenueEligibleReservation,
@@ -137,3 +138,33 @@ export const getRecentMonthOptions = (count = 12, referenceDate = new Date()) =>
       date: monthDate,
     }
   })
+
+export const getMonthNavigationOptions = (
+  selectedDate,
+  monthsBack = 36,
+  monthsForward = 12,
+) => {
+  const pivot = startOfMonth(new Date())
+  const selected = startOfMonth(selectedDate)
+  let rangeStart = shiftMonth(pivot, -monthsBack)
+  let rangeEnd = shiftMonth(pivot, monthsForward)
+
+  if (selected < rangeStart) rangeStart = selected
+  if (selected > rangeEnd) rangeEnd = selected
+
+  const options = []
+  let cursor = rangeStart
+  while (cursor <= rangeEnd) {
+    options.push({
+      value: format(cursor, 'yyyy-MM'),
+      label: formatMonthLabel(cursor),
+      date: cursor,
+    })
+    cursor = shiftMonth(cursor, 1)
+  }
+
+  return options.reverse()
+}
+
+export const getAllTimeFinanceNet = (reservations, transactions) =>
+  getAllTimeReservationIncome(reservations) + getAllTimeTransactionNet(transactions)

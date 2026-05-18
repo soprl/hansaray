@@ -5,12 +5,15 @@ import { getTransactions } from '../services/transactionService'
 import { printFinancePdf } from '../utils/financeExport'
 import {
   formatMonthLabel,
+  getAllTimeFinanceNet,
   getFinanceMonthSummary,
+  getMonthNavigationOptions,
   getReservationsForMonth,
   getTransactionsForMonth,
   shiftMonth,
 } from '../utils/financeUtils'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
+import { getMonthlyReservationBreakdown } from '../utils/reservationUtils'
 
 function Reports() {
   const [reservations, setReservations] = useState([])
@@ -43,6 +46,18 @@ function Reports() {
   }, [])
 
   const monthKey = format(monthDate, 'yyyy-MM')
+
+  const monthOptions = useMemo(() => getMonthNavigationOptions(monthDate), [monthDate])
+
+  const reservationBreakdown = useMemo(
+    () => getMonthlyReservationBreakdown(reservations, monthDate),
+    [reservations, monthDate],
+  )
+
+  const allTimeNet = useMemo(
+    () => getAllTimeFinanceNet(reservations, transactions),
+    [reservations, transactions],
+  )
 
   const summary = useMemo(
     () => getFinanceMonthSummary(reservations, transactions, monthDate),
@@ -101,20 +116,15 @@ function Reports() {
             ←
           </button>
           <select
-            className='input max-w-[200px] text-center font-medium capitalize'
+            className='input max-w-[220px] text-center font-medium capitalize'
             value={monthKey}
             onChange={handleMonthSelect}
           >
-            {Array.from({ length: 24 }).map((_, index) => {
-              const optionDate = shiftMonth(startOfMonth(new Date()), -index)
-              const value = format(optionDate, 'yyyy-MM')
-              const label = formatMonthLabel(optionDate)
-              return (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              )
-            })}
+            {monthOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           <button
             type='button'
@@ -133,37 +143,82 @@ function Reports() {
 
       <p className='text-center text-sm capitalize text-slate-500'>{monthLabel} raporu</p>
 
-      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Konaklama geliri</p>
-          <p className='mt-1 text-xl font-semibold text-emerald-600'>
-            {loading ? '...' : formatCurrencyTRY(summary.lodgingIncome)}
-          </p>
-          <p className='mt-1 text-xs text-slate-400'>Rezervasyonlardan</p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Gider</p>
-          <p className='mt-1 text-xl font-semibold text-rose-600'>
-            {loading ? '...' : formatCurrencyTRY(summary.expense)}
-          </p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Net</p>
-          <p className='mt-1 text-xl font-semibold text-blue-950'>
-            {loading ? '...' : formatCurrencyTRY(summary.net)}
-          </p>
-          <p className='mt-1 text-xs text-slate-400'>
-            Ek gelir {loading ? '...' : formatCurrencyTRY(summary.extraIncome)} dahil
-          </p>
-        </article>
-        <article className='card'>
-          <p className='text-sm text-slate-500'>Bekleyen</p>
-          <p className='mt-1 text-xl font-semibold text-amber-600'>
-            {loading ? '...' : formatCurrencyTRY(summary.pendingCollection)}
-          </p>
-          <p className='mt-1 text-xs text-slate-400'>Bu ay giriş yapan misafirler</p>
-        </article>
-      </div>
+      <section>
+        <h2 className='mb-2 text-sm font-medium text-slate-600'>Bu ay rezervasyonlar (giriş tarihine göre)</h2>
+        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Toplam</p>
+            <p className='mt-1 text-2xl font-semibold text-blue-950'>
+              {loading ? '...' : reservationBreakdown.total}
+            </p>
+          </article>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Tamamlandı</p>
+            <p className='mt-1 text-2xl font-semibold text-indigo-600'>
+              {loading ? '...' : reservationBreakdown.completed}
+            </p>
+          </article>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Tamamlanmadı</p>
+            <p className='mt-1 text-2xl font-semibold text-emerald-600'>
+              {loading ? '...' : reservationBreakdown.ongoing}
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>Devam eden veya girişi geçmiş aktif</p>
+          </article>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Gelecek</p>
+            <p className='mt-1 text-2xl font-semibold text-sky-600'>
+              {loading ? '...' : reservationBreakdown.upcoming}
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>Giriş tarihi henüz gelmedi</p>
+          </article>
+        </div>
+        {!loading && reservationBreakdown.cancelled > 0 ? (
+          <p className='mt-2 text-xs text-slate-500'>İptal: {reservationBreakdown.cancelled}</p>
+        ) : null}
+      </section>
+
+      <section>
+        <h2 className='mb-2 text-sm font-medium text-slate-600'>Finansal özet</h2>
+        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-5'>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Konaklama geliri</p>
+            <p className='mt-1 text-xl font-semibold text-emerald-600'>
+              {loading ? '...' : formatCurrencyTRY(summary.lodgingIncome)}
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>Rezervasyonlardan</p>
+          </article>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Gider</p>
+            <p className='mt-1 text-xl font-semibold text-rose-600'>
+              {loading ? '...' : formatCurrencyTRY(summary.expense)}
+            </p>
+          </article>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Net kazanç (bu ay)</p>
+            <p className='mt-1 text-xl font-semibold text-blue-950'>
+              {loading ? '...' : formatCurrencyTRY(summary.net)}
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>
+              Ek gelir {loading ? '...' : formatCurrencyTRY(summary.extraIncome)} dahil
+            </p>
+          </article>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Bekleyen tahsilat</p>
+            <p className='mt-1 text-xl font-semibold text-amber-600'>
+              {loading ? '...' : formatCurrencyTRY(summary.pendingCollection)}
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>Bu ay giriş yapan misafirler</p>
+          </article>
+          <article className='card border-blue-200 bg-blue-50/50'>
+            <p className='text-sm text-slate-500'>Toplam net kazanç</p>
+            <p className='mt-1 text-xl font-semibold text-blue-950'>
+              {loading ? '...' : formatCurrencyTRY(allTimeNet)}
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>Tüm zamanlar (rezervasyon + manuel)</p>
+          </article>
+        </div>
+      </section>
 
       {error ? <p className='text-sm text-rose-600'>{error}</p> : null}
 

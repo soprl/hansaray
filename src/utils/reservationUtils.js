@@ -238,6 +238,47 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
   }
 }
 
+export const getMonthlyReservationBreakdown = (reservations, referenceDate = new Date()) => {
+  const monthStart = startOfMonth(referenceDate)
+  const monthEnd = endOfMonth(referenceDate)
+  const today = startOfDay(new Date())
+
+  const counts = {
+    total: 0,
+    completed: 0,
+    ongoing: 0,
+    upcoming: 0,
+    cancelled: 0,
+  }
+
+  reservations.forEach((reservation) => {
+    const checkInDate = parseISODateSafe(reservation.checkInDate)
+    if (!checkInDate || !isWithinInterval(checkInDate, { start: monthStart, end: monthEnd })) return
+
+    if (reservation.reservationStatus === RES_STATUS.CANCELLED) {
+      counts.cancelled += 1
+      return
+    }
+
+    counts.total += 1
+    const effectiveStatus = getEffectiveReservationStatus(reservation, today)
+
+    if (effectiveStatus === RES_STATUS.COMPLETED) {
+      counts.completed += 1
+      return
+    }
+
+    if (isAfter(startOfDay(checkInDate), today)) {
+      counts.upcoming += 1
+      return
+    }
+
+    counts.ongoing += 1
+  })
+
+  return counts
+}
+
 export const getPaymentStatusCounts = (reservations, referenceDate = new Date()) =>
   reservations.reduce(
     (acc, reservation) => {
