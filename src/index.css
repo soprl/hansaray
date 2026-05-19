@@ -2,9 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   @apply m-0 bg-slate-100 text-slate-800;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  touch-action: manipulation;
+}
+
+@media (max-width: 1023px) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
+  .input,
+  select.input,
+  textarea.input {
+    font-size: 16px;
+  }
 }
 
 #root {
@@ -66,7 +86,8 @@ html.native-app .btn {
 }
 
 html.native-app .input {
-  @apply border-amber-200/80 py-1.5 text-xs focus:border-brand-gold focus:ring-brand-gold/25;
+  @apply border-amber-200/80 py-1.5 focus:border-brand-gold focus:ring-brand-gold/25;
+  font-size: 16px;
 }
 
 html.native-app .btn-primary {
