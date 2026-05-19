@@ -25,6 +25,17 @@ const DEFAULT_FORM = {
 
 const NIGHT_PRESETS = [1, 2, 3, 7]
 
+const sanitizeMoneyInput = (value) => {
+  if (!value) return ''
+  let cleaned = value.replace(/[^\d.,]/g, '')
+  const separatorIndex = cleaned.search(/[.,]/)
+  if (separatorIndex === -1) return cleaned
+
+  const whole = cleaned.slice(0, separatorIndex)
+  const fraction = cleaned.slice(separatorIndex + 1).replace(/[.,]/g, '')
+  return fraction ? `${whole}.${fraction}` : whole
+}
+
 function ReservationForm({
   initialValues,
   onSubmit,
@@ -176,12 +187,14 @@ function ReservationForm({
 
   const handleChange = (event) => {
     const { name, value } = event.target
+    const nextValue = name === 'totalPrice' || name === 'deposit' ? sanitizeMoneyInput(value) : value
+
     setForm((prev) => {
-      const next = { ...prev, [name]: value }
+      const next = { ...prev, [name]: nextValue }
       if (name === 'totalPrice' || name === 'deposit') {
         next.paymentStatus = derivePaymentStatus(
-          name === 'totalPrice' ? value : prev.totalPrice,
-          name === 'deposit' ? value : prev.deposit,
+          name === 'totalPrice' ? nextValue : prev.totalPrice,
+          name === 'deposit' ? nextValue : prev.deposit,
         )
       }
       return next
@@ -454,26 +467,26 @@ function ReservationForm({
             <div>
               <label className='mb-1 block text-sm font-medium'>Toplam (TL)</label>
               <input
-                type='number'
-                min='0'
-                step='0.01'
+                type='text'
+                inputMode='decimal'
                 name='totalPrice'
                 value={form.totalPrice}
                 onChange={handleChange}
                 className='input'
+                autoComplete='off'
               />
               {errors.totalPrice ? <p className='mt-1 text-xs text-rose-600'>{errors.totalPrice}</p> : null}
             </div>
             <div>
               <label className='mb-1 block text-sm font-medium'>Kapora (TL)</label>
               <input
-                type='number'
-                min='0'
-                step='0.01'
+                type='text'
+                inputMode='decimal'
                 name='deposit'
                 value={form.deposit}
                 onChange={handleChange}
                 className='input'
+                autoComplete='off'
               />
               {errors.deposit ? <p className='mt-1 text-xs text-rose-600'>{errors.deposit}</p> : null}
             </div>
