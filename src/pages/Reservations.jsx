@@ -40,6 +40,7 @@ function Reservations() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [editingReservation, setEditingReservation] = useState(null)
+  const [newReservationFormKey, setNewReservationFormKey] = useState(0)
 
   const [listTab, setListTab] = useState(LIST_TABS.ACTIVE)
   const [filters, setFilters] = useState({
@@ -144,6 +145,7 @@ function Reservations() {
         await updateReservation(editingReservation.id, payload)
       } else {
         await addReservation(payload)
+        setNewReservationFormKey((key) => key + 1)
       }
 
       setEditingReservation(null)
@@ -239,7 +241,7 @@ function Reservations() {
   return (
     <section className='space-y-4'>
       <ReservationForm
-        key={editingReservation?.id ?? 'new'}
+        key={editingReservation?.id ?? `new-${newReservationFormKey}`}
         initialValues={editingReservation}
         onSubmit={handleSubmitReservation}
         onCancel={() => setEditingReservation(null)}

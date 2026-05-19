@@ -49,7 +49,7 @@ npm run icons
 npm run build
 ```
 
-Web: `git push` → Vercel. iOS: `npx cap sync ios` → Xcode.
+Web: `git push` → Vercel. iOS: `npm run cap:sync:ios` → Xcode.
 
 ### 5) Panel — Bildirimler
 

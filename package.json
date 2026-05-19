@@ -8,11 +8,13 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cap:sync": "cap sync",
-    "cap:ios": "cap open ios",
+    "cap:sync": "npx @capacitor/cli sync",
+    "cap:sync:ios": "npx @capacitor/cli sync ios",
+    "cap:ios": "npx @capacitor/cli open ios",
+    "cap:add:ios": "npx @capacitor/cli add ios",
     "icons": "node scripts/generate-icons.mjs",
     "mobile:firebase": "firebase deploy --only firestore:rules,functions",
-    "mobile:ios-prep": "npm run icons && npm run build && npx cap sync ios"
+    "mobile:ios-prep": "npm run icons && npm run build && npm run cap:sync:ios"
   },
   "dependencies": {
     "@capacitor/core": "^7.2.0",
