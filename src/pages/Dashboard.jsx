@@ -1,6 +1,7 @@
 import { format } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { useEffect, useMemo, useState } from 'react'
+import ReservationNote from '../components/ReservationNote'
 import StatCard from '../components/StatCard'
 import { getReservations } from '../services/reservationService'
 import { formatDateTR, formatCurrencyTRY } from '../utils/formatters'
@@ -32,6 +33,7 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
                 {reservation.roomName}
                 {showCheckInDate ? ` · Giriş ${formatDateTR(reservation.checkInDate)}` : null}
               </p>
+              <ReservationNote note={reservation.note} className='mt-1 text-xs' />
               <span
                 className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-medium ${
                   paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'

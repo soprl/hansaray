@@ -12,6 +12,7 @@ import {
   getTransactionsForMonth,
   shiftMonth,
 } from '../utils/financeUtils'
+import ReservationNote from '../components/ReservationNote'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getMonthlyReservationBreakdown, getOutstandingPayment, isFullyPaidReservation } from '../utils/reservationUtils'
 
@@ -235,6 +236,7 @@ function Reports() {
                     <p className='text-sm text-slate-600'>
                       {reservation.roomName} · Giriş {formatDateTR(reservation.checkInDate)}
                     </p>
+                    <ReservationNote note={reservation.note} className='mt-1' />
                   </div>
                   <div className='text-right'>
                     <p className='font-semibold text-emerald-600'>{formatCurrencyTRY(reservation.totalPrice)}</p>

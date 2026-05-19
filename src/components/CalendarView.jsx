@@ -3,6 +3,7 @@ import { tr } from 'date-fns/locale'
 import ReactCalendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { getEffectiveReservationStatus } from '../utils/reservationUtils'
+import ReservationNote from './ReservationNote'
 import { formatDateTR } from '../utils/formatters'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
@@ -89,6 +90,7 @@ function CalendarView({
                 <p className='text-sm text-slate-600'>
                   {formatDateTR(reservation.checkInDate)} - {formatDateTR(reservation.checkOutDate)}
                 </p>
+                <ReservationNote note={reservation.note} className='mt-1' />
                 <div className='mt-1 flex flex-wrap gap-2'>
                   <span
                     className={`rounded px-2 py-0.5 text-xs font-medium ${

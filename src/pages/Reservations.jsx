@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReservationForm from '../components/ReservationForm'
+import ReservationNote from '../components/ReservationNote'
 import { useAuth } from '../context/useAuth'
 import {
   addReservation,
@@ -324,6 +325,7 @@ function Reservations() {
                       {formatDateTR(reservation.checkOutDate)}
                     </p>
                     <p className='text-sm text-slate-600'>Telefon: {reservation.customerPhone || '-'}</p>
+                    <ReservationNote note={reservation.note} className='mt-1' />
                     <div className='flex flex-wrap gap-2 pt-1'>
                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass[effectiveStatus] ?? 'bg-slate-100 text-slate-700'}`}>
                         {effectiveStatus}
