@@ -9,16 +9,43 @@ import {
 } from '../services/notificationSettingsService'
 import { initNativePush, isNativeApp } from '../utils/nativePush'
 
+const SETUP_STEPS = [
+  {
+    id: 'firebase',
+    title: 'Firebase Functions yayında',
+    hint: 'Mac’te: npm run mobile:firebase (NOTIFICATIONS_SETUP.md)',
+  },
+  {
+    id: 'apns',
+    title: 'Apple APNs anahtarı (Firebase Console)',
+    hint: 'Cloud Messaging → Apple → .p8 dosyası, bundle: com.hansaray.otel',
+  },
+  {
+    id: 'device',
+    title: 'iOS uygulamasında cihaz kaydı',
+    hint: 'TestFlight uygulaması, giriş, bildirim izni',
+  },
+  {
+    id: 'test',
+    title: 'Test bildirimi başarılı',
+    hint: 'Aşağıdaki “Test bildirimi gönder” butonu',
+  },
+]
+
 function Notifications() {
   const { user } = useAuth()
+  const native = isNativeApp()
   const [settings, setSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS)
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [registering, setRegistering] = useState(false)
   const [pushStatus, setPushStatus] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [testPassed, setTestPassed] = useState(false)
+  const [functionsOnline, setFunctionsOnline] = useState(null)
 
   const loadPage = useCallback(async () => {
     setLoading(true)
@@ -41,6 +68,28 @@ function Notifications() {
   useEffect(() => {
     loadPage()
   }, [loadPage])
+
+  useEffect(() => {
+    if (!user || !native) return
+
+    let cancelled = false
+    setRegistering(true)
+    initNativePush(user)
+      .then((result) => {
+        if (cancelled) return
+        if (result.registered) {
+          setPushStatus('Bu cihaz otomatik olarak kaydedildi.')
+          loadPage()
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRegistering(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, native, loadPage])
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target
@@ -74,15 +123,19 @@ function Notifications() {
 
     try {
       const result = await sendTestNotification()
+      setFunctionsOnline(true)
+      setTestPassed((result?.successCount ?? 0) > 0)
       setMessage(
         result?.message ??
           `Test bildirimi gönderildi (${result?.successCount ?? 0} cihaz).`,
       )
     } catch (testError) {
       const code = testError?.code ?? ''
+      setTestPassed(false)
       if (code === 'functions/not-found' || code === 'functions/unavailable') {
+        setFunctionsOnline(false)
         setError(
-          'Cloud Function henüz yayında değil. MOBILE_SETUP.md dosyasındaki deploy adımlarını uygulayın.',
+          'Cloud Function henüz yayında değil. NOTIFICATIONS_SETUP.md — npm run mobile:firebase',
         )
       } else {
         setError(testError?.message ?? 'Test bildirimi gönderilemedi.')
@@ -96,7 +149,9 @@ function Notifications() {
   const handleRegisterThisDevice = async () => {
     setPushStatus('')
     setError('')
+    setRegistering(true)
     const result = await initNativePush(user)
+    setRegistering(false)
 
     if (result.registered) {
       setPushStatus('Bu cihaz bildirimler için kaydedildi.')
@@ -106,17 +161,24 @@ function Notifications() {
 
     if (result.reason === 'not-native') {
       setPushStatus(
-        'Web tarayıcısında push kaydı yok. iOS uygulamasını kurduktan sonra buradan kayıt olun.',
+        'Web tarayıcısında push kaydı yok. iOS uygulamasını (TestFlight) kullanın.',
       )
       return
     }
 
     if (result.reason === 'permission-denied') {
-      setPushStatus('Bildirim izni verilmedi. iPhone Ayarlar > Bildirimler bölümünden açın.')
+      setPushStatus('Bildirim izni verilmedi. iPhone Ayarlar → Hansaray → Bildirimler.')
       return
     }
 
-    setPushStatus('Cihaz kaydı tamamlanamadı. iOS uygulaması ve APNs kurulumunu kontrol edin.')
+    setPushStatus('Cihaz kaydı tamamlanamadı. APNs ve TestFlight kurulumunu kontrol edin.')
+  }
+
+  const stepDone = {
+    firebase: functionsOnline === true,
+    apns: devices.length > 0 || testPassed,
+    device: devices.length > 0,
+    test: testPassed,
   }
 
   return (
@@ -124,8 +186,38 @@ function Notifications() {
       <div className='card'>
         <h2 className='text-lg font-semibold text-blue-950'>Bildirimler</h2>
         <p className='mt-1 text-sm text-slate-600'>
-          Kayıtlı telefonlara otomatik hatırlatmalar ve anlık bildirimler gönderilir.
+          Kayıtlı telefonlara giriş/çıkış hatırlatmaları, ödeme uyarıları ve günlük özetler gider.
         </p>
+      </div>
+
+      <div className='card space-y-3'>
+        <h3 className='font-semibold text-blue-950'>Canlıya alma kontrol listesi</h3>
+        <p className='text-xs text-slate-500'>
+          Ayrıntılı adımlar: proje kökünde <strong>NOTIFICATIONS_SETUP.md</strong>
+        </p>
+        <ol className='space-y-2'>
+          {SETUP_STEPS.map((step, index) => {
+            const done = stepDone[step.id]
+            return (
+              <li
+                key={step.id}
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  done ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'
+                }`}
+              >
+                <p className='font-medium text-slate-800'>
+                  {done ? '✓' : `${index + 1}.`} {step.title}
+                </p>
+                <p className='text-xs text-slate-500'>{step.hint}</p>
+              </li>
+            )
+          })}
+        </ol>
+        {functionsOnline === false ? (
+          <p className='text-sm font-medium text-rose-600'>
+            Functions deploy edilmemiş görünüyor. Terminalde: npm run mobile:firebase
+          </p>
+        ) : null}
       </div>
 
       <div className='card space-y-4'>
@@ -134,7 +226,8 @@ function Notifications() {
           <p className='text-sm text-slate-500'>Yükleniyor...</p>
         ) : devices.length === 0 ? (
           <p className='text-sm text-slate-500'>
-            Henüz kayıtlı telefon yok. iOS uygulamasında giriş yapıp bildirim izni verin.
+            Henüz kayıtlı telefon yok. TestFlight uygulamasında giriş yapın; bu sayfayı açınca cihaz
+            otomatik kayıt olur.
           </p>
         ) : (
           <ul className='space-y-2'>
@@ -160,9 +253,9 @@ function Notifications() {
             type='button'
             className='btn border border-slate-300 bg-white'
             onClick={handleRegisterThisDevice}
-            disabled={!isNativeApp()}
+            disabled={!native || registering}
           >
-            Bu cihazı kaydet
+            {registering ? 'Kaydediliyor...' : 'Bu cihazı yeniden kaydet'}
           </button>
           <button
             type='button'
@@ -175,9 +268,10 @@ function Notifications() {
         </div>
 
         {pushStatus ? <p className='text-sm text-slate-600'>{pushStatus}</p> : null}
-        {!isNativeApp() ? (
+        {!native ? (
           <p className='text-xs text-slate-500'>
-            Şu an web sürümündesiniz. Cihaz kaydı için iOS uygulamasını kullanın.
+            Şu an web sürümündesiniz. Push için iOS uygulamasını (TestFlight) kullanın; mobil menüde
+            Bildirim sekmesi görünür.
           </p>
         ) : null}
       </div>

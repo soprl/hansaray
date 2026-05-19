@@ -10,8 +10,9 @@
     "preview": "vite preview",
     "cap:sync": "cap sync",
     "cap:ios": "cap open ios",
+    "icons": "node scripts/generate-icons.mjs",
     "mobile:firebase": "firebase deploy --only firestore:rules,functions",
-    "mobile:ios-prep": "npm run build && npx cap sync ios"
+    "mobile:ios-prep": "npm run icons && npm run build && npx cap sync ios"
   },
   "dependencies": {
     "@capacitor/core": "^7.2.0",
@@ -38,6 +39,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
     "postcss": "^8.5.10",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.17",
     "vite": "^6.3.5"
   }

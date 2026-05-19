@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { FiBarChart2, FiCalendar, FiDollarSign, FiHome, FiPlus } from 'react-icons/fi'
+import { FiBarChart2, FiBell, FiCalendar, FiDollarSign, FiHome, FiPlus } from 'react-icons/fi'
 import { isNativeApp } from '../utils/nativePush'
 
 const leftItems = [
@@ -7,9 +7,14 @@ const leftItems = [
   { to: '/takvim', label: 'Takvim', icon: FiCalendar },
 ]
 
-const rightItems = [
+const webRightItems = [
   { to: '/gelir-gider', label: 'Gider', icon: FiDollarSign },
   { to: '/raporlar', label: 'Rapor', icon: FiBarChart2 },
+]
+
+const nativeRightItems = [
+  { to: '/bildirimler', label: 'Bildirim', icon: FiBell },
+  { to: '/gelir-gider', label: 'Gider', icon: FiDollarSign },
 ]
 
 function NavItem({ to, label, icon: Icon, end, activeClass, inactiveClass }) {
@@ -31,6 +36,7 @@ function NavItem({ to, label, icon: Icon, end, activeClass, inactiveClass }) {
 
 function MobileBottomNav() {
   const native = isNativeApp()
+  const rightItems = native ? nativeRightItems : webRightItems
   const activeNavClass = native ? 'text-brand-gold-dark' : 'text-emerald-600'
   const inactiveNavClass = native ? 'text-stone-500' : 'text-slate-500'
 

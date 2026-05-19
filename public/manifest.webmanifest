@@ -1,18 +1,24 @@
 {
-  "name": "Otel Paneli",
-  "short_name": "Otel",
+  "name": "Hansaray Otel",
+  "short_name": "Hansaray",
   "description": "Hansaray otel rezervasyon ve gelir gider paneli",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#1e3a8a",
+  "background_color": "#0f2847",
+  "theme_color": "#f1ad26",
   "lang": "tr",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

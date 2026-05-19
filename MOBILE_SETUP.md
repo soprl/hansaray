@@ -39,10 +39,23 @@ firebase deploy --only firestore:rules,functions
 2. Paylaş → **Ana Ekrana Ekle**
 3. Uygulama gibi açılır; giriş ve tüm panel çalışır
 
-### 4) Panel — Bildirimler
+### 4) Logo
 
-Web’den **Bildirimler** menüsü → ayarları kaydet.  
-Push, Aşama 2’de (iOS uygulama) çalışır.
+Varsayılan Hansaray logosu yüklü. Kendi logonuz için:
+
+```bash
+# public/logo.png dosyanızı koyun (PNG, kare, 1024×1024 önerilir), sonra:
+npm run icons
+npm run build
+```
+
+Web: `git push` → Vercel. iOS: `npx cap sync ios` → Xcode.
+
+### 5) Panel — Bildirimler
+
+Detaylı rehber: **NOTIFICATIONS_SETUP.md**
+
+Web’den **Bildirimler** → ayarları kaydet. Push, Aşama 2’de (TestFlight) çalışır.
 
 ---
 

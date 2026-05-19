@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../firebase'
+import AppLogo from '../components/AppLogo'
 
 function Login() {
   const navigate = useNavigate()
@@ -33,8 +34,11 @@ function Login() {
   return (
     <div className='flex min-h-screen items-center justify-center bg-slate-100 p-4'>
       <div className='w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm'>
-        <h1 className='text-2xl font-semibold text-blue-950'>Otel Yönetim Girişi</h1>
-        <p className='mt-2 text-sm text-slate-500'>Paneli kullanmak için giriş yapın.</p>
+        <div className='flex flex-col items-center text-center'>
+          <AppLogo className='h-16 w-16' />
+          <h1 className='mt-4 text-2xl font-semibold text-blue-950'>Hansaray Otel</h1>
+          <p className='mt-2 text-sm text-slate-500'>Paneli kullanmak için giriş yapın.</p>
+        </div>
 
         <form onSubmit={handleSubmit} className='mt-6 space-y-4'>
           <div>
