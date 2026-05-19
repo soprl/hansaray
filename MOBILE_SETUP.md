@@ -1,53 +1,104 @@
-# Mobil (iOS) ve bildirim kurulumu
+# Mobil kurulum (Apple parası en sonda)
 
-Web uygulaması Vercel'de çalışmaya devam eder. iOS uygulaması aynı arayüzü Vercel URL'sinden açar.
+Canlı panel: **https://hansaray.vercel.app**
 
-## 1. Firestore kuralları
+## Aşama 1 — Şimdi (ücretsiz, senin terminalinde)
 
-```bash
-firebase deploy --only firestore:rules
-```
-
-## 2. Cloud Functions (test + günlük hatırlatma)
+### 1) Firebase CLI giriş
 
 ```bash
-cd functions && npm install && cd ..
-firebase deploy --only functions
+firebase login
+cd /Users/selsud/Desktop/otel
+firebase use --add
 ```
 
-- `sendTestNotification` — paneldeki "Test bildirimi gönder" butonu
-- `scheduledDailyReminders` — zamanlanmış hatırlatmalar (giriş/çıkış, ödeme, özetler)
-- `onReservationCreated` — yeni rezervasyon anlık bildirimi
-- `onReservationUpdated` — kapora alındı + kalan tutar bildirimi
+Listeden Firebase projeni seç (Vercel `.env` içindeki `VITE_FIREBASE_PROJECT_ID` ile aynı).
 
-## 3. Firebase Console
+### 2) Firestore kuralları + Cloud Functions
 
-1. Project Settings > Cloud Messaging > **Apple app (APNs)** — `.p8` anahtarı yükleyin
-2. iOS uygulaması ekleyin (bundle id: `com.hansaray.otel`)
+```bash
+npm run mobile:firebase
+```
 
-## 4. Capacitor iOS (Mac + Xcode)
+veya:
 
-`capacitor.config.json` içinde `server.url` değerini **canlı Vercel adresiniz** ile değiştirin.
+```bash
+firebase deploy --only firestore:rules,functions
+```
+
+**Functions** (europe-west1):
+- `sendTestNotification` — panel test butonu
+- `scheduledDailyReminders` — günlük hatırlatmalar
+- `onReservationCreated` / `onReservationUpdated` — anlık bildirimler
+
+> Blaze plan gerekebilir (zamanlanmış fonksiyonlar). Console’dan kontrol et.
+
+### 3) Telefonda ücretsiz kullanım (push yok)
+
+1. iPhone Safari → https://hansaray.vercel.app
+2. Paylaş → **Ana Ekrana Ekle**
+3. Uygulama gibi açılır; giriş ve tüm panel çalışır
+
+### 4) Panel — Bildirimler
+
+Web’den **Bildirimler** menüsü → ayarları kaydet.  
+Push, Aşama 2’de (iOS uygulama) çalışır.
+
+---
+
+## Aşama 2 — Apple Developer üyeliği sonrası (~99$/yıl)
+
+### Firebase Console
+
+1. Project Settings → Cloud Messaging → **Apple (APNs)** → `.p8` anahtarı
+2. iOS uygulaması ekle → bundle id: `com.hansaray.otel`
+
+### CocoaPods (bir kez, Mac)
+
+```bash
+brew install cocoapods
+pod --version
+```
+
+### Capacitor iOS (Mac + Xcode)
+
+`capacitor.config.json` zaten Vercel URL kullanıyor.
 
 ```bash
 npm install
-npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/push-notifications
-npx cap add ios
+npm run build
+npx cap add ios    # yalnızca bir kez
 npx cap sync ios
 npx cap open ios
 ```
 
-Xcode'da Push Notifications capability ekleyin, Archive > TestFlight.
+> CocoaPods yoksa `add ios` başarısız olur; `ios` klasörü oluşmaz.
 
-## 5. Panel
+Xcode:
+- Signing & Capabilities → **Push Notifications**
+- Archive → **TestFlight**
 
-- Menü: **Bildirimler** (`/bildirimler`)
-- Ayarları kaydedin
-- iOS uygulamasında giriş yapın → bildirim izni
-- Kayıtlı cihazlar listesinde telefon görünmeli
-- **Test bildirimi gönder** ile deneyin
+### Test
 
-## Notlar
+1. TestFlight’tan uygulamayı kur
+2. Giriş yap → bildirim izni
+3. Web **Bildirimler** → kayıtlı cihazda telefon görünmeli
+4. **Test bildirimi gönder**
 
-- Web'de arayüz ve ayarlar çalışır; push sadece kayıtlı iOS cihazlara gider.
-- Kod değişikliği: `git push` → Vercel deploy → mobilde aynı arayüz (yeni iOS build gerekmez).
+---
+
+## Güncelleme notları
+
+| Değişiklik | Ne gerekir |
+|------------|------------|
+| Panel arayüzü (React) | `git push` → Vercel |
+| Cloud Functions | `firebase deploy --only functions` |
+| Native iOS (Capacitor config vb.) | Yeni Xcode build |
+
+---
+
+## Sorun giderme
+
+- **Test bildirimi çalışmıyor:** Functions deploy + Blaze + cihaz listesinde token var mı?
+- **Ana ekranda push yok:** Normal; iOS PWA’da push sınırlı. TestFlight uygulaması gerekir.
+- **Capacitor boş ekran:** `server.url` Vercel adresiyle aynı mı, site açılıyor mu?

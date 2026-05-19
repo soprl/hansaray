@@ -6,12 +6,14 @@ function Navbar() {
   const { user } = useAuth()
 
   return (
-    <header className='mb-4 flex flex-col justify-between gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center'>
-      <div>
-        <h1 className='text-xl font-semibold text-blue-950'>Rezervasyon Takip</h1>
-        <p className='text-sm text-slate-500'>{format(new Date(), 'dd MMMM yyyy, EEEE', { locale: tr })}</p>
+    <header className='mb-3 flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:mb-4 sm:rounded-xl sm:p-4'>
+      <div className='min-w-0'>
+        <h1 className='truncate text-base font-semibold text-blue-950 sm:text-xl'>Otel Paneli</h1>
+        <p className='truncate text-xs text-slate-500 sm:text-sm'>
+          {format(new Date(), 'd MMM yyyy', { locale: tr })}
+        </p>
       </div>
-      <p className='text-sm text-slate-600'>{user?.email}</p>
+      <p className='hidden max-w-[40%] truncate text-xs text-slate-600 sm:block sm:text-sm'>{user?.email}</p>
     </header>
   )
 }

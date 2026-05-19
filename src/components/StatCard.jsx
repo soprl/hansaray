@@ -9,7 +9,7 @@ function StatCard({ title, value, tone = 'default', subtitle }) {
   return (
     <article className={`card border-l-4 ${toneMap[tone]}`}>
       <p className='text-sm text-slate-500'>{title}</p>
-      <p className='mt-2 text-2xl font-semibold text-blue-950'>{value}</p>
+      <p className='mt-1 text-lg font-semibold text-blue-950 sm:mt-2 sm:text-2xl'>{value}</p>
       {subtitle ? <p className='mt-1 text-xs text-slate-500'>{subtitle}</p> : null}
     </article>
   )

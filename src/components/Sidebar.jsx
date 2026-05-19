@@ -15,9 +15,9 @@ function Sidebar() {
   const { logout } = useAuth()
 
   return (
-    <aside className='w-full border-b border-slate-200 bg-blue-950 p-4 text-slate-100 lg:w-64 lg:border-b-0 lg:border-r'>
-      <p className='mb-6 text-lg font-semibold'>Otel Paneli</p>
-      <nav className='flex flex-wrap gap-2 lg:flex-col'>
+    <aside className='hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-blue-950 p-4 text-slate-100 lg:flex'>
+      <p className='mb-6 text-base font-semibold'>Otel Paneli</p>
+      <nav className='flex flex-col gap-1'>
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}

@@ -12,6 +12,41 @@ const paymentBadgeClass = {
   'Tamamı Ödendi': 'bg-emerald-100 text-emerald-700',
 }
 
+function ReservationDayList({ title, reservations, loading, emptyText, showCheckInDate = false }) {
+  return (
+    <section className='card'>
+      <h2 className='text-base font-semibold text-blue-950 sm:text-lg'>
+        {title}{' '}
+        {!loading ? <span className='font-normal text-slate-400'>({reservations.length})</span> : null}
+      </h2>
+      {loading ? (
+        <p className='mt-2 text-sm text-slate-500'>Yükleniyor...</p>
+      ) : reservations.length === 0 ? (
+        <p className='mt-2 text-sm text-slate-500'>{emptyText}</p>
+      ) : (
+        <ul className='mt-3 space-y-2'>
+          {reservations.map((reservation) => (
+            <li key={reservation.id} className='rounded-lg border border-slate-200 p-2.5'>
+              <p className='text-sm font-medium text-blue-950'>{reservation.customerName}</p>
+              <p className='text-xs text-slate-600'>
+                {reservation.roomName}
+                {showCheckInDate ? ` · Giriş ${formatDateTR(reservation.checkInDate)}` : null}
+              </p>
+              <span
+                className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-medium ${
+                  paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                {reservation.paymentStatus || '-'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 function Dashboard() {
   const [reservations, setReservations] = useState([])
   const [loading, setLoading] = useState(true)
@@ -36,15 +71,13 @@ function Dashboard() {
     fetchDashboardData()
   }, [])
 
-  const metrics = useMemo(() => {
-    return getDashboardReservationMetrics(reservations)
-  }, [reservations])
+  const metrics = useMemo(() => getDashboardReservationMetrics(reservations), [reservations])
   const monthLabel = format(new Date(), 'MMMM yyyy', { locale: tr })
 
   return (
     <section className='space-y-4'>
-      <h2 className='text-lg font-semibold text-blue-950'>{monthLabel} Özeti</h2>
-      <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
+      <h2 className='text-base font-semibold capitalize text-blue-950 sm:text-lg'>{monthLabel} özeti</h2>
+      <div className='grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4'>
         <StatCard title='Bugünkü Doluluk' value={loading ? '...' : `${metrics.todaysOccupancyCount}`} tone='warning' />
         <StatCard
           title='Bu Ay Rezervasyon Geliri'
@@ -54,83 +87,42 @@ function Dashboard() {
         <StatCard title='Aktif Rezervasyon' value={loading ? '...' : metrics.activeCount} tone='default' />
         <StatCard title='İptal Rezervasyon' value={loading ? '...' : metrics.cancelledCount} tone='danger' />
       </div>
-      <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-3'>
+      <div className='grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3'>
         <StatCard
           title='Toplam Bekleyen Ödeme'
           value={loading ? '...' : formatCurrencyTRY(metrics.totalPendingPayment)}
           tone='warning'
         />
-        <StatCard title='Bu Ay Alınan Kapora' value={loading ? '...' : formatCurrencyTRY(metrics.monthlyDeposit)} tone='success' />
+        <StatCard
+          title='Bu Ay Alınan Kapora'
+          value={loading ? '...' : formatCurrencyTRY(metrics.monthlyDeposit)}
+          tone='success'
+        />
         <StatCard title='Bu Ay Tam Ödenen Rez.' value={loading ? '...' : metrics.monthlyFullyPaidCount} tone='default' />
       </div>
 
       {error ? <p className='text-sm text-rose-600'>{error}</p> : null}
 
-      <div className='grid gap-4 lg:grid-cols-3'>
-        <div className='card'>
-          <h2 className='text-lg font-semibold text-blue-950'>Yaklaşan Rezervasyonlar</h2>
-          {loading ? (
-            <p className='mt-2 text-sm text-slate-500'>Yükleniyor...</p>
-          ) : metrics.upcomingReservations.length === 0 ? (
-            <p className='mt-2 text-sm text-slate-500'>Yaklaşan rezervasyon yok.</p>
-          ) : (
-            <ul className='mt-3 space-y-2'>
-              {metrics.upcomingReservations.map((reservation) => (
-                <li key={reservation.id} className='rounded-lg border border-slate-200 p-2'>
-                  <p className='text-sm font-medium text-blue-950'>{reservation.customerName}</p>
-                  <p className='text-xs text-slate-600'>
-                    {reservation.roomName} - {formatDateTR(reservation.checkInDate)}
-                  </p>
-                  <span className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-medium ${paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'}`}>
-                    {reservation.paymentStatus || '-'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className='card'>
-          <h2 className='text-lg font-semibold text-blue-950'>Bugün Giriş Yapacaklar</h2>
-          {loading ? (
-            <p className='mt-2 text-sm text-slate-500'>Yükleniyor...</p>
-          ) : metrics.todaysCheckIns.length === 0 ? (
-            <p className='mt-2 text-sm text-slate-500'>Bugün giriş kaydı yok.</p>
-          ) : (
-            <ul className='mt-3 space-y-2'>
-              {metrics.todaysCheckIns.map((reservation) => (
-                <li key={reservation.id} className='rounded-lg border border-slate-200 p-2'>
-                  <p className='text-sm font-medium text-blue-950'>{reservation.customerName}</p>
-                  <p className='text-xs text-slate-600'>{reservation.roomName}</p>
-                  <span className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-medium ${paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'}`}>
-                    {reservation.paymentStatus || '-'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className='card'>
-          <h2 className='text-lg font-semibold text-blue-950'>Bugün Çıkış Yapacaklar</h2>
-          {loading ? (
-            <p className='mt-2 text-sm text-slate-500'>Yükleniyor...</p>
-          ) : metrics.todaysCheckOuts.length === 0 ? (
-            <p className='mt-2 text-sm text-slate-500'>Bugün çıkış kaydı yok.</p>
-          ) : (
-            <ul className='mt-3 space-y-2'>
-              {metrics.todaysCheckOuts.map((reservation) => (
-                <li key={reservation.id} className='rounded-lg border border-slate-200 p-2'>
-                  <p className='text-sm font-medium text-blue-950'>{reservation.customerName}</p>
-                  <p className='text-xs text-slate-600'>{reservation.roomName}</p>
-                  <span className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-medium ${paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'}`}>
-                    {reservation.paymentStatus || '-'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      <div className='space-y-3 sm:space-y-4'>
+        <ReservationDayList
+          title='Bugün giriş yapacaklar'
+          reservations={metrics.todaysCheckIns}
+          loading={loading}
+          emptyText='Bugün giriş yapan misafir yok.'
+        />
+        <ReservationDayList
+          title='Bugün çıkış yapacaklar'
+          reservations={metrics.todaysCheckOuts}
+          loading={loading}
+          emptyText='Bugün çıkış yapan misafir yok.'
+        />
+        <ReservationDayList
+          title='Yaklaşan rezervasyonlar'
+          reservations={metrics.upcomingReservations}
+          loading={loading}
+          emptyText='Yaklaşan rezervasyon yok.'
+          showCheckInDate
+        />
       </div>
     </section>
   )

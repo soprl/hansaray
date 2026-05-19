@@ -32,7 +32,125 @@ body {
 }
 
 .card {
-  @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm;
+  @apply rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:rounded-xl sm:p-4;
+}
+
+/* Telefon ve iOS uygulama: daha sıkı arayüz */
+@media (max-width: 1023px) {
+  .card h2,
+  .card .text-lg.font-semibold {
+    @apply text-base;
+  }
+}
+
+/* iOS / Capacitor uygulama — altın sarısı marka (#f1ad26) */
+html.native-app {
+  font-size: 15px;
+  --brand-gold: #f1ad26;
+  --brand-gold-dark: #c98918;
+  --brand-gold-darker: #8a5f10;
+  --brand-cream: #faf6ee;
+  --brand-ink: #1c1810;
+}
+
+html.native-app body {
+  @apply bg-brand-cream text-stone-800;
+}
+
+html.native-app .card {
+  @apply border-amber-100/80 p-2.5;
+}
+
+html.native-app .btn {
+  @apply px-3 py-1.5 text-xs;
+}
+
+html.native-app .input {
+  @apply border-amber-200/80 py-1.5 text-xs focus:border-brand-gold focus:ring-brand-gold/25;
+}
+
+html.native-app .btn-primary {
+  @apply bg-brand-gold font-semibold text-brand-ink hover:bg-brand-gold-dark;
+}
+
+html.native-app .btn-success {
+  @apply bg-brand-gold font-semibold text-brand-ink hover:bg-brand-gold-dark;
+}
+
+html.native-app .text-blue-950 {
+  @apply text-brand-ink;
+}
+
+html.native-app .border-blue-900,
+html.native-app .border-blue-800 {
+  @apply border-brand-gold-dark;
+}
+
+html.native-app .bg-blue-900,
+html.native-app .bg-blue-950 {
+  @apply bg-brand-gold-darker;
+}
+
+html.native-app .bg-emerald-600 {
+  @apply bg-brand-gold text-brand-ink;
+}
+
+html.native-app .text-emerald-600 {
+  @apply text-brand-gold-dark;
+}
+
+html.native-app .hover\:bg-emerald-500:hover {
+  @apply bg-brand-gold-dark;
+}
+
+html.native-app .border-emerald-300,
+html.native-app .border-emerald-600 {
+  @apply border-brand-gold;
+}
+
+html.native-app .bg-emerald-50,
+html.native-app .bg-emerald-100 {
+  @apply bg-amber-50;
+}
+
+html.native-app .text-emerald-700 {
+  @apply text-brand-gold-darker;
+}
+
+html.native-app .card.border-l-4 {
+  border-left-color: var(--brand-gold);
+}
+
+html.native-app .calendar-shell .react-calendar__navigation button {
+  @apply text-brand-ink hover:bg-amber-50;
+}
+
+html.native-app .calendar-shell .react-calendar__tile--active {
+  @apply border-brand-gold-dark bg-brand-gold text-brand-ink;
+}
+
+html.native-app .calendar-shell .react-calendar__tile.tile-occupied {
+  @apply border-brand-gold/40 bg-amber-50;
+}
+
+html.native-app .calendar-shell .tile-chip {
+  @apply bg-brand-gold text-brand-ink;
+}
+
+html.native-app .date-picker-popover .react-calendar__navigation button {
+  @apply text-brand-ink;
+}
+
+html.native-app .date-picker-popover .react-calendar__tile--active {
+  @apply border-brand-gold-dark bg-brand-gold text-brand-ink;
+}
+
+html.native-app header.rounded-lg {
+  @apply border-amber-200/90 shadow-sm shadow-amber-100/40;
+}
+
+html.native-app .min-h-screen.bg-slate-100 {
+  @apply bg-brand-cream;
 }
 
 .empty-state {

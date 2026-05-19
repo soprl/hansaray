@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "cap:sync": "cap sync",
-    "cap:ios": "cap open ios"
+    "cap:ios": "cap open ios",
+    "mobile:firebase": "firebase deploy --only firestore:rules,functions",
+    "mobile:ios-prep": "npm run build && npx cap sync ios"
   },
   "dependencies": {
     "@capacitor/core": "^7.2.0",
@@ -29,7 +31,7 @@
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.5.0",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -37,6 +39,6 @@
     "globals": "^17.5.0",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.17",
-    "vite": "^8.0.10"
+    "vite": "^6.3.5"
   }
 }

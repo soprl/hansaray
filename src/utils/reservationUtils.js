@@ -215,7 +215,7 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
       return checkInDate ? isAfter(checkInDate, today) : false
     })
     .sort((a, b) => a.checkInDate.localeCompare(b.checkInDate))
-    .slice(0, 5)
+    .slice(0, 10)
 
   const monthlyReservationIncome = getMonthlyReservationIncome(mappedReservations, today)
   const statusCounts = getReservationStatusCounts(mappedReservations)
