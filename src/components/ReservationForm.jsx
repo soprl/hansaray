@@ -3,7 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import { getRoomOptions, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { formatDateTR } from '../utils/formatters'
-import { findConflictingReservation, getRoomAvailabilityList } from '../utils/reservationUtils'
+import {
+  derivePaymentStatus,
+  findConflictingReservation,
+  getRoomAvailabilityList,
+} from '../utils/reservationUtils'
 
 const DEFAULT_FORM = {
   customerName: '',
@@ -32,10 +36,14 @@ function ReservationForm({
 
   const [form, setForm] = useState(() => {
     if (!initialValues) return DEFAULT_FORM
-    return {
+    const merged = {
       ...DEFAULT_FORM,
       ...initialValues,
       roomName: normalizeRoomName(initialValues.roomName),
+    }
+    return {
+      ...merged,
+      paymentStatus: derivePaymentStatus(merged.totalPrice, merged.deposit),
     }
   })
   const [errors, setErrors] = useState({})
@@ -167,7 +175,16 @@ function ReservationForm({
 
   const handleChange = (event) => {
     const { name, value } = event.target
-    setForm((prev) => ({ ...prev, [name]: value }))
+    setForm((prev) => {
+      const next = { ...prev, [name]: value }
+      if (name === 'totalPrice' || name === 'deposit') {
+        next.paymentStatus = derivePaymentStatus(
+          name === 'totalPrice' ? value : prev.totalPrice,
+          name === 'deposit' ? value : prev.deposit,
+        )
+      }
+      return next
+    })
   }
 
   const setCheckIn = (checkInDate) => {
@@ -455,11 +472,8 @@ function ReservationForm({
             </div>
             <div>
               <label className='mb-1 block text-sm font-medium'>Ödeme durumu</label>
-              <select name='paymentStatus' value={form.paymentStatus} onChange={handleChange} className='input'>
-                <option>Ödenmedi</option>
-                <option>Kapora Alındı</option>
-                <option>Tamamı Ödendi</option>
-              </select>
+              <input readOnly value={form.paymentStatus} className='input bg-slate-100' />
+              <p className='mt-1 text-[11px] text-slate-500'>Kapora girilince otomatik güncellenir.</p>
             </div>
           </div>
         </fieldset>

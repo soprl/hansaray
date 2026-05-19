@@ -24,6 +24,15 @@ export const PAYMENT_STATUS = {
   PAID: 'Tamamı Ödendi',
 }
 
+export const derivePaymentStatus = (totalPrice, deposit) => {
+  const total = Number(totalPrice) || 0
+  const paid = Number(deposit) || 0
+
+  if (paid <= 0) return PAYMENT_STATUS.UNPAID
+  if (total > 0 && paid >= total) return PAYMENT_STATUS.PAID
+  return PAYMENT_STATUS.DEPOSIT
+}
+
 export const getOutstandingPayment = (reservation) => {
   if (reservation.paymentStatus === PAYMENT_STATUS.PAID) return 0
 
