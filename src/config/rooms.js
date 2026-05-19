@@ -14,11 +14,25 @@ const ROOM_ALIASES = {
   D2: 'D/2',
   'D/2': 'D/2',
   VIP: VIP_ROOM,
+  VİP: VIP_ROOM,
+  Vip: VIP_ROOM,
+  vip: VIP_ROOM,
   'V.I.P': VIP_ROOM,
   'v.i.p': VIP_ROOM,
+  'V.İ.P': VIP_ROOM,
 }
 
-export const isVipRoom = (roomName) => normalizeRoomName(roomName) === VIP_ROOM
+export const isVipRoom = (roomName) => {
+  if (!roomName?.trim()) return false
+  if (normalizeRoomName(roomName) === VIP_ROOM) return true
+  const compact = roomName
+    .trim()
+    .toLocaleUpperCase('tr-TR')
+    .replace(/[.\s/_-]/g, '')
+  return compact === 'VIP' || compact === 'VİP'
+}
+
+export const canonicalRoomName = (roomName) => (isVipRoom(roomName) ? VIP_ROOM : normalizeRoomName(roomName))
 
 export const normalizeRoomName = (name) => {
   const trimmed = name?.trim() ?? ''
@@ -29,7 +43,7 @@ export const getRoomOptions = (reservations = []) => {
   const extras = new Set()
 
   reservations.forEach((reservation) => {
-    const normalized = normalizeRoomName(reservation.roomName)
+    const normalized = canonicalRoomName(reservation.roomName)
     if (normalized && !ROOMS.includes(normalized)) {
       extras.add(normalized)
     }

@@ -39,6 +39,9 @@ function ReservationForm({
     }
   })
   const [errors, setErrors] = useState({})
+  const [vipManuallySelected, setVipManuallySelected] = useState(
+    () => Boolean(initialValues && isVipRoom(initialValues.roomName)),
+  )
   const lastAutoPickDatesRef = useRef({
     checkIn: initialValues?.checkInDate ?? '',
     checkOut: initialValues?.checkOutDate ?? '',
@@ -96,6 +99,7 @@ function ReservationForm({
     if (!datesValid || roomAvailabilityList.length === 0) return
 
     if (availableRooms.length === 0) {
+      setVipManuallySelected(false)
       setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
       return
     }
@@ -105,34 +109,44 @@ function ReservationForm({
       form.checkOutDate !== lastAutoPickDatesRef.current.checkOut
 
     const currentStillAvailable = availableRooms.some((room) => room.roomName === form.roomName)
+    const vipHeldByUser =
+      vipManuallySelected && form.roomName && isVipRoom(form.roomName) && currentStillAvailable
 
-    if (form.roomName && isVipRoom(form.roomName)) {
-      if (currentStillAvailable) {
-        lastAutoPickDatesRef.current = {
-          checkIn: form.checkInDate,
-          checkOut: form.checkOutDate,
-        }
-        return
-      }
-    }
-
-    if (datesChanged || !form.roomName || !currentStillAvailable) {
-      if (autoPickableRooms.length === 0) {
-        setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
-        lastAutoPickDatesRef.current = {
-          checkIn: form.checkInDate,
-          checkOut: form.checkOutDate,
-        }
-        return
-      }
-
-      const picked = autoPickableRooms[Math.floor(Math.random() * autoPickableRooms.length)]
+    if (vipHeldByUser && !datesChanged) {
       lastAutoPickDatesRef.current = {
         checkIn: form.checkInDate,
         checkOut: form.checkOutDate,
       }
-      setForm((prev) => ({ ...prev, roomName: picked.roomName }))
+      return
     }
+
+    const needsAutoPick =
+      datesChanged ||
+      !form.roomName ||
+      !currentStillAvailable ||
+      (form.roomName && isVipRoom(form.roomName) && !vipManuallySelected)
+
+    if (!needsAutoPick) return
+
+    setVipManuallySelected(false)
+
+    if (autoPickableRooms.length === 0) {
+      setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
+      lastAutoPickDatesRef.current = {
+        checkIn: form.checkInDate,
+        checkOut: form.checkOutDate,
+      }
+      return
+    }
+
+    const picked = autoPickableRooms[Math.floor(Math.random() * autoPickableRooms.length)]
+    if (isVipRoom(picked.roomName)) return
+
+    lastAutoPickDatesRef.current = {
+      checkIn: form.checkInDate,
+      checkOut: form.checkOutDate,
+    }
+    setForm((prev) => ({ ...prev, roomName: picked.roomName }))
   }, [
     datesValid,
     form.checkInDate,
@@ -141,6 +155,7 @@ function ReservationForm({
     roomAvailabilityList,
     availableRooms,
     autoPickableRooms,
+    vipManuallySelected,
   ])
 
   const getRoomStatusLabel = (roomName, available) => {
@@ -172,7 +187,18 @@ function ReservationForm({
   }
 
   const selectRoom = (roomName) => {
+    if (isVipRoom(roomName)) {
+      setVipManuallySelected(true)
+    } else {
+      setVipManuallySelected(false)
+    }
     setForm((prev) => ({ ...prev, roomName }))
+  }
+
+  const isRoomSelected = (roomName) => {
+    if (form.roomName !== roomName) return false
+    if (isVipRoom(roomName)) return vipManuallySelected
+    return true
   }
 
   const validate = () => {
@@ -298,9 +324,9 @@ function ReservationForm({
                 >
                   Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.
                 </div>
-              ) : autoPickableRooms.length > 0 && form.roomName && !isVipRoom(form.roomName) ? (
+              ) : autoPickableRooms.length > 0 && form.roomName && !vipManuallySelected ? (
                 <p className='text-xs text-emerald-700'>
-                  Müsait odalardan biri otomatik seçildi; V.I.P için manuel seçim yapın.
+                  Boş standart odalardan biri otomatik seçildi. V.I.P yalnızca elle seçilir.
                 </p>
               ) : autoPickableRooms.length === 0 && availableRooms.some((r) => isVipRoom(r.roomName)) ? (
                 <p className='text-xs text-amber-800'>
@@ -310,7 +336,7 @@ function ReservationForm({
 
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5'>
                 {roomAvailabilityList.map(({ roomName, available, conflict }) => {
-                  const isSelected = form.roomName === roomName
+                  const isSelected = isRoomSelected(roomName)
                   const vip = isVipRoom(roomName)
                   return (
                     <button
@@ -320,10 +346,12 @@ function ReservationForm({
                       disabled={!available}
                       className={`rounded-xl border-2 p-3 text-left transition sm:p-4 ${
                         isSelected
-                          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                          ? vip
+                            ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-200'
+                            : 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
                           : available
                             ? vip
-                              ? 'border-amber-300 bg-amber-50/60 hover:border-amber-400 hover:bg-amber-50'
+                              ? 'border-dashed border-amber-400 bg-white hover:border-amber-500 hover:bg-amber-50/40'
                               : 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50'
                             : 'cursor-not-allowed border-rose-200 bg-rose-50/80'
                       }`}
@@ -331,6 +359,9 @@ function ReservationForm({
                       <p className={`text-base font-bold sm:text-lg ${vip ? 'text-amber-900' : 'text-blue-950'}`}>
                         {roomName}
                       </p>
+                      {vip && available && !isSelected ? (
+                        <p className='mt-0.5 text-[10px] font-medium text-amber-700'>Manuel seçim</p>
+                      ) : null}
                       <p
                         className={`mt-1 text-[11px] font-semibold leading-snug sm:text-xs ${
                           available ? 'text-emerald-700' : 'text-rose-700'
@@ -460,7 +491,14 @@ function ReservationForm({
           <button
             type='submit'
             className='btn-success'
-            disabled={submitting || !datesValid || allRoomsFull || !form.roomName || Boolean(selectedRoomConflict)}
+            disabled={
+              submitting ||
+              !datesValid ||
+              allRoomsFull ||
+              !form.roomName ||
+              (isVipRoom(form.roomName) && !vipManuallySelected) ||
+              Boolean(selectedRoomConflict)
+            }
           >
             {submitting ? 'Kaydediliyor...' : isEditing ? 'Güncelle' : 'Rezervasyon Ekle'}
           </button>
