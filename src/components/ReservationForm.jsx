@@ -85,6 +85,11 @@ function ReservationForm({
     [roomAvailabilityList],
   )
 
+  const autoPickableRooms = useMemo(
+    () => availableRooms.filter((room) => !isVipRoom(room.roomName)),
+    [availableRooms],
+  )
+
   const allRoomsFull = datesValid && roomAvailabilityList.length > 0 && availableRooms.length === 0
 
   useEffect(() => {
@@ -101,8 +106,27 @@ function ReservationForm({
 
     const currentStillAvailable = availableRooms.some((room) => room.roomName === form.roomName)
 
+    if (form.roomName && isVipRoom(form.roomName)) {
+      if (currentStillAvailable) {
+        lastAutoPickDatesRef.current = {
+          checkIn: form.checkInDate,
+          checkOut: form.checkOutDate,
+        }
+        return
+      }
+    }
+
     if (datesChanged || !form.roomName || !currentStillAvailable) {
-      const picked = availableRooms[Math.floor(Math.random() * availableRooms.length)]
+      if (autoPickableRooms.length === 0) {
+        setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
+        lastAutoPickDatesRef.current = {
+          checkIn: form.checkInDate,
+          checkOut: form.checkOutDate,
+        }
+        return
+      }
+
+      const picked = autoPickableRooms[Math.floor(Math.random() * autoPickableRooms.length)]
       lastAutoPickDatesRef.current = {
         checkIn: form.checkInDate,
         checkOut: form.checkOutDate,
@@ -116,6 +140,7 @@ function ReservationForm({
     form.roomName,
     roomAvailabilityList,
     availableRooms,
+    autoPickableRooms,
   ])
 
   const getRoomStatusLabel = (roomName, available) => {
@@ -273,9 +298,13 @@ function ReservationForm({
                 >
                   Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.
                 </div>
-              ) : availableRooms.length > 0 && form.roomName ? (
+              ) : autoPickableRooms.length > 0 && form.roomName && !isVipRoom(form.roomName) ? (
                 <p className='text-xs text-emerald-700'>
-                  Müsait odalardan biri otomatik seçildi; istersen başka müsait odaya geçebilirsin.
+                  Müsait odalardan biri otomatik seçildi; V.I.P için manuel seçim yapın.
+                </p>
+              ) : autoPickableRooms.length === 0 && availableRooms.some((r) => isVipRoom(r.roomName)) ? (
+                <p className='text-xs text-amber-800'>
+                  Standart odalar dolu. V.I.P müsaitse manuel olarak seçebilirsiniz.
                 </p>
               ) : null}
 
