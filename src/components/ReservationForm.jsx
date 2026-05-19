@@ -1,7 +1,7 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
-import { getRoomOptions, normalizeRoomName } from '../config/rooms'
+import { getRoomOptions, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { formatDateTR } from '../utils/formatters'
 import { findConflictingReservation, getRoomAvailabilityList } from '../utils/reservationUtils'
 
@@ -39,6 +39,10 @@ function ReservationForm({
     }
   })
   const [errors, setErrors] = useState({})
+  const lastAutoPickDatesRef = useRef({
+    checkIn: initialValues?.checkInDate ?? '',
+    checkOut: initialValues?.checkOutDate ?? '',
+  })
 
   const remainingPayment = useMemo(() => {
     const totalPrice = Number(form.totalPrice) || 0
@@ -76,6 +80,51 @@ function ReservationForm({
     })
   }, [reservations, form.roomName, form.checkInDate, form.checkOutDate, excludeId, datesValid])
 
+  const availableRooms = useMemo(
+    () => roomAvailabilityList.filter((room) => room.available),
+    [roomAvailabilityList],
+  )
+
+  const allRoomsFull = datesValid && roomAvailabilityList.length > 0 && availableRooms.length === 0
+
+  useEffect(() => {
+    if (!datesValid || roomAvailabilityList.length === 0) return
+
+    if (availableRooms.length === 0) {
+      setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
+      return
+    }
+
+    const datesChanged =
+      form.checkInDate !== lastAutoPickDatesRef.current.checkIn ||
+      form.checkOutDate !== lastAutoPickDatesRef.current.checkOut
+
+    const currentStillAvailable = availableRooms.some((room) => room.roomName === form.roomName)
+
+    if (datesChanged || !form.roomName || !currentStillAvailable) {
+      const picked = availableRooms[Math.floor(Math.random() * availableRooms.length)]
+      lastAutoPickDatesRef.current = {
+        checkIn: form.checkInDate,
+        checkOut: form.checkOutDate,
+      }
+      setForm((prev) => ({ ...prev, roomName: picked.roomName }))
+    }
+  }, [
+    datesValid,
+    form.checkInDate,
+    form.checkOutDate,
+    form.roomName,
+    roomAvailabilityList,
+    availableRooms,
+  ])
+
+  const getRoomStatusLabel = (roomName, available) => {
+    if (isVipRoom(roomName)) {
+      return available ? 'Müsait · VIP boş' : 'Dolu · Bu tarihlerde VIP dolu'
+    }
+    return available ? 'Müsait' : 'Dolu'
+  }
+
   const handleChange = (event) => {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
@@ -108,7 +157,11 @@ function ReservationForm({
 
     if (!form.checkInDate) nextErrors.checkInDate = 'Giriş tarihi zorunludur.'
     if (!form.checkOutDate) nextErrors.checkOutDate = 'Çıkış tarihi zorunludur.'
-    if (!form.roomName) nextErrors.roomName = 'Oda seçin.'
+    if (allRoomsFull) {
+      nextErrors.roomName = 'Bu tarihlerde tüm odalar dolu.'
+    } else if (!form.roomName) {
+      nextErrors.roomName = 'Oda seçin.'
+    }
     if (!form.customerName.trim()) nextErrors.customerName = 'Müşteri adı zorunludur.'
     if (!form.customerPhone.trim()) nextErrors.customerPhone = 'Telefon zorunludur.'
 
@@ -213,30 +266,48 @@ function ReservationForm({
             <p className='text-sm text-slate-500'>Oda müsaitliği için tarihleri seçin.</p>
           ) : (
             <>
-              <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+              {allRoomsFull ? (
+                <div
+                  className='rounded-xl border-2 border-rose-500 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700'
+                  role='alert'
+                >
+                  Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.
+                </div>
+              ) : availableRooms.length > 0 && form.roomName ? (
+                <p className='text-xs text-emerald-700'>
+                  Müsait odalardan biri otomatik seçildi; istersen başka müsait odaya geçebilirsin.
+                </p>
+              ) : null}
+
+              <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5'>
                 {roomAvailabilityList.map(({ roomName, available, conflict }) => {
                   const isSelected = form.roomName === roomName
+                  const vip = isVipRoom(roomName)
                   return (
                     <button
                       key={roomName}
                       type='button'
                       onClick={() => available && selectRoom(roomName)}
                       disabled={!available}
-                      className={`rounded-xl border-2 p-4 text-left transition ${
+                      className={`rounded-xl border-2 p-3 text-left transition sm:p-4 ${
                         isSelected
                           ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
                           : available
-                            ? 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50'
-                            : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-70'
+                            ? vip
+                              ? 'border-amber-300 bg-amber-50/60 hover:border-amber-400 hover:bg-amber-50'
+                              : 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50'
+                            : 'cursor-not-allowed border-rose-200 bg-rose-50/80'
                       }`}
                     >
-                      <p className='text-lg font-bold text-blue-950'>{roomName}</p>
+                      <p className={`text-base font-bold sm:text-lg ${vip ? 'text-amber-900' : 'text-blue-950'}`}>
+                        {roomName}
+                      </p>
                       <p
-                        className={`mt-1 text-xs font-semibold ${
+                        className={`mt-1 text-[11px] font-semibold leading-snug sm:text-xs ${
                           available ? 'text-emerald-700' : 'text-rose-700'
                         }`}
                       >
-                        {available ? 'Müsait' : 'Dolu'}
+                        {getRoomStatusLabel(roomName, available)}
                       </p>
                       {!available && conflict ? (
                         <p className='mt-1 truncate text-xs text-slate-500' title={conflict.customerName}>
@@ -360,7 +431,7 @@ function ReservationForm({
           <button
             type='submit'
             className='btn-success'
-            disabled={submitting || !datesValid || !form.roomName || Boolean(selectedRoomConflict)}
+            disabled={submitting || !datesValid || allRoomsFull || !form.roomName || Boolean(selectedRoomConflict)}
           >
             {submitting ? 'Kaydediliyor...' : isEditing ? 'Güncelle' : 'Rezervasyon Ekle'}
           </button>

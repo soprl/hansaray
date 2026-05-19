@@ -1,4 +1,6 @@
-export const ROOMS = ['C/1', 'C/2', 'D/1', 'D/2']
+export const VIP_ROOM = 'V.I.P'
+
+export const ROOMS = ['C/1', 'C/2', 'D/1', 'D/2', VIP_ROOM]
 
 const ROOM_ALIASES = {
   C: 'C/1',
@@ -11,7 +13,12 @@ const ROOM_ALIASES = {
   'D/1': 'D/1',
   D2: 'D/2',
   'D/2': 'D/2',
+  VIP: VIP_ROOM,
+  'V.I.P': VIP_ROOM,
+  'v.i.p': VIP_ROOM,
 }
+
+export const isVipRoom = (roomName) => normalizeRoomName(roomName) === VIP_ROOM
 
 export const normalizeRoomName = (name) => {
   const trimmed = name?.trim() ?? ''
