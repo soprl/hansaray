@@ -7,6 +7,7 @@ import {
   derivePaymentStatus,
   findConflictingReservation,
   getRoomAvailabilityList,
+  PAYMENT_STATUS,
 } from '../utils/reservationUtils'
 
 const DEFAULT_FORM = {
@@ -217,6 +218,20 @@ function ReservationForm({
     if (isVipRoom(roomName)) return vipManuallySelected
     return true
   }
+
+  const markFullyPaid = () => {
+    const total = Number(form.totalPrice) || 0
+    if (total <= 0) return
+
+    setForm((prev) => ({
+      ...prev,
+      deposit: String(total),
+      paymentStatus: PAYMENT_STATUS.PAID,
+    }))
+  }
+
+  const canMarkFullyPaid =
+    form.paymentStatus !== PAYMENT_STATUS.PAID && (Number(form.totalPrice) || 0) > 0
 
   const validate = () => {
     const nextErrors = {}
@@ -473,7 +488,18 @@ function ReservationForm({
             <div>
               <label className='mb-1 block text-sm font-medium'>Ödeme durumu</label>
               <input readOnly value={form.paymentStatus} className='input bg-slate-100' />
-              <p className='mt-1 text-[11px] text-slate-500'>Kapora girilince otomatik güncellenir.</p>
+              {canMarkFullyPaid ? (
+                <button
+                  type='button'
+                  onClick={markFullyPaid}
+                  className='mt-2 w-full rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100'
+                >
+                  Tamamı Ödendi
+                </button>
+              ) : null}
+              <p className='mt-1 text-[11px] text-slate-500'>
+                Kapora girilince otomatik güncellenir; peşin ödendiyse butona basın.
+              </p>
             </div>
           </div>
         </fieldset>
