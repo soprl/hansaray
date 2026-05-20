@@ -2,6 +2,9 @@ import { NavLink } from 'react-router-dom'
 import { FiBarChart2, FiBell, FiCalendar, FiDollarSign, FiHome, FiPlus } from 'react-icons/fi'
 import { isNativeApp } from '../utils/nativePush'
 
+/** false yap → sadece + ikonlu eski görünüm */
+const SHOW_RESERVATION_FAB_LABEL = true
+
 const leftItems = [
   { to: '/', label: 'Ana', icon: FiHome, end: true },
   { to: '/takvim', label: 'Takvim', icon: FiCalendar },
@@ -55,7 +58,7 @@ function MobileBottomNav() {
           ))}
         </div>
 
-        <div className='w-16 shrink-0' aria-hidden />
+        <div className={`shrink-0 ${SHOW_RESERVATION_FAB_LABEL ? 'w-[5.5rem]' : 'w-16'}`} aria-hidden />
 
         <div className='flex flex-1 justify-evenly'>
           {rightItems.map((item) => (
@@ -65,20 +68,32 @@ function MobileBottomNav() {
 
         <NavLink
           to='/rezervasyonlar'
-          aria-label='Rezervasyonlar'
-          className={({ isActive }) =>
-            `absolute left-1/2 top-0 flex h-[3.35rem] w-[3.35rem] -translate-x-1/2 -translate-y-[42%] items-center justify-center rounded-full shadow-lg transition active:scale-95 ${
-              native
-                ? isActive
-                  ? 'bg-brand-gold-dark text-white ring-4 ring-brand-cream'
-                  : 'bg-brand-gold text-brand-ink ring-4 ring-brand-cream'
-                : isActive
-                  ? 'bg-emerald-600 text-white ring-4 ring-white'
-                  : 'bg-emerald-500 text-white ring-4 ring-white'
-            }`
-          }
+          aria-label={SHOW_RESERVATION_FAB_LABEL ? 'Rezervasyon gir' : 'Rezervasyonlar'}
+          className={({ isActive }) => {
+            const ringClass = native ? 'ring-4 ring-brand-cream' : 'ring-4 ring-white'
+            const activeFab = native
+              ? 'bg-brand-gold-dark text-white'
+              : 'bg-emerald-600 text-white'
+            const idleFab = native ? 'bg-brand-gold text-brand-ink' : 'bg-emerald-500 text-white'
+            const fabColors = isActive ? activeFab : idleFab
+
+            if (!SHOW_RESERVATION_FAB_LABEL) {
+              return `absolute left-1/2 top-0 flex h-[3.35rem] w-[3.35rem] -translate-x-1/2 -translate-y-[42%] items-center justify-center rounded-full shadow-lg transition active:scale-95 ${fabColors} ${ringClass}`
+            }
+
+            return `absolute left-1/2 top-0 flex min-w-[4.5rem] -translate-x-1/2 -translate-y-[52%] flex-col items-center justify-center gap-0.5 rounded-full px-2.5 pb-2 pt-2 shadow-lg transition active:scale-95 ${ringClass} ${fabColors}`
+          }}
         >
-          <FiPlus className='h-7 w-7 stroke-[2.5]' aria-hidden />
+          {SHOW_RESERVATION_FAB_LABEL ? (
+            <>
+              <span className='max-w-[5.5rem] text-center text-[9px] font-bold leading-tight'>
+                Rezervasyon Gir
+              </span>
+              <FiPlus className='h-6 w-6 shrink-0 stroke-[2.5]' aria-hidden />
+            </>
+          ) : (
+            <FiPlus className='h-7 w-7 stroke-[2.5]' aria-hidden />
+          )}
         </NavLink>
       </div>
     </nav>
