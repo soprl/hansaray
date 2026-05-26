@@ -3,6 +3,7 @@ import { tr } from 'date-fns/locale'
 import { useEffect, useMemo, useState } from 'react'
 import ReservationNote from '../components/ReservationNote'
 import StatCard from '../components/StatCard'
+import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
 import { formatDateTR, formatCurrencyTRY } from '../utils/formatters'
 import { getDashboardReservationMetrics } from '../utils/reservationUtils'
@@ -50,30 +51,58 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
 }
 
 function Dashboard() {
+  const { user } = useAuth()
   const [reservations, setReservations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+
     const fetchDashboardData = async () => {
       setLoading(true)
       setError('')
 
       try {
         const data = await getReservations()
-        setReservations(data)
+        if (!cancelled) setReservations(data)
       } catch (fetchError) {
-        setError('Dashboard verileri yüklenirken bir hata oluştu.')
+        if (cancelled) return
+
+        const code = fetchError?.code ?? ''
+        if (code === 'permission-denied') {
+          setError('Oturum süresi dolmuş olabilir. Çıkış yapıp tekrar giriş yapın.')
+        } else if (code === 'unavailable') {
+          setError('İnternet bağlantısı yok. Bağlantınızı kontrol edip yenileyin.')
+        } else {
+          setError('Dashboard verileri yüklenirken bir hata oluştu.')
+        }
         console.error(fetchError)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchDashboardData()
-  }, [])
 
-  const metrics = useMemo(() => getDashboardReservationMetrics(reservations), [reservations])
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
+  const metrics = useMemo(() => {
+    try {
+      return getDashboardReservationMetrics(reservations)
+    } catch (metricsError) {
+      console.error(metricsError)
+      return getDashboardReservationMetrics([])
+    }
+  }, [reservations])
   const monthLabel = format(new Date(), 'MMMM yyyy', { locale: tr })
 
   return (

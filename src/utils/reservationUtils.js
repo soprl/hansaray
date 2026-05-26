@@ -223,7 +223,7 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
       const checkInDate = parseISODateSafe(reservation.checkInDate)
       return checkInDate ? isAfter(checkInDate, today) : false
     })
-    .sort((a, b) => a.checkInDate.localeCompare(b.checkInDate))
+    .sort((a, b) => (a.checkInDate || '').localeCompare(b.checkInDate || ''))
     .slice(0, 10)
 
   const monthlyReservationIncome = getMonthlyReservationIncome(mappedReservations, today)

@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { getRoomNameVariants, normalizeRoomName } from '../config/rooms'
+import { normalizeFirestoreDate } from '../utils/formatters'
 import {
   blocksRoomAvailability,
   hasReservationDateConflict,
@@ -68,14 +69,32 @@ const checkReservationConflict = async ({ roomName, checkInDate, checkOutDate, e
   })
 }
 
-export async function getReservations() {
-  const reservationsQuery = query(reservationsRef, orderBy('checkInDate', 'asc'))
-  const snapshot = await getDocs(reservationsQuery)
+const mapReservationDoc = (document) => {
+  const data = document.data()
 
-  return snapshot.docs.map((document) => ({
+  return {
     id: document.id,
-    ...document.data(),
-  }))
+    ...data,
+    checkInDate: normalizeFirestoreDate(data.checkInDate),
+    checkOutDate: normalizeFirestoreDate(data.checkOutDate),
+  }
+}
+
+export async function getReservations() {
+  try {
+    const reservationsQuery = query(reservationsRef, orderBy('checkInDate', 'asc'))
+    const snapshot = await getDocs(reservationsQuery)
+    return snapshot.docs.map(mapReservationDoc)
+  } catch (error) {
+    if (error?.code !== 'failed-precondition') {
+      throw error
+    }
+
+    const snapshot = await getDocs(reservationsRef)
+    return snapshot.docs
+      .map(mapReservationDoc)
+      .sort((a, b) => (a.checkInDate || '').localeCompare(b.checkInDate || ''))
+  }
 }
 
 export async function getReservationById(id) {

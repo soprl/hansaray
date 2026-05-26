@@ -2,7 +2,6 @@ import { format, parse, startOfMonth } from 'date-fns'
 import { useEffect, useMemo, useState } from 'react'
 import { getReservations } from '../services/reservationService'
 import { getTransactions } from '../services/transactionService'
-import { printFinancePdf } from '../utils/financeExport'
 import {
   formatMonthLabel,
   getAllTimeFinanceNet,
@@ -95,18 +94,11 @@ function Reports() {
     }
   }
 
-  const handleExportPdf = () => {
-    const opened = printFinancePdf({ monthDate, summary })
-    if (!opened) {
-      setError('PDF için açılır pencere engellendi. Tarayıcıda izin verin.')
-    }
-  }
-
   const monthLabel = formatMonthLabel(monthDate)
 
   return (
     <section className='space-y-4'>
-      <div className='card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+      <div className='card'>
         <div className='flex items-center justify-center gap-2'>
           <button
             type='button'
@@ -136,10 +128,6 @@ function Reports() {
             →
           </button>
         </div>
-
-        <button type='button' className='btn border border-slate-300 bg-white' onClick={handleExportPdf}>
-          PDF özeti (A4)
-        </button>
       </div>
 
       <p className='text-center text-sm capitalize text-slate-500'>{monthLabel} raporu</p>
