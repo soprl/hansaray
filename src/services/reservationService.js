@@ -13,7 +13,12 @@ import {
 import { db } from '../firebase'
 import { getRoomNameVariants, normalizeRoomName } from '../config/rooms'
 import { normalizeFirestoreDate } from '../utils/formatters'
-import { ensureAuthReady, isPermissionDenied, refreshAuthToken } from '../utils/firestoreAuth'
+import {
+  ensureAuthReady,
+  getFirestoreErrorMessage,
+  isPermissionDenied,
+  refreshAuthToken,
+} from '../utils/firestoreAuth'
 import {
   blocksRoomAvailability,
   hasReservationDateConflict,
@@ -87,7 +92,7 @@ const fetchAllReservations = async () => {
     .sort((a, b) => (a.checkInDate || '').localeCompare(b.checkInDate || ''))
 }
 
-export async function getReservations() {
+const loadReservationsWithRetry = async () => {
   await ensureAuthReady()
 
   try {
@@ -103,6 +108,22 @@ export async function getReservations() {
     }
 
     return fetchAllReservations()
+  }
+}
+
+export async function getReservations() {
+  try {
+    return await loadReservationsWithRetry()
+  } catch (error) {
+    const wrapped = new Error(getFirestoreErrorMessage(error))
+    wrapped.code = error?.code
+    wrapped.cause = error
+    console.error('getReservations failed', {
+      code: error?.code,
+      message: error?.message,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    })
+    throw wrapped
   }
 }
 

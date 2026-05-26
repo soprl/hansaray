@@ -1,24 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { eachDayOfInterval, format, isWithinInterval, parseISO, subDays } from 'date-fns'
+import { eachDayOfInterval, format, subDays } from 'date-fns'
 import CalendarView from '../components/CalendarView'
 import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
-import { getEffectiveReservationStatus, RES_STATUS } from '../utils/reservationUtils'
+import { parseISODateSafe } from '../utils/formatters'
+import {
+  filterReservationsByName,
+  getEffectiveReservationStatus,
+  RES_STATUS,
+} from '../utils/reservationUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
-const isReservationActiveOnDay = (reservation, date) => {
-  try {
-    const checkIn = parseISO(reservation.checkInDate)
-    const checkOut = parseISO(reservation.checkOutDate)
-    if (checkOut <= checkIn) return false
-
-    return isWithinInterval(date, {
-      start: checkIn,
-      end: subDays(checkOut, 1),
-    })
-  } catch {
-    return false
+const addReservationToMap = (map, date, reservation) => {
+  if (!date) return
+  const key = dayKey(date)
+  const list = map.get(key) ?? []
+  if (!list.some((item) => item.id === reservation.id)) {
+    list.push(reservation)
+    map.set(key, list)
   }
 }
 
@@ -26,6 +26,7 @@ function Calendar() {
   const { user } = useAuth()
   const [reservations, setReservations] = useState([])
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -58,24 +59,22 @@ function Calendar() {
     const map = new Map()
 
     reservations.forEach((reservation) => {
-      try {
-        const checkIn = parseISO(reservation.checkInDate)
-        const checkOut = parseISO(reservation.checkOutDate)
-        if (checkOut <= checkIn) return
+      const checkIn = parseISODateSafe(reservation.checkInDate)
+      const checkOut = parseISODateSafe(reservation.checkOutDate)
+      if (!checkIn || !checkOut || checkOut <= checkIn) return
 
+      addReservationToMap(map, checkIn, reservation)
+      addReservationToMap(map, checkOut, reservation)
+
+      try {
         const rangeDays = eachDayOfInterval({
           start: checkIn,
           end: subDays(checkOut, 1),
         })
 
-        rangeDays.forEach((date) => {
-          const key = dayKey(date)
-          const list = map.get(key) ?? []
-          list.push(reservation)
-          map.set(key, list)
-        })
+        rangeDays.forEach((date) => addReservationToMap(map, date, reservation))
       } catch {
-        // Geçersiz tarihli kayıtlar takvim hesaplamasına dahil edilmez.
+        // Geçersiz tarih aralığı atlanır.
       }
     })
 
@@ -83,9 +82,23 @@ function Calendar() {
   }, [reservations])
 
   const selectedDayReservations = useMemo(
-    () => reservations.filter((reservation) => isReservationActiveOnDay(reservation, selectedDate)),
-    [reservations, selectedDate],
+    () => occupiedDatesMap.get(dayKey(selectedDate)) ?? [],
+    [occupiedDatesMap, selectedDate],
   )
+
+  const searchResults = useMemo(
+    () =>
+      filterReservationsByName(reservations, searchQuery).sort((a, b) =>
+        (a.customerName || '').localeCompare(b.customerName || '', 'tr'),
+      ),
+    [reservations, searchQuery],
+  )
+
+  const handleSearchResultSelect = (reservation) => {
+    const checkIn = parseISODateSafe(reservation.checkInDate)
+    if (checkIn) setSelectedDate(checkIn)
+    setSearchQuery('')
+  }
 
   return (
     <CalendarView
@@ -95,6 +108,10 @@ function Calendar() {
       onDateChange={setSelectedDate}
       occupiedDatesMap={occupiedDatesMap}
       selectedDayReservations={selectedDayReservations}
+      searchQuery={searchQuery}
+      onSearchQueryChange={setSearchQuery}
+      searchResults={searchResults}
+      onSearchResultSelect={handleSearchResultSelect}
     />
   )
 }

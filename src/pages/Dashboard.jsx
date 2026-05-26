@@ -5,6 +5,7 @@ import ReservationNote from '../components/ReservationNote'
 import StatCard from '../components/StatCard'
 import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
+import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import { formatDateTR, formatCurrencyTRY } from '../utils/formatters'
 import { getDashboardReservationMetrics } from '../utils/reservationUtils'
 
@@ -73,15 +74,7 @@ function Dashboard() {
         if (!cancelled) setReservations(data)
       } catch (fetchError) {
         if (cancelled) return
-
-        const code = fetchError?.code ?? ''
-        if (code === 'permission-denied') {
-          setError('Oturum süresi dolmuş olabilir. Çıkış yapıp tekrar giriş yapın.')
-        } else if (code === 'unavailable') {
-          setError('İnternet bağlantısı yok. Bağlantınızı kontrol edip yenileyin.')
-        } else {
-          setError('Dashboard verileri yüklenirken bir hata oluştu.')
-        }
+        setError(getFirestoreErrorMessage(fetchError, 'Dashboard verileri yüklenirken bir hata oluştu.'))
         console.error(fetchError)
       } finally {
         if (!cancelled) setLoading(false)

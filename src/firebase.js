@@ -11,6 +11,16 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
+const missingKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key)
+
+if (missingKeys.length > 0) {
+  console.error('Firebase yapılandırması eksik:', missingKeys.join(', '))
+}
+
+export const firebaseProjectId = firebaseConfig.projectId
+
 export const firebaseApp = initializeApp(firebaseConfig)
 
 export const auth = getAuth(firebaseApp)

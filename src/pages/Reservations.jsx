@@ -10,6 +10,7 @@ import {
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomOptions, normalizeRoomName } from '../config/rooms'
+import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import {
   getEffectiveReservationStatus,
   getOutstandingPayment,
@@ -56,7 +57,7 @@ function Reservations() {
       const data = await getReservations()
       setReservations(data)
     } catch (fetchError) {
-      setError('Rezervasyonlar yüklenirken bir hata oluştu.')
+      setError(getFirestoreErrorMessage(fetchError, 'Rezervasyonlar yüklenirken bir hata oluştu.'))
       console.error(fetchError)
     } finally {
       setLoading(false)

@@ -137,7 +137,58 @@ export const isReservationStayOnDate = (reservation, date) => {
   const checkOut = parseISODateSafe(reservation.checkOutDate)
   if (!checkIn || !checkOut || checkOut <= checkIn) return false
 
-  return isWithinInterval(date, { start: checkIn, end: subDays(checkOut, 1) })
+  const day = startOfDay(date)
+  return isWithinInterval(day, { start: startOfDay(checkIn), end: startOfDay(subDays(checkOut, 1)) })
+}
+
+/** Seçilen gün için giriş, çıkış ve konaklama listeleri (Dashboard ile aynı mantık). */
+export const getCalendarDayReservations = (reservations, referenceDate = new Date()) => {
+  const day = startOfDay(referenceDate)
+  const mappedReservations = reservations.map((reservation) =>
+    withEffectiveReservationStatus(reservation, referenceDate),
+  )
+  const activeReservations = mappedReservations.filter(
+    (reservation) => reservation.effectiveStatus === RES_STATUS.ACTIVE,
+  )
+
+  const checkIns = activeReservations.filter((reservation) => {
+    const checkInDate = parseISODateSafe(reservation.checkInDate)
+    return checkInDate ? isSameDay(checkInDate, day) : false
+  })
+  const checkOuts = activeReservations.filter((reservation) => {
+    const checkOutDate = parseISODateSafe(reservation.checkOutDate)
+    return checkOutDate ? isSameDay(checkOutDate, day) : false
+  })
+  const stays = activeReservations.filter((reservation) => isReservationStayOnDate(reservation, day))
+  const stayingOnly = stays.filter((reservation) => {
+    const checkInDate = parseISODateSafe(reservation.checkInDate)
+    const checkOutDate = parseISODateSafe(reservation.checkOutDate)
+    const isCheckInDay = checkInDate ? isSameDay(checkInDate, day) : false
+    const isCheckOutDay = checkOutDate ? isSameDay(checkOutDate, day) : false
+    return !isCheckInDay && !isCheckOutDay
+  })
+
+  const allForDay = [...stays]
+  const seen = new Set(stays.map((reservation) => reservation.id))
+  ;[...checkIns, ...checkOuts].forEach((reservation) => {
+    if (seen.has(reservation.id)) return
+    seen.add(reservation.id)
+    allForDay.push(reservation)
+  })
+
+  return { checkIns, checkOuts, stayingOnly, stays, allForDay }
+}
+
+export const matchesReservationNameSearch = (reservation, query) => {
+  const term = query.trim().toLocaleLowerCase('tr')
+  if (!term) return false
+  const name = (reservation.customerName || '').toLocaleLowerCase('tr')
+  return name.includes(term)
+}
+
+export const filterReservationsByName = (reservations, query) => {
+  if (!query.trim()) return []
+  return reservations.filter((reservation) => matchesReservationNameSearch(reservation, query))
 }
 
 export const getMonthlyReservationIncome = (reservations, referenceDate = new Date()) => {
@@ -209,15 +260,11 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
     (reservation) => reservation.effectiveStatus !== RES_STATUS.CANCELLED,
   )
 
-  const todaysOccupancyCount = activeReservations.filter((reservation) => isReservationStayOnDate(reservation, today)).length
-  const todaysCheckIns = activeReservations.filter((reservation) => {
-    const checkInDate = parseISODateSafe(reservation.checkInDate)
-    return checkInDate ? isSameDay(checkInDate, today) : false
-  })
-  const todaysCheckOuts = activeReservations.filter((reservation) => {
-    const checkOutDate = parseISODateSafe(reservation.checkOutDate)
-    return checkOutDate ? isSameDay(checkOutDate, today) : false
-  })
+  const { checkIns: todaysCheckIns, checkOuts: todaysCheckOuts, stays } = getCalendarDayReservations(
+    reservations,
+    referenceDate,
+  )
+  const todaysOccupancyCount = stays.length
   const upcomingReservations = activeReservations
     .filter((reservation) => {
       const checkInDate = parseISODateSafe(reservation.checkInDate)
