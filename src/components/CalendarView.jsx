@@ -5,7 +5,7 @@ import ReactCalendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import ReservationNote from './ReservationNote'
 import { formatDateTR, parseISODateSafe } from '../utils/formatters'
-import { getReservationDayTags } from '../utils/reservationUtils'
+import { getCalendarPaymentDisplay, getReservationDayTags } from '../utils/reservationUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
@@ -13,13 +13,13 @@ const DAY_FILTERS = [
   { id: 'all', label: 'Tümü' },
   { id: 'Giriş', label: 'Giriş' },
   { id: 'Çıkış', label: 'Çıkış' },
-  { id: 'Konaklama', label: 'Konaklama' },
+  { id: 'Konaklıyor', label: 'Konaklıyor' },
 ]
 
 const tagClass = {
   Giriş: 'bg-sky-100 text-sky-800',
   Çıkış: 'bg-violet-100 text-violet-800',
-  Konaklama: 'bg-emerald-100 text-emerald-800',
+  Konaklıyor: 'bg-emerald-100 text-emerald-800',
 }
 
 function getStayNights(reservation) {
@@ -29,6 +29,22 @@ function getStayNights(reservation) {
   const nights = differenceInCalendarDays(checkOut, checkIn)
   if (nights <= 0) return null
   return `${nights} gece`
+}
+
+function CalendarPaymentLabels({ reservation }) {
+  const { primary, primaryTone, showUnpaid } = getCalendarPaymentDisplay(reservation)
+
+  if (!primary && !showUnpaid) return null
+
+  const primaryClass =
+    primaryTone === 'paid' ? 'font-medium text-emerald-700' : 'font-medium text-amber-800'
+
+  return (
+    <div className='flex flex-col items-end gap-0.5 text-sm'>
+      {primary ? <span className={primaryClass}>{primary}</span> : null}
+      {showUnpaid ? <span className='font-semibold text-rose-600'>Ödenmedi</span> : null}
+    </div>
+  )
 }
 
 function CalendarRow({ reservation, referenceDate, expanded, onToggle, onSelect }) {
@@ -52,25 +68,23 @@ function CalendarRow({ reservation, referenceDate, expanded, onToggle, onSelect 
         <div className='flex items-start justify-between gap-2'>
           <div className='min-w-0 flex-1'>
             <p className='truncate font-medium text-blue-950'>{reservation.customerName}</p>
-            <p className='mt-0.5 text-xs text-slate-500'>
+            <p className='mt-0.5 text-sm text-slate-500'>
               {reservation.roomName || 'Oda yok'}
               {nights ? ` · ${nights}` : ''}
             </p>
           </div>
-          <div className='flex shrink-0 flex-col items-end gap-1'>
+          <div className='flex shrink-0 flex-col items-end gap-1.5'>
             <div className='flex flex-wrap justify-end gap-1'>
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${tagClass[tag]}`}
+                  className={`rounded-md px-2 py-0.5 text-sm font-medium ${tagClass[tag]}`}
                 >
                   {tag}
                 </span>
               ))}
             </div>
-            {reservation.paymentStatus ? (
-              <span className='text-[10px] text-slate-500'>{reservation.paymentStatus}</span>
-            ) : null}
+            <CalendarPaymentLabels reservation={reservation} />
           </div>
         </div>
       </Wrapper>
@@ -125,7 +139,7 @@ function CalendarView({
   }, [selectedDate])
 
   const filteredDayReservations = useMemo(() => {
-    const tagOrder = { Giriş: 0, Çıkış: 1, Konaklama: 2 }
+    const tagOrder = { Giriş: 0, Çıkış: 1, Konaklıyor: 2 }
     const list =
       dayFilter === 'all'
         ? [...selectedDayReservations]
@@ -228,7 +242,7 @@ function CalendarView({
                     key={filter.id}
                     type='button'
                     onClick={() => setDayFilter(filter.id)}
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
                       dayFilter === filter.id
                         ? 'bg-blue-900 text-white'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'

@@ -191,7 +191,7 @@ export const filterReservationsByName = (reservations, query) => {
   return reservations.filter((reservation) => matchesReservationNameSearch(reservation, query))
 }
 
-/** Takvim gün listesinde gösterilecek etiketler: Giriş, Çıkış, Konaklama */
+/** Takvim gün listesinde gösterilecek etiketler: Giriş, Çıkış, Konaklıyor */
 export const getReservationDayTags = (reservation, referenceDate = new Date()) => {
   const day = startOfDay(referenceDate)
   const tags = []
@@ -200,9 +200,29 @@ export const getReservationDayTags = (reservation, referenceDate = new Date()) =
 
   if (checkInDate && isSameDay(checkInDate, day)) tags.push('Giriş')
   if (checkOutDate && isSameDay(checkOutDate, day)) tags.push('Çıkış')
-  if (tags.length === 0 && isReservationStayOnDate(reservation, day)) tags.push('Konaklama')
+  if (tags.length === 0 && isReservationStayOnDate(reservation, day)) tags.push('Konaklıyor')
 
   return tags
+}
+
+/** Takvim satırında ödeme metinleri */
+export const getCalendarPaymentDisplay = (reservation) => {
+  const outstanding = getOutstandingPayment(reservation)
+  const isFullyPaid =
+    reservation.paymentStatus === PAYMENT_STATUS.PAID || outstanding <= 0
+
+  if (isFullyPaid) {
+    return { primary: 'Tamamı ödendi', primaryTone: 'paid', showUnpaid: false }
+  }
+
+  const hasDeposit =
+    reservation.paymentStatus === PAYMENT_STATUS.DEPOSIT || (Number(reservation.deposit) || 0) > 0
+
+  return {
+    primary: hasDeposit ? 'Kapora alındı' : null,
+    primaryTone: 'deposit',
+    showUnpaid: true,
+  }
 }
 
 export const getMonthlyReservationIncome = (reservations, referenceDate = new Date()) => {
