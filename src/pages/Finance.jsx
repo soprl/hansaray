@@ -38,30 +38,9 @@ function Finance() {
   }
 
   useEffect(() => {
-    let cancelled = false
-
-    getTransactions()
-      .then((data) => {
-        if (!cancelled) {
-          setTransactions(data)
-        }
-      })
-      .catch((fetchError) => {
-        if (!cancelled) {
-          setError('Gelir / gider verileri yüklenirken bir hata oluştu.')
-        }
-        console.error(fetchError)
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    if (!user) return
+    loadTransactions()
+  }, [user])
 
   const allCategories = useMemo(
     () => [...new Set(transactions.map((transaction) => transaction.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),

@@ -5,7 +5,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -14,6 +13,7 @@ import {
 import { db } from '../firebase'
 import { getRoomNameVariants, normalizeRoomName } from '../config/rooms'
 import { normalizeFirestoreDate } from '../utils/formatters'
+import { ensureAuthReady, isPermissionDenied, refreshAuthToken } from '../utils/firestoreAuth'
 import {
   blocksRoomAvailability,
   hasReservationDateConflict,
@@ -80,20 +80,29 @@ const mapReservationDoc = (document) => {
   }
 }
 
+const fetchAllReservations = async () => {
+  const snapshot = await getDocs(reservationsRef)
+  return snapshot.docs
+    .map(mapReservationDoc)
+    .sort((a, b) => (a.checkInDate || '').localeCompare(b.checkInDate || ''))
+}
+
 export async function getReservations() {
+  await ensureAuthReady()
+
   try {
-    const reservationsQuery = query(reservationsRef, orderBy('checkInDate', 'asc'))
-    const snapshot = await getDocs(reservationsQuery)
-    return snapshot.docs.map(mapReservationDoc)
+    return await fetchAllReservations()
   } catch (error) {
-    if (error?.code !== 'failed-precondition') {
+    if (!isPermissionDenied(error)) {
       throw error
     }
 
-    const snapshot = await getDocs(reservationsRef)
-    return snapshot.docs
-      .map(mapReservationDoc)
-      .sort((a, b) => (a.checkInDate || '').localeCompare(b.checkInDate || ''))
+    const refreshed = await refreshAuthToken()
+    if (!refreshed) {
+      throw error
+    }
+
+    return fetchAllReservations()
   }
 }
 

@@ -64,30 +64,9 @@ function Reservations() {
   }
 
   useEffect(() => {
-    let cancelled = false
-
-    getReservations()
-      .then((data) => {
-        if (!cancelled) {
-          setReservations(data)
-        }
-      })
-      .catch((fetchError) => {
-        if (!cancelled) {
-          setError('Rezervasyonlar yüklenirken bir hata oluştu.')
-        }
-        console.error(fetchError)
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    if (!user) return
+    loadReservations()
+  }, [user])
 
   const roomOptions = useMemo(() => getRoomOptions(reservations), [reservations])
 

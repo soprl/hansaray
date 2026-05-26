@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { eachDayOfInterval, format, isWithinInterval, parseISO, subDays } from 'date-fns'
 import CalendarView from '../components/CalendarView'
+import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
 import { getEffectiveReservationStatus, RES_STATUS } from '../utils/reservationUtils'
 
@@ -22,12 +23,15 @@ const isReservationActiveOnDay = (reservation, date) => {
 }
 
 function Calendar() {
+  const { user } = useAuth()
   const [reservations, setReservations] = useState([])
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (!user) return
+
     const fetchReservations = async () => {
       setLoading(true)
       setError('')
@@ -48,7 +52,7 @@ function Calendar() {
     }
 
     fetchReservations()
-  }, [])
+  }, [user])
 
   const occupiedDatesMap = useMemo(() => {
     const map = new Map()

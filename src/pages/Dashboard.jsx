@@ -133,6 +133,12 @@ function Dashboard() {
       </div>
 
       {error ? <p className='text-sm text-rose-600'>{error}</p> : null}
+      {!loading && !error && reservations.length === 0 ? (
+        <p className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900'>
+          Firestore&apos;da rezervasyon kaydı görünmüyor. Doğru Firebase projesine bağlı olduğunuzdan emin olun;
+          sorun sürerse çıkış yapıp tekrar giriş yapın.
+        </p>
+      ) : null}
 
       <div className='space-y-3 sm:space-y-4'>
         <ReservationDayList

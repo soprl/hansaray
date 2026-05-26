@@ -9,14 +9,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser)
-      setLoading(false)
+    const unsub = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        try {
+          await currentUser.getIdToken()
+        } catch (tokenError) {
+          console.warn('Auth token alınamadı', tokenError)
+        }
+
         initNativePush(currentUser).catch((error) => {
           console.warn('Native push init skipped', error)
         })
       }
+
+      setUser(currentUser)
+      setLoading(false)
     })
 
     return () => unsub()

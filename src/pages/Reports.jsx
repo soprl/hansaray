@@ -1,5 +1,6 @@
 import { format, parse, startOfMonth } from 'date-fns'
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
 import { getTransactions } from '../services/transactionService'
 import {
@@ -16,6 +17,7 @@ import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getMonthlyReservationBreakdown, getOutstandingPayment, isFullyPaidReservation } from '../utils/reservationUtils'
 
 function Reports() {
+  const { user } = useAuth()
   const [reservations, setReservations] = useState([])
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,6 +25,8 @@ function Reports() {
   const [monthDate, setMonthDate] = useState(() => startOfMonth(new Date()))
 
   useEffect(() => {
+    if (!user) return
+
     let cancelled = false
 
     Promise.all([getReservations(), getTransactions()])
@@ -43,7 +47,7 @@ function Reports() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [user])
 
   const monthKey = format(monthDate, 'yyyy-MM')
 

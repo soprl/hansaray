@@ -4,12 +4,11 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  orderBy,
-  query,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { ensureAuthReady, isPermissionDenied, refreshAuthToken } from '../utils/firestoreAuth'
 
 const transactionsRef = collection(db, 'transactions')
 
@@ -28,14 +27,33 @@ const normalizeTransaction = (data) => ({
   createdBy: data.createdBy ?? '',
 })
 
-export async function getTransactions() {
-  const transactionsQuery = query(transactionsRef, orderBy('date', 'desc'))
-  const snapshot = await getDocs(transactionsQuery)
+const fetchAllTransactions = async () => {
+  const snapshot = await getDocs(transactionsRef)
+  return snapshot.docs
+    .map((document) => ({
+      id: document.id,
+      ...document.data(),
+    }))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+}
 
-  return snapshot.docs.map((document) => ({
-    id: document.id,
-    ...document.data(),
-  }))
+export async function getTransactions() {
+  await ensureAuthReady()
+
+  try {
+    return await fetchAllTransactions()
+  } catch (error) {
+    if (!isPermissionDenied(error)) {
+      throw error
+    }
+
+    const refreshed = await refreshAuthToken()
+    if (!refreshed) {
+      throw error
+    }
+
+    return fetchAllTransactions()
+  }
 }
 
 export async function addTransaction(data) {
