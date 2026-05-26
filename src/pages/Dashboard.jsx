@@ -7,7 +7,7 @@ import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
 import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import { formatDateTR, formatCurrencyTRY } from '../utils/formatters'
-import { getDashboardReservationMetrics } from '../utils/reservationUtils'
+import { getDashboardReservationMetrics, getReservationNightCount } from '../utils/reservationUtils'
 
 const paymentBadgeClass = {
   Ödenmedi: 'bg-rose-100 text-rose-700',
@@ -28,12 +28,16 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
         <p className='mt-2 text-sm text-slate-500'>{emptyText}</p>
       ) : (
         <ul className='mt-3 space-y-2'>
-          {reservations.map((reservation) => (
+          {reservations.map((reservation) => {
+            const nights = getReservationNightCount(reservation)
+
+            return (
             <li key={reservation.id} className='rounded-lg border border-slate-200 p-2.5'>
               <p className='text-sm font-medium text-blue-950'>{reservation.customerName}</p>
               <p className='text-xs text-slate-600'>
                 {reservation.roomName}
                 {showCheckInDate ? ` · Giriş ${formatDateTR(reservation.checkInDate)}` : null}
+                {nights ? ` · ${nights} gece` : ''}
               </p>
               <p className='text-xs text-slate-600'>Tel: {reservation.customerPhone || '-'}</p>
               <ReservationNote note={reservation.note} className='mt-1 text-xs' />
@@ -45,7 +49,8 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
                 {reservation.paymentStatus || '-'}
               </span>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </section>
@@ -146,6 +151,12 @@ function Dashboard() {
           reservations={metrics.todaysCheckOuts}
           loading={loading}
           emptyText='Bugün çıkış yapan misafir yok.'
+        />
+        <ReservationDayList
+          title='Halihazırda konaklayanlar'
+          reservations={metrics.todaysCurrentlyStaying}
+          loading={loading}
+          emptyText='Şu an konaklayan misafir yok.'
         />
         <ReservationDayList
           title='Yaklaşan rezervasyonlar'

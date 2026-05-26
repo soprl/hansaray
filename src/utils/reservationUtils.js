@@ -1,5 +1,6 @@
 import {
   addMonths,
+  differenceInCalendarDays,
   endOfMonth,
   isBefore,
   isAfter,
@@ -139,6 +140,15 @@ export const isReservationStayOnDate = (reservation, date) => {
 
   const day = startOfDay(date)
   return isWithinInterval(day, { start: startOfDay(checkIn), end: startOfDay(subDays(checkOut, 1)) })
+}
+
+export const getReservationNightCount = (reservation) => {
+  const checkIn = parseISODateSafe(reservation.checkInDate)
+  const checkOut = parseISODateSafe(reservation.checkOutDate)
+  if (!checkIn || !checkOut) return null
+
+  const nights = differenceInCalendarDays(checkOut, checkIn)
+  return nights > 0 ? nights : null
 }
 
 /** Seçilen gün için giriş, çıkış ve konaklama listeleri (Dashboard ile aynı mantık). */
@@ -294,10 +304,12 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
     (reservation) => reservation.effectiveStatus !== RES_STATUS.CANCELLED,
   )
 
-  const { checkIns: todaysCheckIns, checkOuts: todaysCheckOuts, stays } = getCalendarDayReservations(
-    reservations,
-    referenceDate,
-  )
+  const {
+    checkIns: todaysCheckIns,
+    checkOuts: todaysCheckOuts,
+    stayingOnly: todaysCurrentlyStaying,
+    stays,
+  } = getCalendarDayReservations(reservations, referenceDate)
   const todaysOccupancyCount = stays.length
   const upcomingReservations = activeReservations
     .filter((reservation) => {
@@ -331,6 +343,7 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
     todaysOccupancyCount,
     todaysCheckIns,
     todaysCheckOuts,
+    todaysCurrentlyStaying,
     upcomingReservations,
     monthlyReservationIncome,
     totalPendingPayment,
