@@ -1,14 +1,19 @@
 import { format, parseISO } from 'date-fns'
-import { tr } from 'date-fns/locale'
 import { useEffect, useRef, useState } from 'react'
 import { FiCalendar } from 'react-icons/fi'
-import ReactCalendar from 'react-calendar'
-import 'react-calendar/dist/Calendar.css'
 import { formatDateTR } from '../utils/formatters'
+import TurkishCalendar from './TurkishCalendar'
 
-const weekdayMap = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt']
-
-function DatePickerField({ label, value, onChange, minDate, disabled, error, placeholder = 'Tarih seçin' }) {
+function DatePickerField({
+  label,
+  value,
+  onChange,
+  minDate,
+  maxDate,
+  disabled,
+  error,
+  placeholder = 'Tarih seçin',
+}) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef(null)
 
@@ -27,6 +32,7 @@ function DatePickerField({ label, value, onChange, minDate, disabled, error, pla
 
   const calendarValue = value ? parseISO(value) : null
   const minValue = minDate ? parseISO(minDate) : undefined
+  const maxValue = maxDate ? parseISO(maxDate) : undefined
 
   const handleSelect = (date) => {
     onChange(format(date, 'yyyy-MM-dd'))
@@ -35,7 +41,7 @@ function DatePickerField({ label, value, onChange, minDate, disabled, error, pla
 
   return (
     <div ref={containerRef} className='relative'>
-      <label className='mb-1 block text-sm font-medium'>{label}</label>
+      {label ? <label className='mb-1 block text-sm font-medium text-slate-700'>{label}</label> : null}
       <button
         type='button'
         disabled={disabled}
@@ -47,18 +53,16 @@ function DatePickerField({ label, value, onChange, minDate, disabled, error, pla
         <span className={value ? 'text-slate-900' : 'text-slate-400'}>
           {value ? formatDateTR(value, 'dd MMMM yyyy') : placeholder}
         </span>
-        <FiCalendar className='text-slate-400' aria-hidden />
+        <FiCalendar className='shrink-0 text-slate-400' aria-hidden />
       </button>
 
       {open && !disabled ? (
-        <div className='date-picker-popover absolute left-0 top-full z-20 mt-1'>
-          <ReactCalendar
-            locale='tr-TR'
+        <div className='date-picker-popover absolute left-0 right-0 top-full z-30 mt-1 sm:right-auto sm:w-auto'>
+          <TurkishCalendar
             value={calendarValue}
             onChange={handleSelect}
             minDate={minValue}
-            formatMonthYear={(_, date) => format(date, 'MMMM yyyy', { locale: tr })}
-            formatShortWeekday={(_, date) => weekdayMap[date.getDay()]}
+            maxDate={maxValue}
           />
         </div>
       ) : null}

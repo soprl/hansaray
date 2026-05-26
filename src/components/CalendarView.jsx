@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { differenceInCalendarDays, format, isSameDay, startOfDay } from 'date-fns'
 import { tr } from 'date-fns/locale'
-import ReactCalendar from 'react-calendar'
-import 'react-calendar/dist/Calendar.css'
 import ReservationNote from './ReservationNote'
+import TurkishCalendar from './TurkishCalendar'
 import { formatDateTR, parseISODateSafe } from '../utils/formatters'
 import { getCalendarPaymentDisplay, getReservationDayTags } from '../utils/reservationUtils'
 
@@ -126,7 +125,6 @@ function CalendarView({
   searchResults,
   onSearchResultSelect,
 }) {
-  const weekdayMap = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt']
   const [dayFilter, setDayFilter] = useState('all')
   const [expandedId, setExpandedId] = useState(null)
   const isSearching = searchQuery.trim().length > 0
@@ -208,12 +206,9 @@ function CalendarView({
         ) : (
           <>
             <div className='calendar-shell'>
-              <ReactCalendar
-                locale='tr-TR'
+              <TurkishCalendar
                 value={selectedDate}
                 onChange={onDateChange}
-                formatMonthYear={(_, date) => format(date, 'MMMM yyyy', { locale: tr })}
-                formatShortWeekday={(_, date) => weekdayMap[date.getDay()]}
                 tileClassName={tileClassName}
                 tileContent={tileContent}
               />

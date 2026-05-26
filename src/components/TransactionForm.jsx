@@ -1,6 +1,7 @@
 import { format } from 'date-fns'
 import { useMemo, useState } from 'react'
 import { EXPENSE_CATEGORIES, EXTRA_INCOME_CATEGORIES } from '../config/financeCategories'
+import DatePickerField from './DatePickerField'
 
 const CATEGORY_MAP = {
   income: EXTRA_INCOME_CATEGORIES,
@@ -167,9 +168,13 @@ function TransactionForm({ initialValues, onSubmit, onCancel, submitting }) {
           </div>
 
           <div>
-            <label className='mb-1 block text-sm font-medium text-slate-700'>Tarih</label>
-            <input className='input' type='date' name='date' value={form.date} onChange={handleChange} />
-            {errors.date ? <p className='mt-1 text-xs text-rose-600'>{errors.date}</p> : null}
+            <DatePickerField
+              label='Tarih'
+              value={form.date}
+              onChange={(date) => setForm((prev) => ({ ...prev, date }))}
+              error={errors.date}
+              placeholder='Tarih seçin'
+            />
           </div>
 
           <div className='sm:col-span-2'>
