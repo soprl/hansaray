@@ -35,6 +35,7 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
                 {reservation.roomName}
                 {showCheckInDate ? ` · Giriş ${formatDateTR(reservation.checkInDate)}` : null}
               </p>
+              <p className='text-xs text-slate-600'>Tel: {reservation.customerPhone || '-'}</p>
               <ReservationNote note={reservation.note} className='mt-1 text-xs' />
               <span
                 className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-medium ${

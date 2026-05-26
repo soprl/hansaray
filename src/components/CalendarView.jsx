@@ -72,6 +72,7 @@ function CalendarRow({ reservation, referenceDate, expanded, onToggle, onSelect 
               {reservation.roomName || 'Oda yok'}
               {nights ? ` · ${nights}` : ''}
             </p>
+            <p className='text-sm text-slate-500'>Tel: {reservation.customerPhone || '-'}</p>
           </div>
           <div className='flex shrink-0 flex-col items-end gap-1.5'>
             <div className='flex flex-wrap justify-end gap-1'>
@@ -104,7 +105,7 @@ function CalendarRow({ reservation, referenceDate, expanded, onToggle, onSelect 
           <p>
             {formatDateTR(reservation.checkInDate)} – {formatDateTR(reservation.checkOutDate)}
           </p>
-          {reservation.customerPhone ? <p className='mt-1'>{reservation.customerPhone}</p> : null}
+          <p className='mt-1'>Tel: {reservation.customerPhone || '-'}</p>
           <ReservationNote note={reservation.note} className='mt-1' />
         </div>
       ) : null}

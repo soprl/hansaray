@@ -1,7 +1,7 @@
 import { format, parse, startOfMonth } from 'date-fns'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/useAuth'
-import { getReservations } from '../services/reservationService'
+import { getReservations, updateReservation } from '../services/reservationService'
 import { getTransactions } from '../services/transactionService'
 import {
   formatMonthLabel,
@@ -14,7 +14,12 @@ import {
 } from '../utils/financeUtils'
 import ReservationNote from '../components/ReservationNote'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
-import { getMonthlyReservationBreakdown, getOutstandingPayment, isFullyPaidReservation } from '../utils/reservationUtils'
+import {
+  getMonthlyReservationBreakdown,
+  getOutstandingPayment,
+  isFullyPaidReservation,
+  PAYMENT_STATUS,
+} from '../utils/reservationUtils'
 
 function Reports() {
   const { user } = useAuth()
@@ -23,6 +28,7 @@ function Reports() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [monthDate, setMonthDate] = useState(() => startOfMonth(new Date()))
+  const [payingReservationId, setPayingReservationId] = useState(null)
 
   useEffect(() => {
     if (!user) return
@@ -95,6 +101,39 @@ function Reports() {
     const parsed = parse(`${event.target.value}-01`, 'yyyy-MM-dd', new Date())
     if (!Number.isNaN(parsed.getTime())) {
       setMonthDate(startOfMonth(parsed))
+    }
+  }
+
+  const handleMarkFullyPaid = async (reservation) => {
+    const totalPrice = Number(reservation.totalPrice) || 0
+
+    setPayingReservationId(reservation.id)
+    setError('')
+
+    try {
+      await updateReservation(reservation.id, {
+        ...reservation,
+        paymentStatus: PAYMENT_STATUS.PAID,
+        deposit: totalPrice,
+      })
+
+      setReservations((prev) =>
+        prev.map((item) =>
+          item.id === reservation.id
+            ? {
+                ...item,
+                paymentStatus: PAYMENT_STATUS.PAID,
+                deposit: totalPrice,
+                remainingPayment: 0,
+              }
+            : item,
+        ),
+      )
+    } catch (paymentError) {
+      setError('Ödeme durumu güncellenirken bir hata oluştu.')
+      console.error(paymentError)
+    } finally {
+      setPayingReservationId(null)
     }
   }
 
@@ -228,16 +267,27 @@ function Reports() {
                     <p className='text-sm text-slate-600'>
                       {reservation.roomName} · Giriş {formatDateTR(reservation.checkInDate)}
                     </p>
+                    <p className='text-sm text-slate-600'>Tel: {reservation.customerPhone || '-'}</p>
                     <ReservationNote note={reservation.note} className='mt-1' />
                   </div>
-                  <div className='text-right'>
+                  <div className='flex flex-col items-end gap-2 text-right'>
                     <p className='font-semibold text-emerald-600'>{formatCurrencyTRY(reservation.totalPrice)}</p>
                     {isFullyPaidReservation(reservation) ? (
-                      <p className='text-sm text-slate-500'>Tamamı ödendi</p>
+                      <p className='text-sm font-medium text-emerald-700'>Tamamı ödendi</p>
                     ) : (
-                      <p className='text-sm text-amber-600'>
-                        Kalan {formatCurrencyTRY(getOutstandingPayment(reservation))}
-                      </p>
+                      <>
+                        <p className='text-sm font-medium text-amber-600'>
+                          Kalan {formatCurrencyTRY(getOutstandingPayment(reservation))}
+                        </p>
+                        <button
+                          type='button'
+                          className='btn border border-emerald-600 bg-emerald-50 text-sm text-emerald-800 hover:bg-emerald-100'
+                          onClick={() => handleMarkFullyPaid(reservation)}
+                          disabled={payingReservationId === reservation.id}
+                        >
+                          {payingReservationId === reservation.id ? 'Kaydediliyor...' : 'Tamamı Ödendi'}
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
