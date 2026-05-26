@@ -6,6 +6,7 @@ import { getReservations } from '../services/reservationService'
 import { parseISODateSafe } from '../utils/formatters'
 import {
   filterReservationsByName,
+  getCalendarDayReservations,
   getEffectiveReservationStatus,
   RES_STATUS,
 } from '../utils/reservationUtils'
@@ -86,6 +87,11 @@ function Calendar() {
     [occupiedDatesMap, selectedDate],
   )
 
+  const selectedDayDetails = useMemo(
+    () => getCalendarDayReservations(reservations, selectedDate),
+    [reservations, selectedDate],
+  )
+
   const searchResults = useMemo(
     () =>
       filterReservationsByName(reservations, searchQuery).sort((a, b) =>
@@ -108,6 +114,7 @@ function Calendar() {
       onDateChange={setSelectedDate}
       occupiedDatesMap={occupiedDatesMap}
       selectedDayReservations={selectedDayReservations}
+      selectedDayDetails={selectedDayDetails}
       searchQuery={searchQuery}
       onSearchQueryChange={setSearchQuery}
       searchResults={searchResults}

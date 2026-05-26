@@ -191,6 +191,20 @@ export const filterReservationsByName = (reservations, query) => {
   return reservations.filter((reservation) => matchesReservationNameSearch(reservation, query))
 }
 
+/** Takvim gün listesinde gösterilecek etiketler: Giriş, Çıkış, Konaklama */
+export const getReservationDayTags = (reservation, referenceDate = new Date()) => {
+  const day = startOfDay(referenceDate)
+  const tags = []
+  const checkInDate = parseISODateSafe(reservation.checkInDate)
+  const checkOutDate = parseISODateSafe(reservation.checkOutDate)
+
+  if (checkInDate && isSameDay(checkInDate, day)) tags.push('Giriş')
+  if (checkOutDate && isSameDay(checkOutDate, day)) tags.push('Çıkış')
+  if (tags.length === 0 && isReservationStayOnDate(reservation, day)) tags.push('Konaklama')
+
+  return tags
+}
+
 export const getMonthlyReservationIncome = (reservations, referenceDate = new Date()) => {
   const monthStart = startOfMonth(referenceDate)
   const monthEnd = endOfMonth(referenceDate)

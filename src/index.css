@@ -146,15 +146,11 @@ html.native-app .calendar-shell .react-calendar__navigation button {
   @apply text-brand-ink hover:bg-amber-50;
 }
 
-html.native-app .calendar-shell .react-calendar__tile--active {
-  @apply border-brand-gold-dark bg-brand-gold text-brand-ink;
+html.native-app .calendar-shell .react-calendar__tile.tile-selected {
+  @apply border-brand-gold-dark bg-amber-50/80 text-brand-ink ring-2 ring-brand-gold;
 }
 
-html.native-app .calendar-shell .react-calendar__tile.tile-occupied {
-  @apply border-brand-gold/40 bg-amber-50;
-}
-
-html.native-app .calendar-shell .tile-chip {
+html.native-app .calendar-shell .react-calendar__tile.tile-has-events .tile-count {
   @apply bg-brand-gold text-brand-ink;
 }
 
@@ -195,27 +191,27 @@ html.native-app .min-h-screen.bg-slate-100 {
 }
 
 .calendar-shell .react-calendar__tile {
-  @apply relative min-h-16 rounded-lg border border-transparent p-1 text-xs;
+  @apply relative flex min-h-[3.25rem] flex-col items-center justify-start rounded-lg border border-transparent p-1 text-sm font-medium text-slate-700;
 }
 
 .calendar-shell .react-calendar__tile--now {
-  @apply border-amber-300 bg-amber-50;
+  @apply bg-transparent;
 }
 
 .calendar-shell .react-calendar__tile--active {
-  @apply border-blue-800 bg-blue-900 text-white;
+  @apply bg-transparent text-slate-700;
 }
 
-.calendar-shell .react-calendar__tile.tile-empty {
-  @apply bg-white;
+.calendar-shell .react-calendar__tile.tile-today {
+  @apply ring-1 ring-amber-400 ring-inset;
 }
 
-.calendar-shell .react-calendar__tile.tile-occupied {
-  @apply border-emerald-200 bg-emerald-50;
+.calendar-shell .react-calendar__tile.tile-selected {
+  @apply bg-blue-50 text-blue-950 ring-2 ring-blue-800 ring-inset;
 }
 
-.calendar-shell .tile-chip {
-  @apply mt-1 inline-block rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-medium text-white;
+.calendar-shell .react-calendar__tile.tile-has-events .tile-count {
+  @apply absolute bottom-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-semibold leading-none text-white;
 }
 
 .date-picker-popover .react-calendar {

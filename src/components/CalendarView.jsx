@@ -1,72 +1,101 @@
-import { format } from 'date-fns'
+import { useEffect, useMemo, useState } from 'react'
+import { differenceInCalendarDays, format, isSameDay, startOfDay } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import ReactCalendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import { getEffectiveReservationStatus } from '../utils/reservationUtils'
 import ReservationNote from './ReservationNote'
-import { formatDateTR } from '../utils/formatters'
+import { formatDateTR, parseISODateSafe } from '../utils/formatters'
+import { getReservationDayTags } from '../utils/reservationUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
-const shortLabel = (reservation) => {
-  const source = reservation.roomName || reservation.customerName || ''
-  return source.length > 8 ? `${source.slice(0, 8)}…` : source
+const DAY_FILTERS = [
+  { id: 'all', label: 'Tümü' },
+  { id: 'Giriş', label: 'Giriş' },
+  { id: 'Çıkış', label: 'Çıkış' },
+  { id: 'Konaklama', label: 'Konaklama' },
+]
+
+const tagClass = {
+  Giriş: 'bg-sky-100 text-sky-800',
+  Çıkış: 'bg-violet-100 text-violet-800',
+  Konaklama: 'bg-emerald-100 text-emerald-800',
 }
 
-const paymentBadgeClass = {
-  Ödenmedi: 'bg-rose-100 text-rose-700',
-  'Kapora Alındı': 'bg-amber-100 text-amber-700',
-  'Tamamı Ödendi': 'bg-emerald-100 text-emerald-700',
+function getStayNights(reservation) {
+  const checkIn = parseISODateSafe(reservation.checkInDate)
+  const checkOut = parseISODateSafe(reservation.checkOutDate)
+  if (!checkIn || !checkOut) return null
+  const nights = differenceInCalendarDays(checkOut, checkIn)
+  if (nights <= 0) return null
+  return `${nights} gece`
 }
 
-function CalendarReservationCard({ reservation, referenceDate, onSelect }) {
-  const statusBadgeClass = {
-    Aktif: 'bg-emerald-100 text-emerald-700',
-    Tamamlandı: 'bg-slate-200 text-slate-700',
-    İptal: 'bg-rose-100 text-rose-700',
-  }
+function CalendarRow({ reservation, referenceDate, expanded, onToggle, onSelect }) {
+  const tags = getReservationDayTags(reservation, referenceDate)
+  const nights = getStayNights(reservation)
+  const Wrapper = onSelect ? 'button' : 'div'
+  const wrapperProps = onSelect
+    ? {
+        type: 'button',
+        onClick: onSelect,
+        className:
+          'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-blue-200 hover:bg-slate-50',
+      }
+    : {
+        className: 'rounded-lg border border-slate-200 bg-white px-3 py-2.5',
+      }
 
-  const content = (
-    <>
-      <p className='font-medium text-blue-950'>{reservation.customerName}</p>
-      <p className='text-sm text-slate-600'>Oda: {reservation.roomName || '-'}</p>
-      <p className='text-sm text-slate-600'>
-        {formatDateTR(reservation.checkInDate)} - {formatDateTR(reservation.checkOutDate)}
-      </p>
-      <ReservationNote note={reservation.note} className='mt-1' />
-      <div className='mt-1 flex flex-wrap gap-2'>
-        <span
-          className={`rounded px-2 py-0.5 text-xs font-medium ${
-            statusBadgeClass[getEffectiveReservationStatus(reservation, referenceDate)] ??
-            'bg-slate-100 text-slate-700'
-          }`}
+  return (
+    <div className='space-y-0'>
+      <Wrapper {...wrapperProps}>
+        <div className='flex items-start justify-between gap-2'>
+          <div className='min-w-0 flex-1'>
+            <p className='truncate font-medium text-blue-950'>{reservation.customerName}</p>
+            <p className='mt-0.5 text-xs text-slate-500'>
+              {reservation.roomName || 'Oda yok'}
+              {nights ? ` · ${nights}` : ''}
+            </p>
+          </div>
+          <div className='flex shrink-0 flex-col items-end gap-1'>
+            <div className='flex flex-wrap justify-end gap-1'>
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${tagClass[tag]}`}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+            {reservation.paymentStatus ? (
+              <span className='text-[10px] text-slate-500'>{reservation.paymentStatus}</span>
+            ) : null}
+          </div>
+        </div>
+      </Wrapper>
+
+      {!onSelect ? (
+        <button
+          type='button'
+          onClick={onToggle}
+          className='-mt-px w-full rounded-b-lg border border-t-0 border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100'
         >
-          {getEffectiveReservationStatus(reservation, referenceDate)}
-        </span>
-        <span
-          className={`rounded px-2 py-0.5 text-xs font-medium ${
-            paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'
-          }`}
-        >
-          {reservation.paymentStatus || '-'}
-        </span>
-      </div>
-    </>
+          {expanded ? 'Detayı gizle' : 'Detay'}
+        </button>
+      ) : null}
+
+      {!onSelect && expanded ? (
+        <div className='rounded-b-lg border border-t-0 border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600'>
+          <p>
+            {formatDateTR(reservation.checkInDate)} – {formatDateTR(reservation.checkOutDate)}
+          </p>
+          {reservation.customerPhone ? <p className='mt-1'>{reservation.customerPhone}</p> : null}
+          <ReservationNote note={reservation.note} className='mt-1' />
+        </div>
+      ) : null}
+    </div>
   )
-
-  if (onSelect) {
-    return (
-      <button
-        type='button'
-        onClick={() => onSelect(reservation)}
-        className='w-full rounded-lg border border-slate-200 p-3 text-left transition hover:border-blue-200 hover:bg-slate-50'
-      >
-        {content}
-      </button>
-    )
-  }
-
-  return <article className='rounded-lg border border-slate-200 p-3'>{content}</article>
 }
 
 function CalendarView({
@@ -76,49 +105,84 @@ function CalendarView({
   onDateChange,
   occupiedDatesMap,
   selectedDayReservations,
+  selectedDayDetails,
   searchQuery,
   onSearchQueryChange,
   searchResults,
   onSearchResultSelect,
 }) {
   const weekdayMap = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt']
+  const [dayFilter, setDayFilter] = useState('all')
+  const [expandedId, setExpandedId] = useState(null)
   const isSearching = searchQuery.trim().length > 0
+  const today = startOfDay(new Date())
+
+  const { checkIns, checkOuts } = selectedDayDetails
+
+  useEffect(() => {
+    setDayFilter('all')
+    setExpandedId(null)
+  }, [selectedDate])
+
+  const filteredDayReservations = useMemo(() => {
+    const tagOrder = { Giriş: 0, Çıkış: 1, Konaklama: 2 }
+    const list =
+      dayFilter === 'all'
+        ? [...selectedDayReservations]
+        : selectedDayReservations.filter((reservation) =>
+            getReservationDayTags(reservation, selectedDate).includes(dayFilter),
+          )
+
+    return list.sort((a, b) => {
+      const tagA = getReservationDayTags(a, selectedDate)[0]
+      const tagB = getReservationDayTags(b, selectedDate)[0]
+      const orderDiff = (tagOrder[tagA] ?? 3) - (tagOrder[tagB] ?? 3)
+      if (orderDiff !== 0) return orderDiff
+      return (a.customerName || '').localeCompare(b.customerName || '', 'tr')
+    })
+  }, [selectedDayReservations, selectedDate, dayFilter])
+
+  const goToToday = () => onDateChange(today)
 
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return ''
-    return occupiedDatesMap.has(dayKey(date)) ? 'tile-occupied' : 'tile-empty'
+    const classes = ['calendar-tile']
+    if (occupiedDatesMap.has(dayKey(date))) classes.push('tile-has-events')
+    if (isSameDay(date, today)) classes.push('tile-today')
+    if (isSameDay(date, selectedDate)) classes.push('tile-selected')
+    return classes.join(' ')
   }
 
   const tileContent = ({ date, view }) => {
     if (view !== 'month') return null
-    const dayReservations = occupiedDatesMap.get(dayKey(date))
-    if (!dayReservations?.length) return null
-
-    if (dayReservations.length === 1) {
-      return <span className='tile-chip'>{shortLabel(dayReservations[0])}</span>
-    }
-
-    return <span className='tile-chip'>+{dayReservations.length}</span>
+    const count = occupiedDatesMap.get(dayKey(date))?.length ?? 0
+    if (count === 0) return null
+    return <span className='tile-count'>{count > 9 ? '9+' : count}</span>
   }
 
   return (
     <section className='space-y-4'>
       <div className='card overflow-x-auto'>
-        <div className='mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
+        <div className='mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <h2 className='text-lg font-semibold text-blue-950'>Takvim</h2>
-          <div className='w-full sm:max-w-xs'>
-            <label htmlFor='calendar-search' className='mb-1 block text-sm font-medium text-slate-700'>
-              Misafir ara
-            </label>
+          <div className='flex w-full flex-col gap-2 sm:max-w-md sm:flex-row'>
             <input
               id='calendar-search'
               type='search'
-              className='input'
-              placeholder='İsim yazın...'
+              className='input flex-1'
+              placeholder='Misafir ara…'
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
               disabled={loading}
+              aria-label='Misafir ara'
             />
+            <button
+              type='button'
+              className='shrink-0 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
+              onClick={goToToday}
+            >
+              Bugüne git
+            </button>
           </div>
         </div>
 
@@ -127,66 +191,110 @@ function CalendarView({
         {loading ? (
           <p className='text-sm text-slate-500'>Takvim yükleniyor...</p>
         ) : (
-          <div className='calendar-shell'>
-            <ReactCalendar
-              locale='tr-TR'
-              value={selectedDate}
-              onChange={onDateChange}
-              formatMonthYear={(_, date) => format(date, 'MMMM yyyy', { locale: tr })}
-              formatShortWeekday={(_, date) => weekdayMap[date.getDay()]}
-              tileClassName={tileClassName}
-              tileContent={tileContent}
-            />
-          </div>
+          <>
+            <div className='calendar-shell'>
+              <ReactCalendar
+                locale='tr-TR'
+                value={selectedDate}
+                onChange={onDateChange}
+                formatMonthYear={(_, date) => format(date, 'MMMM yyyy', { locale: tr })}
+                formatShortWeekday={(_, date) => weekdayMap[date.getDay()]}
+                tileClassName={tileClassName}
+                tileContent={tileContent}
+              />
+            </div>
+
+            <div className='mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700'>
+              <span className='font-medium text-blue-950'>
+                {format(selectedDate, 'd MMMM yyyy', { locale: tr })}
+              </span>
+              <span className='text-slate-300'>|</span>
+              <span>{selectedDayReservations.length} rezervasyon</span>
+              {checkIns.length > 0 ? <span>{checkIns.length} giriş</span> : null}
+              {checkOuts.length > 0 ? <span>{checkOuts.length} çıkış</span> : null}
+            </div>
+
+            <div className='mt-2 flex flex-wrap gap-1.5'>
+              {DAY_FILTERS.map((filter) => {
+                const count =
+                  filter.id === 'all'
+                    ? selectedDayReservations.length
+                    : selectedDayReservations.filter((r) =>
+                        getReservationDayTags(r, selectedDate).includes(filter.id),
+                      ).length
+
+                return (
+                  <button
+                    key={filter.id}
+                    type='button'
+                    onClick={() => setDayFilter(filter.id)}
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                      dayFilter === filter.id
+                        ? 'bg-blue-900 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {filter.label} ({count})
+                  </button>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
 
       {isSearching ? (
         <div className='card'>
-          <h3 className='text-base font-semibold text-blue-950'>
-            Arama sonuçları{' '}
-            <span className='font-normal text-slate-400'>({searchResults.length})</span>
+          <h3 className='text-sm font-semibold text-blue-950'>
+            Arama sonuçları <span className='font-normal text-slate-400'>({searchResults.length})</span>
           </h3>
           {loading ? null : searchResults.length === 0 ? (
             <p className='mt-2 text-sm text-slate-500'>Eşleşen misafir bulunamadı.</p>
           ) : (
-            <div className='mt-3 grid gap-3'>
+            <ul className='mt-2 space-y-2'>
               {searchResults.map((reservation) => (
-                <CalendarReservationCard
-                  key={reservation.id}
-                  reservation={reservation}
-                  referenceDate={selectedDate}
-                  onSelect={onSearchResultSelect}
-                />
+                <li key={reservation.id}>
+                  <CalendarRow
+                    reservation={reservation}
+                    referenceDate={selectedDate}
+                    onSelect={() => onSearchResultSelect(reservation)}
+                  />
+                </li>
               ))}
-            </div>
+            </ul>
           )}
-          <p className='mt-3 text-xs text-slate-500'>
-            Sonuca tıklayınca takvim o rezervasyonun giriş gününe gider.
-          </p>
         </div>
-      ) : (
-        <div className='card'>
-          <h3 className='text-base font-semibold text-blue-950'>
-            {format(selectedDate, 'dd MMMM yyyy', { locale: tr })} — Rezervasyonlar{' '}
-            <span className='font-normal text-slate-400'>({selectedDayReservations.length})</span>
-          </h3>
+      ) : null}
 
-          {loading ? null : selectedDayReservations.length === 0 ? (
-            <p className='mt-2 text-sm text-slate-500'>Bu gün için rezervasyon yok.</p>
-          ) : (
-            <div className='mt-3 grid gap-3'>
-              {selectedDayReservations.map((reservation) => (
-                <CalendarReservationCard
-                  key={reservation.id}
+      <div className='card'>
+        <h3 className='text-sm font-semibold text-blue-950'>
+          Günün listesi{' '}
+          <span className='font-normal text-slate-400'>({filteredDayReservations.length})</span>
+        </h3>
+
+        {loading ? (
+          <p className='mt-2 text-sm text-slate-500'>Yükleniyor...</p>
+        ) : filteredDayReservations.length === 0 ? (
+          <p className='mt-2 text-sm text-slate-500'>
+            {dayFilter === 'all' ? 'Bu gün için rezervasyon yok.' : 'Bu filtrede kayıt yok.'}
+          </p>
+        ) : (
+          <ul className='mt-2 space-y-2'>
+            {filteredDayReservations.map((reservation) => (
+              <li key={reservation.id}>
+                <CalendarRow
                   reservation={reservation}
                   referenceDate={selectedDate}
+                  expanded={expandedId === reservation.id}
+                  onToggle={() =>
+                    setExpandedId((current) => (current === reservation.id ? null : reservation.id))
+                  }
                 />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   )
 }
