@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
+import { isNativeApp } from './utils/nativePush'
 
 const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -33,7 +34,7 @@ function App() {
               <Route path='rezervasyonlar' element={<Reservations />} />
               <Route path='gelir-gider' element={<Finance />} />
               <Route path='raporlar' element={<Reports />} />
-              <Route path='bildirimler' element={<Notifications />} />
+              {isNativeApp() ? <Route path='bildirimler' element={<Notifications />} /> : null}
             </Route>
 
             <Route path='*' element={<Navigate to='/' replace />} />

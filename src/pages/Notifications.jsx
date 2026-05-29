@@ -68,7 +68,7 @@ function Notifications() {
       setMessage(
         count > 0
           ? (result?.message ?? `Test bildirimi gönderildi (${count} alıcı).`)
-          : 'Bildirim gönderilemedi. Giriş yapıp tarayıcıda bildirim iznini verin, ardından tekrar deneyin.',
+          : 'Bildirim gönderilemedi. Uygulamada bildirim iznini verip tekrar deneyin.',
       )
     } catch (testError) {
       const code = testError?.code ?? ''
@@ -76,7 +76,7 @@ function Notifications() {
       if (code === 'functions/not-found' || code === 'functions/unavailable') {
         setError('Bildirim sunucusu yayında değil. Mac’te: npm run mobile:firebase')
       } else if (code === 'functions/failed-precondition') {
-        setError(detail || 'Önce giriş yapıp bildirim iznini verin, sonra tekrar deneyin.')
+        setError(detail || 'Önce uygulamada bildirim iznini verin, sonra tekrar deneyin.')
       } else if (code === 'functions/internal' || detail.toLowerCase().includes('internal')) {
         setError(
           'Sunucu hatası (internal). Firebase Functions deploy edin: npm run mobile:firebase — ve Firestore Rules’u yayınladığınızdan emin olun.',
@@ -95,8 +95,8 @@ function Notifications() {
       <div className='card'>
         <h2 className='text-lg font-semibold text-blue-950'>Bildirimler</h2>
         <p className='mt-1 text-sm text-slate-600'>
-          Giriş yaptığınızda tarayıcı veya telefon bildirim izni isteyebilir. Hangi hatırlatmaların
-          gideceğini buradan seçersiniz.
+          iOS uygulamasında girişte bildirim izni istenir. Hangi hatırlatmaların gideceğini buradan
+          seçersiniz.
         </p>
         <button
           type='button'

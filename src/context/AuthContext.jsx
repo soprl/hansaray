@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { AuthContext } from './authContextValue'
 import { auth } from '../firebase'
-import { initPushNotifications, isWebPushEnvironment } from '../utils/pushNotifications'
 import { isNativeApp } from '../utils/nativePush'
+import { initPushNotifications } from '../utils/pushNotifications'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -18,12 +18,11 @@ export function AuthProvider({ children }) {
           console.warn('Auth token alınamadı', tokenError)
         }
 
-        const webPush = !isNativeApp() && isWebPushEnvironment()
-        initPushNotifications(currentUser, {
-          requestPermission: webPush,
-        }).catch((error) => {
-          console.warn('Bildirim hazırlığı atlandı', error)
-        })
+        if (isNativeApp()) {
+          initPushNotifications(currentUser).catch((error) => {
+            console.warn('iOS bildirim hazırlığı atlandı', error)
+          })
+        }
       }
 
       setUser(currentUser)

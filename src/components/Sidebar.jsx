@@ -2,18 +2,21 @@ import { NavLink } from 'react-router-dom'
 import { FiBarChart2, FiBell, FiCalendar, FiDollarSign, FiHome, FiLogOut, FiUsers } from 'react-icons/fi'
 import AppLogo from './AppLogo'
 import { useAuth } from '../context/useAuth'
+import { isNativeApp } from '../utils/nativePush'
 
-const navItems = [
+const baseNavItems = [
   { to: '/', label: 'Ana Sayfa', icon: FiHome },
   { to: '/takvim', label: 'Takvim', icon: FiCalendar },
   { to: '/rezervasyonlar', label: 'Rezervasyonlar', icon: FiUsers },
   { to: '/gelir-gider', label: 'Gelir / Gider', icon: FiDollarSign },
   { to: '/raporlar', label: 'Raporlar', icon: FiBarChart2 },
-  { to: '/bildirimler', label: 'Bildirimler', icon: FiBell },
 ]
+
+const nativeNavItem = { to: '/bildirimler', label: 'Bildirimler', icon: FiBell }
 
 function Sidebar() {
   const { logout } = useAuth()
+  const navItems = isNativeApp() ? [...baseNavItems, nativeNavItem] : baseNavItems
 
   return (
     <aside className='hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-blue-950 p-4 text-slate-100 lg:flex'>
