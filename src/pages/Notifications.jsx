@@ -72,10 +72,17 @@ function Notifications() {
       )
     } catch (testError) {
       const code = testError?.code ?? ''
+      const detail = testError?.message ?? ''
       if (code === 'functions/not-found' || code === 'functions/unavailable') {
-        setError('Bildirim sunucusu henüz yayında değil. NOTIFICATIONS_SETUP.md')
+        setError('Bildirim sunucusu yayında değil. Mac’te: npm run mobile:firebase')
+      } else if (code === 'functions/failed-precondition') {
+        setError(detail || 'Önce giriş yapıp bildirim iznini verin, sonra tekrar deneyin.')
+      } else if (code === 'functions/internal' || detail.toLowerCase().includes('internal')) {
+        setError(
+          'Sunucu hatası (internal). Firebase Functions deploy edin: npm run mobile:firebase — ve Firestore Rules’u yayınladığınızdan emin olun.',
+        )
       } else {
-        setError(testError?.message ?? 'Test bildirimi gönderilemedi.')
+        setError(detail || 'Test bildirimi gönderilemedi.')
       }
       console.error(testError)
     } finally {

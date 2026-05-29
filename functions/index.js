@@ -97,6 +97,13 @@ async function sendPushToAll(tokens, title, body) {
   const result = await messaging.sendEachForMulticast({
     tokens,
     notification: { title, body },
+    webpush: {
+      notification: {
+        title,
+        body,
+        icon: 'https://hansaray.vercel.app/favicon.svg',
+      },
+    },
     apns: { payload: { aps: { sound: 'default' } } },
   })
 
@@ -222,21 +229,37 @@ exports.sendTestNotification = onCall(async (request) => {
     throw new HttpsError('unauthenticated', 'Giriş yapmanız gerekiyor.')
   }
 
-  const tokens = await getDeviceTokens()
-  if (!tokens.length) {
-    throw new HttpsError('failed-precondition', 'Kayıtlı cihaz bulunamadı.')
-  }
+  try {
+    const tokens = await getDeviceTokens()
+    if (!tokens.length) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Bildirim alıcısı yok. Giriş yapıp tarayıcıda bildirim iznini verin, birkaç saniye bekleyin.',
+      )
+    }
 
-  const result = await sendPushToAll(
-    tokens,
-    'Test bildirimi',
-    'Otel paneli bildirimleri çalışıyor.',
-  )
+    const result = await sendPushToAll(
+      tokens,
+      'Test bildirimi',
+      'Otel paneli bildirimleri çalışıyor.',
+    )
 
-  return {
-    message: `${result.successCount} cihaza test bildirimi gönderildi.`,
-    successCount: result.successCount,
-    failureCount: result.failureCount,
+    if (result.successCount === 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Gönderim başarısız. Çıkış yapıp tekrar giriş yapın ve izin verin.',
+      )
+    }
+
+    return {
+      message: `${result.successCount} alıcıya test bildirimi gönderildi.`,
+      successCount: result.successCount,
+      failureCount: result.failureCount,
+    }
+  } catch (error) {
+    if (error instanceof HttpsError) throw error
+    console.error('sendTestNotification', error)
+    throw new HttpsError('internal', error?.message || 'Bildirim sunucusu hatası.')
   }
 })
 
