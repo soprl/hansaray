@@ -21,9 +21,8 @@ export function AuthProvider({ children }) {
         const webPush = !isNativeApp() && isWebPushEnvironment()
         initPushNotifications(currentUser, {
           requestPermission: webPush,
-          sendTestOnSuccess: webPush,
         }).catch((error) => {
-          console.warn('Push init skipped', error)
+          console.warn('Bildirim hazırlığı atlandı', error)
         })
       }
 

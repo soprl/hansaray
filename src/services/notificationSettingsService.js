@@ -53,6 +53,7 @@ export async function saveNotificationSettings(settings) {
   )
 }
 
+/** Arka planda FCM token saklar (kullanıcı arayüzünde “cihaz kaydı” yok). */
 export async function registerDeviceToken({ userId, email, token, platform }) {
   if (!userId || !token) return
 
