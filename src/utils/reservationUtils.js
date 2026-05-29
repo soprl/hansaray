@@ -49,7 +49,9 @@ export const isFullyPaidReservation = (reservation) => getOutstandingPayment(res
 
 export const isCancelledReservation = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
 
-export const blocksRoomAvailability = (reservation) => reservation.reservationStatus !== RES_STATUS.CANCELLED
+/** Yeni rezervasyon / tarih değişikliğinde yalnızca aktif kayıtlar odayı bloklar. */
+export const blocksRoomAvailability = (reservation) =>
+  reservation.reservationStatus === RES_STATUS.ACTIVE
 
 export const hasReservationDateConflict = (incoming, existing) =>
   incoming.checkInDate < existing.checkOutDate && incoming.checkOutDate > existing.checkInDate

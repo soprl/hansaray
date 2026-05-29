@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ReservationForm from '../components/ReservationForm'
 import ReservationNote from '../components/ReservationNote'
 import { useAuth } from '../context/useAuth'
@@ -45,10 +45,16 @@ function Reservations() {
   const [newReservationFormKey, setNewReservationFormKey] = useState(0)
 
   const [listTab, setListTab] = useState(LIST_TABS.ACTIVE)
+  const formAnchorRef = useRef(null)
   const [filters, setFilters] = useState({
     search: '',
     roomName: '',
   })
+
+  useEffect(() => {
+    if (!editingReservation) return
+    formAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [editingReservation])
 
   const loadReservations = async () => {
     setLoading(true)
@@ -221,15 +227,17 @@ function Reservations() {
 
   return (
     <section className='space-y-4'>
-      <ReservationForm
-        key={editingReservation?.id ?? `new-${newReservationFormKey}`}
-        initialValues={editingReservation}
-        onSubmit={handleSubmitReservation}
-        onCancel={() => setEditingReservation(null)}
-        submitting={submitting}
-        reservations={reservations}
-        excludeId={editingReservation?.id}
-      />
+      <div ref={formAnchorRef} className='scroll-mt-4'>
+        <ReservationForm
+          key={editingReservation?.id ?? `new-${newReservationFormKey}`}
+          initialValues={editingReservation}
+          onSubmit={handleSubmitReservation}
+          onCancel={() => setEditingReservation(null)}
+          submitting={submitting}
+          reservations={reservations}
+          excludeId={editingReservation?.id}
+        />
+      </div>
 
       <div className='card space-y-4'>
         <div className='flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1'>
@@ -334,17 +342,17 @@ function Reservations() {
                   >
                     Düzenle
                   </button>
+                  {reservation.paymentStatus !== PAYMENT_STATUS.PAID ? (
+                    <button
+                      type='button'
+                      className='btn border border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                      onClick={() => handleMarkFullyPaid(reservation)}
+                    >
+                      Tamamı Ödendi
+                    </button>
+                  ) : null}
                   {listTab === LIST_TABS.ACTIVE ? (
                     <>
-                      {reservation.paymentStatus !== PAYMENT_STATUS.PAID ? (
-                        <button
-                          type='button'
-                          className='btn border border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                          onClick={() => handleMarkFullyPaid(reservation)}
-                        >
-                          Tamamı Ödendi
-                        </button>
-                      ) : null}
                       <button
                         type='button'
                         className='btn-success'

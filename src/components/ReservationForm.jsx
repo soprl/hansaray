@@ -8,6 +8,7 @@ import {
   findConflictingReservation,
   getRoomAvailabilityList,
   PAYMENT_STATUS,
+  RES_STATUS,
 } from '../utils/reservationUtils'
 
 const DEFAULT_FORM = {
@@ -45,6 +46,7 @@ function ReservationForm({
   excludeId,
 }) {
   const isEditing = Boolean(initialValues)
+  const isEditingCompleted = initialValues?.reservationStatus === RES_STATUS.COMPLETED
 
   const [form, setForm] = useState(() => {
     if (!initialValues) return DEFAULT_FORM
@@ -52,6 +54,14 @@ function ReservationForm({
       ...DEFAULT_FORM,
       ...initialValues,
       roomName: normalizeRoomName(initialValues.roomName),
+      totalPrice:
+        initialValues.totalPrice !== undefined && initialValues.totalPrice !== null
+          ? String(initialValues.totalPrice)
+          : '',
+      deposit:
+        initialValues.deposit !== undefined && initialValues.deposit !== null
+          ? String(initialValues.deposit)
+          : '',
     }
     return {
       ...merged,
@@ -116,6 +126,7 @@ function ReservationForm({
   const allRoomsFull = datesValid && roomAvailabilityList.length > 0 && availableRooms.length === 0
 
   useEffect(() => {
+    if (isEditingCompleted) return
     if (!datesValid || roomAvailabilityList.length === 0) return
 
     if (availableRooms.length === 0) {
@@ -168,6 +179,7 @@ function ReservationForm({
     }
     setForm((prev) => ({ ...prev, roomName: picked.roomName }))
   }, [
+    isEditingCompleted,
     datesValid,
     form.checkInDate,
     form.checkOutDate,
@@ -278,7 +290,16 @@ function ReservationForm({
     }
 
     if (selectedRoomConflict) {
-      nextErrors.roomName = 'Seçilen oda bu tarihlerde dolu.'
+      if (isEditingCompleted) {
+        const proceed = window.confirm(
+          'Bu tarihlerde başka aktif rezervasyon var. Tamamlanan kaydı yine de güncellemek istiyor musunuz?',
+        )
+        if (!proceed) {
+          nextErrors.roomName = 'Güncelleme iptal edildi.'
+        }
+      } else {
+        nextErrors.roomName = 'Seçilen oda bu tarihlerde dolu.'
+      }
     }
 
     setErrors(nextErrors)
@@ -303,6 +324,12 @@ function ReservationForm({
       <h2 className='text-lg font-semibold text-blue-950'>
         {isEditing ? 'Rezervasyon Düzenle' : 'Yeni Rezervasyon'}
       </h2>
+      {isEditingCompleted ? (
+        <p className='mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600'>
+          Tamamlanan rezervasyon: çıkış tarihini uzatabilir, toplam ücret ve kapora güncelleyebilirsiniz.
+          Uzatma sonrası misafir hâlâ konaklıyorsa durumu <strong>Aktif</strong> yapabilirsiniz.
+        </p>
+      ) : null}
 
       <form onSubmit={handleSubmit} className='mt-4 space-y-6'>
         <fieldset className='space-y-3'>
@@ -547,10 +574,10 @@ function ReservationForm({
             disabled={
               submitting ||
               !datesValid ||
-              allRoomsFull ||
+              (!isEditingCompleted && allRoomsFull) ||
               !form.roomName ||
-              (isVipRoom(form.roomName) && !vipManuallySelected) ||
-              Boolean(selectedRoomConflict)
+              (!isEditingCompleted && isVipRoom(form.roomName) && !vipManuallySelected) ||
+              (!isEditingCompleted && Boolean(selectedRoomConflict))
             }
           >
             {submitting ? 'Kaydediliyor...' : isEditing ? 'Güncelle' : 'Rezervasyon Ekle'}
