@@ -1,6 +1,8 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
+import MoneyInput from './MoneyInput'
+import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
 import { getRoomOptions, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { formatDateTR } from '../utils/formatters'
 import {
@@ -24,17 +26,6 @@ const DEFAULT_FORM = {
 }
 
 const NIGHT_PRESETS = [1, 2, 3, 7]
-
-const sanitizeMoneyInput = (value) => {
-  if (!value) return ''
-  let cleaned = value.replace(/[^\d.,]/g, '')
-  const separatorIndex = cleaned.search(/[.,]/)
-  if (separatorIndex === -1) return cleaned
-
-  const whole = cleaned.slice(0, separatorIndex)
-  const fraction = cleaned.slice(separatorIndex + 1).replace(/[.,]/g, '')
-  return fraction ? `${whole}.${fraction}` : whole
-}
 
 function ReservationForm({
   initialValues,
@@ -77,8 +68,8 @@ function ReservationForm({
   })
 
   const remainingPayment = useMemo(() => {
-    const totalPrice = Number(form.totalPrice) || 0
-    const deposit = Number(form.deposit) || 0
+    const totalPrice = parseMoneyInput(form.totalPrice)
+    const deposit = parseMoneyInput(form.deposit)
     return totalPrice - deposit
   }, [form.totalPrice, form.deposit])
 
@@ -198,16 +189,16 @@ function ReservationForm({
 
   const handleChange = (event) => {
     const { name, value } = event.target
-    const nextValue = name === 'totalPrice' || name === 'deposit' ? sanitizeMoneyInput(value) : value
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
 
+  const handleMoneyChange = (name, value) => {
     setForm((prev) => {
-      const next = { ...prev, [name]: nextValue }
-      if (name === 'totalPrice' || name === 'deposit') {
-        next.paymentStatus = derivePaymentStatus(
-          name === 'totalPrice' ? nextValue : prev.totalPrice,
-          name === 'deposit' ? nextValue : prev.deposit,
-        )
-      }
+      const next = { ...prev, [name]: value }
+      next.paymentStatus = derivePaymentStatus(
+        name === 'totalPrice' ? value : parseMoneyInput(prev.totalPrice),
+        name === 'deposit' ? value : parseMoneyInput(prev.deposit),
+      )
       return next
     })
   }
@@ -244,23 +235,23 @@ function ReservationForm({
   }
 
   const markFullyPaid = () => {
-    const total = Number(form.totalPrice) || 0
+    const total = parseMoneyInput(form.totalPrice)
     if (total <= 0) return
 
     setForm((prev) => ({
       ...prev,
-      deposit: String(total),
+      deposit: total,
       paymentStatus: PAYMENT_STATUS.PAID,
     }))
   }
 
   const canMarkFullyPaid =
-    form.paymentStatus !== PAYMENT_STATUS.PAID && (Number(form.totalPrice) || 0) > 0
+    form.paymentStatus !== PAYMENT_STATUS.PAID && parseMoneyInput(form.totalPrice) > 0
 
   const validate = () => {
     const nextErrors = {}
-    const totalPrice = Number(form.totalPrice)
-    const deposit = Number(form.deposit)
+    const totalPrice = parseMoneyInput(form.totalPrice)
+    const deposit = parseMoneyInput(form.deposit)
 
     if (!form.checkInDate) nextErrors.checkInDate = 'Giriş tarihi zorunludur.'
     if (!form.checkOutDate) nextErrors.checkOutDate = 'Çıkış tarihi zorunludur.'
@@ -303,8 +294,8 @@ function ReservationForm({
     await onSubmit({
       ...form,
       roomName: normalizeRoomName(form.roomName),
-      totalPrice: Number(form.totalPrice) || 0,
-      deposit: Number(form.deposit) || 0,
+      totalPrice: parseMoneyInput(form.totalPrice),
+      deposit: parseMoneyInput(form.deposit),
       remainingPayment,
     })
   }
@@ -476,34 +467,18 @@ function ReservationForm({
           <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
             <div>
               <label className='mb-1 block text-sm font-medium'>Toplam (TL)</label>
-              <input
-                type='text'
-                inputMode='decimal'
-                name='totalPrice'
-                value={form.totalPrice}
-                onChange={handleChange}
-                className='input'
-                autoComplete='off'
-              />
+              <MoneyInput name='totalPrice' value={form.totalPrice} onChange={handleMoneyChange} />
               {errors.totalPrice ? <p className='mt-1 text-xs text-rose-600'>{errors.totalPrice}</p> : null}
             </div>
             <div>
               <label className='mb-1 block text-sm font-medium'>Kapora (TL)</label>
-              <input
-                type='text'
-                inputMode='decimal'
-                name='deposit'
-                value={form.deposit}
-                onChange={handleChange}
-                className='input'
-                autoComplete='off'
-              />
+              <MoneyInput name='deposit' value={form.deposit} onChange={handleMoneyChange} />
               {errors.deposit ? <p className='mt-1 text-xs text-rose-600'>{errors.deposit}</p> : null}
             </div>
             <div>
               <label className='mb-1 block text-sm font-medium'>Kalan</label>
               <input
-                value={Number.isFinite(remainingPayment) ? remainingPayment : 0}
+                value={formatMoneyInputDisplay(remainingPayment)}
                 readOnly
                 className='input bg-slate-100'
               />

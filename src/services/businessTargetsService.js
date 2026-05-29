@@ -42,15 +42,26 @@ export async function getBusinessTargets() {
 }
 
 export async function saveBusinessTargets(targets) {
-  await setDoc(
-    doc(db, 'businessTargets', TARGETS_DOC_ID),
-    {
-      monthlyLodgingTarget: Number(targets.monthlyLodgingTarget) || 0,
-      yearlyLodgingTarget: Number(targets.yearlyLodgingTarget) || 0,
-      monthlyOccupancyTargetPercent: Number(targets.monthlyOccupancyTargetPercent) || 0,
-      yearlyOccupancyTargetPercent: Number(targets.yearlyOccupancyTargetPercent) || 0,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  )
+  try {
+    await setDoc(
+      doc(db, 'businessTargets', TARGETS_DOC_ID),
+      {
+        monthlyLodgingTarget: Number(targets.monthlyLodgingTarget) || 0,
+        yearlyLodgingTarget: Number(targets.yearlyLodgingTarget) || 0,
+        monthlyOccupancyTargetPercent: Number(targets.monthlyOccupancyTargetPercent) || 0,
+        yearlyOccupancyTargetPercent: Number(targets.yearlyOccupancyTargetPercent) || 0,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    )
+  } catch (error) {
+    if (error?.code === 'permission-denied') {
+      const permissionError = new Error(
+        'Firestore izni yok. Console’da businessTargets kuralını Publish edin.',
+      )
+      permissionError.code = 'permission-denied'
+      throw permissionError
+    }
+    throw error
+  }
 }

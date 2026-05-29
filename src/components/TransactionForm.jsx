@@ -2,6 +2,8 @@ import { format } from 'date-fns'
 import { useMemo, useState } from 'react'
 import { EXPENSE_CATEGORIES, EXTRA_INCOME_CATEGORIES } from '../config/financeCategories'
 import DatePickerField from './DatePickerField'
+import MoneyInput from './MoneyInput'
+import { parseMoneyInput } from '../utils/moneyInput'
 
 const CATEGORY_MAP = {
   income: EXTRA_INCOME_CATEGORIES,
@@ -62,7 +64,7 @@ function TransactionForm({ initialValues, onSubmit, onCancel, submitting }) {
 
   const validate = () => {
     const nextErrors = {}
-    const amount = Number(form.amount)
+    const amount = parseMoneyInput(form.amount)
 
     if (!form.title.trim()) nextErrors.title = 'Başlık zorunludur.'
     if (!form.date) nextErrors.date = 'Tarih seçilmelidir.'
@@ -78,7 +80,7 @@ function TransactionForm({ initialValues, onSubmit, onCancel, submitting }) {
 
     await onSubmit({
       ...form,
-      amount: Number(form.amount),
+      amount: parseMoneyInput(form.amount),
     })
   }
 
@@ -154,14 +156,11 @@ function TransactionForm({ initialValues, onSubmit, onCancel, submitting }) {
 
           <div>
             <label className='mb-1 block text-sm font-medium text-slate-700'>Tutar (₺)</label>
-            <input
-              className='input text-lg font-semibold'
-              type='number'
-              min='0.01'
-              step='0.01'
+            <MoneyInput
               name='amount'
               value={form.amount}
-              onChange={handleChange}
+              onChange={(name, value) => setForm((prev) => ({ ...prev, [name]: value }))}
+              className='input text-lg font-semibold'
               placeholder='0'
             />
             {errors.amount ? <p className='mt-1 text-xs text-rose-600'>{errors.amount}</p> : null}

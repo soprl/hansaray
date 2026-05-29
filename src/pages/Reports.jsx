@@ -12,8 +12,11 @@ import {
   getTransactionsForMonth,
   shiftMonth,
 } from '../utils/financeUtils'
+import MoneyInput from '../components/MoneyInput'
 import ReservationNote from '../components/ReservationNote'
+import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
+import { parseMoneyInput } from '../utils/moneyInput'
 import {
   DEFAULT_BUSINESS_TARGETS,
   getBusinessTargets,
@@ -207,6 +210,10 @@ function Reports() {
     setTargetsDraft((prev) => ({ ...prev, [name]: value }))
   }
 
+  const handleTargetMoneyChange = (name, value) => {
+    setTargetsDraft((prev) => ({ ...prev, [name]: value }))
+  }
+
   const openTargetEditor = () => {
     setTargetsDraft(targets)
     setTargetsMessage('')
@@ -243,17 +250,18 @@ function Reports() {
     setTargetsMessage('')
     try {
       const payload = {
-        monthlyLodgingTarget: Number(targetsDraft.monthlyLodgingTarget) || 0,
-        yearlyLodgingTarget: Number(targetsDraft.yearlyLodgingTarget) || 0,
+        monthlyLodgingTarget: parseMoneyInput(targetsDraft.monthlyLodgingTarget),
+        yearlyLodgingTarget: parseMoneyInput(targetsDraft.yearlyLodgingTarget),
         monthlyOccupancyTargetPercent: Number(targetsDraft.monthlyOccupancyTargetPercent) || 0,
         yearlyOccupancyTargetPercent: Number(targetsDraft.yearlyOccupancyTargetPercent) || 0,
       }
       await saveBusinessTargets(payload)
       setTargets(payload)
+      setTargetsDraft(payload)
       setEditingTargets(false)
-      setTargetsMessage('')
+      setTargetsMessage('Hedefler kaydedildi.')
     } catch (saveError) {
-      setTargetsMessage('Hedefler kaydedilemedi.')
+      setTargetsMessage(getFirestoreErrorMessage(saveError, 'Hedefler kaydedilemedi.'))
       console.error(saveError)
     } finally {
       setSavingTargets(false)
@@ -324,24 +332,20 @@ function Reports() {
           <form onSubmit={handleSaveTargets} className='grid gap-3 sm:grid-cols-2'>
             <label className='text-sm'>
               <span className='mb-1 block text-slate-600'>Aylık konaklama geliri hedefi (₺)</span>
-              <input
-                type='number'
+              <MoneyInput
                 name='monthlyLodgingTarget'
-                min='0'
-                className='input'
-                value={targetsDraft.monthlyLodgingTarget || ''}
-                onChange={handleTargetChange}
+                value={targetsDraft.monthlyLodgingTarget}
+                onChange={handleTargetMoneyChange}
+                placeholder='620.000'
               />
             </label>
             <label className='text-sm'>
               <span className='mb-1 block text-slate-600'>Yıllık konaklama geliri hedefi (₺)</span>
-              <input
-                type='number'
+              <MoneyInput
                 name='yearlyLodgingTarget'
-                min='0'
-                className='input'
-                value={targetsDraft.yearlyLodgingTarget || ''}
-                onChange={handleTargetChange}
+                value={targetsDraft.yearlyLodgingTarget}
+                onChange={handleTargetMoneyChange}
+                placeholder='3.500.000'
               />
             </label>
             <label className='text-sm'>
@@ -377,7 +381,11 @@ function Reports() {
                   Vazgeç
                 </button>
               ) : null}
-              {targetsMessage ? <p className='text-sm text-rose-600'>{targetsMessage}</p> : null}
+              {targetsMessage ? (
+                <p className={`text-sm ${targetsMessage.includes('kaydedildi') ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  {targetsMessage}
+                </p>
+              ) : null}
             </div>
           </form>
         ) : null}
