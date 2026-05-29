@@ -17,6 +17,7 @@ import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import {
   DEFAULT_BUSINESS_TARGETS,
   getBusinessTargets,
+  hasConfiguredTargets,
   saveBusinessTargets,
 } from '../services/businessTargetsService'
 import GoalProgress from '../components/GoalProgress'
@@ -45,6 +46,7 @@ function Reports() {
   const [targetsDraft, setTargetsDraft] = useState(DEFAULT_BUSINESS_TARGETS)
   const [savingTargets, setSavingTargets] = useState(false)
   const [targetsMessage, setTargetsMessage] = useState('')
+  const [editingTargets, setEditingTargets] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -58,6 +60,7 @@ function Reports() {
           setTransactions(transactionData)
           setTargets(targetsData)
           setTargetsDraft(targetsData)
+          setEditingTargets(!hasConfiguredTargets(targetsData))
         }
       })
       .catch((fetchError) => {
@@ -204,6 +207,36 @@ function Reports() {
     setTargetsDraft((prev) => ({ ...prev, [name]: value }))
   }
 
+  const openTargetEditor = () => {
+    setTargetsDraft(targets)
+    setTargetsMessage('')
+    setEditingTargets(true)
+  }
+
+  const cancelTargetEditor = () => {
+    setTargetsDraft(targets)
+    setTargetsMessage('')
+    setEditingTargets(!hasConfiguredTargets(targets))
+  }
+
+  const targetsSummary = useMemo(() => {
+    if (!hasConfiguredTargets(targets)) return null
+    const parts = []
+    if (Number(targets.monthlyLodgingTarget) > 0) {
+      parts.push(`Aylık gelir ${formatCurrencyTRY(targets.monthlyLodgingTarget)}`)
+    }
+    if (Number(targets.yearlyLodgingTarget) > 0) {
+      parts.push(`Yıllık gelir ${formatCurrencyTRY(targets.yearlyLodgingTarget)}`)
+    }
+    if (Number(targets.monthlyOccupancyTargetPercent) > 0) {
+      parts.push(`Aylık doluluk %${targets.monthlyOccupancyTargetPercent}`)
+    }
+    if (Number(targets.yearlyOccupancyTargetPercent) > 0) {
+      parts.push(`Yıllık doluluk %${targets.yearlyOccupancyTargetPercent}`)
+    }
+    return parts.join(' · ')
+  }, [targets])
+
   const handleSaveTargets = async (event) => {
     event.preventDefault()
     setSavingTargets(true)
@@ -217,7 +250,8 @@ function Reports() {
       }
       await saveBusinessTargets(payload)
       setTargets(payload)
-      setTargetsMessage('Hedefler kaydedildi.')
+      setEditingTargets(false)
+      setTargetsMessage('')
     } catch (saveError) {
       setTargetsMessage('Hedefler kaydedilemedi.')
       console.error(saveError)
@@ -262,66 +296,91 @@ function Reports() {
 
       <p className='text-center text-sm capitalize text-slate-500'>{monthLabel} raporu</p>
 
-      <section className='card space-y-4'>
-        <h2 className='text-base font-semibold text-blue-950'>Hedefler</h2>
-        <p className='text-xs text-slate-500'>
-          {ROOM_COUNT} oda için aylık/yıllık gelir ve doluluk hedefi. Yıllık rakamlar seçili yılın bugüne kadar
-          kısmını gösterir (ana sayfa ile aynı).
-        </p>
-        <form onSubmit={handleSaveTargets} className='grid gap-3 sm:grid-cols-2'>
-          <label className='text-sm'>
-            <span className='mb-1 block text-slate-600'>Aylık konaklama geliri hedefi (₺)</span>
-            <input
-              type='number'
-              name='monthlyLodgingTarget'
-              min='0'
-              className='input'
-              value={targetsDraft.monthlyLodgingTarget || ''}
-              onChange={handleTargetChange}
-            />
-          </label>
-          <label className='text-sm'>
-            <span className='mb-1 block text-slate-600'>Yıllık konaklama geliri hedefi (₺)</span>
-            <input
-              type='number'
-              name='yearlyLodgingTarget'
-              min='0'
-              className='input'
-              value={targetsDraft.yearlyLodgingTarget || ''}
-              onChange={handleTargetChange}
-            />
-          </label>
-          <label className='text-sm'>
-            <span className='mb-1 block text-slate-600'>Aylık doluluk hedefi (%)</span>
-            <input
-              type='number'
-              name='monthlyOccupancyTargetPercent'
-              min='0'
-              max='100'
-              className='input'
-              value={targetsDraft.monthlyOccupancyTargetPercent || ''}
-              onChange={handleTargetChange}
-            />
-          </label>
-          <label className='text-sm'>
-            <span className='mb-1 block text-slate-600'>Yıllık doluluk hedefi (%)</span>
-            <input
-              type='number'
-              name='yearlyOccupancyTargetPercent'
-              min='0'
-              max='100'
-              className='input'
-              value={targetsDraft.yearlyOccupancyTargetPercent || ''}
-              onChange={handleTargetChange}
-            />
-          </label>
-          <div className='sm:col-span-2 flex flex-wrap items-center gap-3'>
-            <button type='submit' className='btn-success' disabled={savingTargets}>
-              {savingTargets ? 'Kaydediliyor...' : 'Hedefleri kaydet'}
-            </button>
-            {targetsMessage ? <p className='text-sm text-emerald-700'>{targetsMessage}</p> : null}
+      <section className='card space-y-3'>
+        <div className='flex items-start justify-between gap-3'>
+          <div className='min-w-0'>
+            <h2 className='text-base font-semibold text-blue-950'>Hedefler</h2>
+            {!editingTargets && targetsSummary ? (
+              <p className='mt-1 text-xs text-slate-500'>{targetsSummary}</p>
+            ) : null}
+            {editingTargets ? (
+              <p className='mt-1 text-xs text-slate-500'>
+                {ROOM_COUNT} oda · aylık/yıllık gelir ve doluluk hedefi
+              </p>
+            ) : null}
           </div>
-        </form>
+          {!editingTargets ? (
+            <button
+              type='button'
+              className='btn shrink-0 border border-slate-300 bg-white text-sm'
+              onClick={openTargetEditor}
+            >
+              Hedefleri düzenle
+            </button>
+          ) : null}
+        </div>
+
+        {editingTargets ? (
+          <form onSubmit={handleSaveTargets} className='grid gap-3 sm:grid-cols-2'>
+            <label className='text-sm'>
+              <span className='mb-1 block text-slate-600'>Aylık konaklama geliri hedefi (₺)</span>
+              <input
+                type='number'
+                name='monthlyLodgingTarget'
+                min='0'
+                className='input'
+                value={targetsDraft.monthlyLodgingTarget || ''}
+                onChange={handleTargetChange}
+              />
+            </label>
+            <label className='text-sm'>
+              <span className='mb-1 block text-slate-600'>Yıllık konaklama geliri hedefi (₺)</span>
+              <input
+                type='number'
+                name='yearlyLodgingTarget'
+                min='0'
+                className='input'
+                value={targetsDraft.yearlyLodgingTarget || ''}
+                onChange={handleTargetChange}
+              />
+            </label>
+            <label className='text-sm'>
+              <span className='mb-1 block text-slate-600'>Aylık doluluk hedefi (%)</span>
+              <input
+                type='number'
+                name='monthlyOccupancyTargetPercent'
+                min='0'
+                max='100'
+                className='input'
+                value={targetsDraft.monthlyOccupancyTargetPercent || ''}
+                onChange={handleTargetChange}
+              />
+            </label>
+            <label className='text-sm'>
+              <span className='mb-1 block text-slate-600'>Yıllık doluluk hedefi (%)</span>
+              <input
+                type='number'
+                name='yearlyOccupancyTargetPercent'
+                min='0'
+                max='100'
+                className='input'
+                value={targetsDraft.yearlyOccupancyTargetPercent || ''}
+                onChange={handleTargetChange}
+              />
+            </label>
+            <div className='flex flex-wrap items-center gap-2 sm:col-span-2'>
+              <button type='submit' className='btn-success' disabled={savingTargets}>
+                {savingTargets ? 'Kaydediliyor...' : 'Kaydet'}
+              </button>
+              {hasConfiguredTargets(targets) ? (
+                <button type='button' className='btn border border-slate-300 bg-white' onClick={cancelTargetEditor}>
+                  Vazgeç
+                </button>
+              ) : null}
+              {targetsMessage ? <p className='text-sm text-rose-600'>{targetsMessage}</p> : null}
+            </div>
+          </form>
+        ) : null}
       </section>
 
       <section>

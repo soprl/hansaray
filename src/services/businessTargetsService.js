@@ -10,6 +10,16 @@ export const DEFAULT_BUSINESS_TARGETS = {
   yearlyOccupancyTargetPercent: 0,
 }
 
+export function hasConfiguredTargets(targets) {
+  if (!targets) return false
+  return (
+    Number(targets.monthlyLodgingTarget) > 0 ||
+    Number(targets.yearlyLodgingTarget) > 0 ||
+    Number(targets.monthlyOccupancyTargetPercent) > 0 ||
+    Number(targets.yearlyOccupancyTargetPercent) > 0
+  )
+}
+
 export async function getBusinessTargets() {
   try {
     const snapshot = await getDoc(doc(db, 'businessTargets', TARGETS_DOC_ID))
