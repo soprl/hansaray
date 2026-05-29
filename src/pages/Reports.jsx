@@ -15,6 +15,17 @@ import {
 import ReservationNote from '../components/ReservationNote'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import {
+  DEFAULT_BUSINESS_TARGETS,
+  getBusinessTargets,
+  saveBusinessTargets,
+} from '../services/businessTargetsService'
+import GoalProgress from '../components/GoalProgress'
+import {
+  getGoalProgress,
+  getOccupancySnapshot,
+  ROOM_COUNT,
+} from '../utils/occupancyUtils'
+import {
   getMonthlyReservationBreakdown,
   getOutstandingPayment,
   isFullyPaidReservation,
@@ -30,17 +41,23 @@ function Reports() {
   const [monthDate, setMonthDate] = useState(() => startOfMonth(new Date()))
   const [payingReservationId, setPayingReservationId] = useState(null)
   const [lodgingSearch, setLodgingSearch] = useState('')
+  const [targets, setTargets] = useState(DEFAULT_BUSINESS_TARGETS)
+  const [targetsDraft, setTargetsDraft] = useState(DEFAULT_BUSINESS_TARGETS)
+  const [savingTargets, setSavingTargets] = useState(false)
+  const [targetsMessage, setTargetsMessage] = useState('')
 
   useEffect(() => {
     if (!user) return
 
     let cancelled = false
 
-    Promise.all([getReservations(), getTransactions()])
-      .then(([reservationData, transactionData]) => {
+    Promise.all([getReservations(), getTransactions(), getBusinessTargets()])
+      .then(([reservationData, transactionData, targetsData]) => {
         if (!cancelled) {
           setReservations(reservationData)
           setTransactions(transactionData)
+          setTargets(targetsData)
+          setTargetsDraft(targetsData)
         }
       })
       .catch((fetchError) => {
@@ -160,6 +177,55 @@ function Reports() {
 
   const monthLabel = formatMonthLabel(monthDate)
 
+  const occupancy = useMemo(() => getOccupancySnapshot(reservations, monthDate), [reservations, monthDate])
+
+  const monthlyRevenueGoal = useMemo(
+    () => getGoalProgress(summary.lodgingIncome, targets.monthlyLodgingTarget),
+    [summary.lodgingIncome, targets.monthlyLodgingTarget],
+  )
+
+  const monthlyOccupancyGoal = useMemo(
+    () => getGoalProgress(occupancy.monthOccupancyPercent, targets.monthlyOccupancyTargetPercent),
+    [occupancy.monthOccupancyPercent, targets.monthlyOccupancyTargetPercent],
+  )
+
+  const yearlyRevenueGoal = useMemo(
+    () => getGoalProgress(occupancy.yearLodgingIncome, targets.yearlyLodgingTarget),
+    [occupancy.yearLodgingIncome, targets.yearlyLodgingTarget],
+  )
+
+  const yearlyOccupancyGoal = useMemo(
+    () => getGoalProgress(occupancy.yearOccupancyPercent, targets.yearlyOccupancyTargetPercent),
+    [occupancy.yearOccupancyPercent, targets.yearlyOccupancyTargetPercent],
+  )
+
+  const handleTargetChange = (event) => {
+    const { name, value } = event.target
+    setTargetsDraft((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSaveTargets = async (event) => {
+    event.preventDefault()
+    setSavingTargets(true)
+    setTargetsMessage('')
+    try {
+      const payload = {
+        monthlyLodgingTarget: Number(targetsDraft.monthlyLodgingTarget) || 0,
+        yearlyLodgingTarget: Number(targetsDraft.yearlyLodgingTarget) || 0,
+        monthlyOccupancyTargetPercent: Number(targetsDraft.monthlyOccupancyTargetPercent) || 0,
+        yearlyOccupancyTargetPercent: Number(targetsDraft.yearlyOccupancyTargetPercent) || 0,
+      }
+      await saveBusinessTargets(payload)
+      setTargets(payload)
+      setTargetsMessage('Hedefler kaydedildi.')
+    } catch (saveError) {
+      setTargetsMessage('Hedefler kaydedilemedi.')
+      console.error(saveError)
+    } finally {
+      setSavingTargets(false)
+    }
+  }
+
   return (
     <section className='space-y-4'>
       <div className='card'>
@@ -195,6 +261,122 @@ function Reports() {
       </div>
 
       <p className='text-center text-sm capitalize text-slate-500'>{monthLabel} raporu</p>
+
+      <section className='card space-y-4'>
+        <h2 className='text-base font-semibold text-blue-950'>Hedefler</h2>
+        <p className='text-xs text-slate-500'>
+          {ROOM_COUNT} oda için aylık/yıllık gelir ve doluluk hedefi. Yıllık rakamlar seçili yılın bugüne kadar
+          kısmını gösterir (ana sayfa ile aynı).
+        </p>
+        <form onSubmit={handleSaveTargets} className='grid gap-3 sm:grid-cols-2'>
+          <label className='text-sm'>
+            <span className='mb-1 block text-slate-600'>Aylık konaklama geliri hedefi (₺)</span>
+            <input
+              type='number'
+              name='monthlyLodgingTarget'
+              min='0'
+              className='input'
+              value={targetsDraft.monthlyLodgingTarget || ''}
+              onChange={handleTargetChange}
+            />
+          </label>
+          <label className='text-sm'>
+            <span className='mb-1 block text-slate-600'>Yıllık konaklama geliri hedefi (₺)</span>
+            <input
+              type='number'
+              name='yearlyLodgingTarget'
+              min='0'
+              className='input'
+              value={targetsDraft.yearlyLodgingTarget || ''}
+              onChange={handleTargetChange}
+            />
+          </label>
+          <label className='text-sm'>
+            <span className='mb-1 block text-slate-600'>Aylık doluluk hedefi (%)</span>
+            <input
+              type='number'
+              name='monthlyOccupancyTargetPercent'
+              min='0'
+              max='100'
+              className='input'
+              value={targetsDraft.monthlyOccupancyTargetPercent || ''}
+              onChange={handleTargetChange}
+            />
+          </label>
+          <label className='text-sm'>
+            <span className='mb-1 block text-slate-600'>Yıllık doluluk hedefi (%)</span>
+            <input
+              type='number'
+              name='yearlyOccupancyTargetPercent'
+              min='0'
+              max='100'
+              className='input'
+              value={targetsDraft.yearlyOccupancyTargetPercent || ''}
+              onChange={handleTargetChange}
+            />
+          </label>
+          <div className='sm:col-span-2 flex flex-wrap items-center gap-3'>
+            <button type='submit' className='btn-success' disabled={savingTargets}>
+              {savingTargets ? 'Kaydediliyor...' : 'Hedefleri kaydet'}
+            </button>
+            {targetsMessage ? <p className='text-sm text-emerald-700'>{targetsMessage}</p> : null}
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <h2 className='mb-2 text-sm font-medium text-slate-600'>Doluluk (seçili ay)</h2>
+        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Doluluk oranı</p>
+            <p className='mt-1 text-2xl font-semibold text-blue-950'>
+              {loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>
+              {loading
+                ? null
+                : `${occupancy.monthOccupiedNights} dolu · ${occupancy.monthEmptyNights} boş gece (${occupancy.monthAvailableNights} kapasite)`}
+            </p>
+          </article>
+          <article className='card'>
+            <p className='text-sm text-slate-500'>Ortalama gece fiyatı</p>
+            <p className='mt-1 text-2xl font-semibold text-indigo-600'>
+              {loading ? '...' : formatCurrencyTRY(occupancy.monthAverageDailyRate)}
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>Konaklama geliri ÷ dolu gece</p>
+          </article>
+          <GoalProgress
+            label='Gelir hedefi (bu ay)'
+            currentLabel={loading ? '...' : formatCurrencyTRY(summary.lodgingIncome)}
+            targetLabel={formatCurrencyTRY(monthlyRevenueGoal.target)}
+            percent={monthlyRevenueGoal.percent}
+            hasTarget={monthlyRevenueGoal.hasTarget}
+          />
+          <GoalProgress
+            label='Doluluk hedefi (bu ay)'
+            currentLabel={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
+            targetLabel={`%${monthlyOccupancyGoal.target}`}
+            percent={monthlyOccupancyGoal.percent}
+            hasTarget={monthlyOccupancyGoal.hasTarget}
+          />
+        </div>
+        <div className='mt-3 grid gap-3 sm:grid-cols-2'>
+          <GoalProgress
+            label='Yıllık gelir hedefi'
+            currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.yearLodgingIncome)}
+            targetLabel={formatCurrencyTRY(yearlyRevenueGoal.target)}
+            percent={yearlyRevenueGoal.percent}
+            hasTarget={yearlyRevenueGoal.hasTarget}
+          />
+          <GoalProgress
+            label='Yıllık doluluk hedefi'
+            currentLabel={loading ? '...' : `%${occupancy.yearOccupancyPercent}`}
+            targetLabel={`%${yearlyOccupancyGoal.target}`}
+            percent={yearlyOccupancyGoal.percent}
+            hasTarget={yearlyOccupancyGoal.hasTarget}
+          />
+        </div>
+      </section>
 
       <section>
         <h2 className='mb-2 text-sm font-medium text-slate-600'>Bu ay rezervasyonlar (giriş tarihine göre)</h2>

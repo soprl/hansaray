@@ -7,7 +7,13 @@ import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
 import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import { formatDateTR, formatCurrencyTRY } from '../utils/formatters'
+import {
+  DEFAULT_BUSINESS_TARGETS,
+  getBusinessTargets,
+} from '../services/businessTargetsService'
+import { getGoalProgress, getOccupancySnapshot, ROOM_COUNT } from '../utils/occupancyUtils'
 import { getDashboardReservationMetrics, getReservationNightCount } from '../utils/reservationUtils'
+import GoalProgress from '../components/GoalProgress'
 
 const paymentBadgeClass = {
   Ödenmedi: 'bg-rose-100 text-rose-700',
@@ -60,6 +66,7 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
 function Dashboard() {
   const { user } = useAuth()
   const [reservations, setReservations] = useState([])
+  const [targets, setTargets] = useState(DEFAULT_BUSINESS_TARGETS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -76,8 +83,11 @@ function Dashboard() {
       setError('')
 
       try {
-        const data = await getReservations()
-        if (!cancelled) setReservations(data)
+        const [data, targetsData] = await Promise.all([getReservations(), getBusinessTargets()])
+        if (!cancelled) {
+          setReservations(data)
+          setTargets(targetsData)
+        }
       } catch (fetchError) {
         if (cancelled) return
         setError(getFirestoreErrorMessage(fetchError, 'Dashboard verileri yüklenirken bir hata oluştu.'))
@@ -104,18 +114,95 @@ function Dashboard() {
   }, [reservations])
   const monthLabel = format(new Date(), 'MMMM yyyy', { locale: tr })
 
+  const occupancy = useMemo(() => getOccupancySnapshot(reservations), [reservations])
+
+  const monthlyRevenueGoal = useMemo(
+    () => getGoalProgress(occupancy.monthLodgingIncome, targets.monthlyLodgingTarget),
+    [occupancy.monthLodgingIncome, targets.monthlyLodgingTarget],
+  )
+
+  const yearlyRevenueGoal = useMemo(
+    () => getGoalProgress(occupancy.yearLodgingIncome, targets.yearlyLodgingTarget),
+    [occupancy.yearLodgingIncome, targets.yearlyLodgingTarget],
+  )
+
+  const monthlyOccupancyGoal = useMemo(
+    () => getGoalProgress(occupancy.monthOccupancyPercent, targets.monthlyOccupancyTargetPercent),
+    [occupancy.monthOccupancyPercent, targets.monthlyOccupancyTargetPercent],
+  )
+
+  const yearlyOccupancyGoal = useMemo(
+    () => getGoalProgress(occupancy.yearOccupancyPercent, targets.yearlyOccupancyTargetPercent),
+    [occupancy.yearOccupancyPercent, targets.yearlyOccupancyTargetPercent],
+  )
+
+  const todayOccupancyPercent = loading
+    ? '...'
+    : `${Math.round((metrics.todaysOccupancyCount / ROOM_COUNT) * 100)}%`
+
   return (
     <section className='space-y-4'>
       <h2 className='text-base font-semibold capitalize text-blue-950 sm:text-lg'>{monthLabel} özeti</h2>
-      <div className='grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4'>
-        <StatCard title='Bugünkü Doluluk' value={loading ? '...' : `${metrics.todaysOccupancyCount}`} tone='warning' />
+
+      <div>
+        <h3 className='mb-2 text-sm font-medium text-slate-600'>Doluluk ve hedefler</h3>
+        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+          <StatCard
+            title='Bugün doluluk'
+            value={loading ? '...' : todayOccupancyPercent}
+            subtitle={loading ? null : `${metrics.todaysOccupancyCount} / ${ROOM_COUNT} oda`}
+            tone='warning'
+          />
+          <StatCard
+            title='Bu ay doluluk'
+            value={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
+            subtitle={
+              loading
+                ? null
+                : `${occupancy.monthOccupiedNights} dolu gece · ${occupancy.monthEmptyNights} boş`
+            }
+            tone='default'
+          />
+          <GoalProgress
+            label='Bu ay gelir hedefi'
+            currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.monthLodgingIncome)}
+            targetLabel={formatCurrencyTRY(monthlyRevenueGoal.target)}
+            percent={monthlyRevenueGoal.percent}
+            hasTarget={monthlyRevenueGoal.hasTarget}
+          />
+          <GoalProgress
+            label='Bu ay doluluk hedefi'
+            currentLabel={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
+            targetLabel={`%${monthlyOccupancyGoal.target}`}
+            percent={monthlyOccupancyGoal.percent}
+            hasTarget={monthlyOccupancyGoal.hasTarget}
+          />
+        </div>
+        <div className='mt-3 grid gap-3 sm:grid-cols-2'>
+          <GoalProgress
+            label='Yıllık gelir hedefi (yıl başından bugüne)'
+            currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.yearLodgingIncome)}
+            targetLabel={formatCurrencyTRY(yearlyRevenueGoal.target)}
+            percent={yearlyRevenueGoal.percent}
+            hasTarget={yearlyRevenueGoal.hasTarget}
+          />
+          <GoalProgress
+            label='Yıllık doluluk (yıl başından bugüne)'
+            currentLabel={loading ? '...' : `%${occupancy.yearOccupancyPercent}`}
+            targetLabel={`%${yearlyOccupancyGoal.target}`}
+            percent={yearlyOccupancyGoal.percent}
+            hasTarget={yearlyOccupancyGoal.hasTarget}
+          />
+        </div>
+      </div>
+
+      <div className='grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3'>
         <StatCard
           title='Bu Ay Rezervasyon Geliri'
           value={loading ? '...' : formatCurrencyTRY(metrics.monthlyReservationIncome)}
           tone='success'
         />
         <StatCard title='Aktif Rezervasyon' value={loading ? '...' : metrics.activeCount} tone='default' />
-        <StatCard title='İptal Rezervasyon' value={loading ? '...' : metrics.cancelledCount} tone='danger' />
       </div>
       <div className='grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3'>
         <StatCard
