@@ -13,11 +13,14 @@ function GoalProgress({
   percent,
   hasTarget,
   hint,
-  achieved = false,
-  remaining = 0,
+  progress,
+  achieved: achievedProp = false,
+  remaining: remainingProp = 0,
   kind = 'currency',
   compact = false,
 }) {
+  const achieved = progress?.achieved ?? achievedProp
+  const remaining = progress?.remaining ?? remainingProp
   return (
     <div className={compact ? '' : 'card'}>
       <div className='flex items-start justify-between gap-2'>

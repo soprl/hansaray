@@ -418,6 +418,8 @@ function Reports() {
             targetLabel={formatCurrencyTRY(monthlyRevenueGoal.target)}
             percent={monthlyRevenueGoal.percent}
             hasTarget={monthlyRevenueGoal.hasTarget}
+            progress={monthlyRevenueGoal}
+            kind='currency'
           />
           <GoalProgress
             label='Doluluk hedefi (bu ay)'
@@ -425,6 +427,8 @@ function Reports() {
             targetLabel={`%${monthlyOccupancyGoal.target}`}
             percent={monthlyOccupancyGoal.percent}
             hasTarget={monthlyOccupancyGoal.hasTarget}
+            progress={monthlyOccupancyGoal}
+            kind='percent'
           />
         </div>
         <div className='mt-3 grid gap-3 sm:grid-cols-2'>
@@ -434,6 +438,8 @@ function Reports() {
             targetLabel={formatCurrencyTRY(yearlyRevenueGoal.target)}
             percent={yearlyRevenueGoal.percent}
             hasTarget={yearlyRevenueGoal.hasTarget}
+            progress={yearlyRevenueGoal}
+            kind='currency'
           />
           <GoalProgress
             label='Yıllık doluluk hedefi'
@@ -441,6 +447,8 @@ function Reports() {
             targetLabel={`%${yearlyOccupancyGoal.target}`}
             percent={yearlyOccupancyGoal.percent}
             hasTarget={yearlyOccupancyGoal.hasTarget}
+            progress={yearlyOccupancyGoal}
+            kind='percent'
           />
         </div>
       </section>
