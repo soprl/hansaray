@@ -56,7 +56,10 @@ export async function saveNotificationSettings(settings) {
 export async function registerDeviceToken({ userId, email, token, platform }) {
   if (!userId || !token) return
 
-  await setDoc(doc(db, 'deviceTokens', userId), {
+  const platformKey = (platform ?? 'unknown').replace(/\//g, '_')
+  const docId = `${userId}_${platformKey}`
+
+  await setDoc(doc(db, 'deviceTokens', docId), {
     userId,
     email: email ?? '',
     token,

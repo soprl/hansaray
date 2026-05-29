@@ -7,7 +7,12 @@ import {
   saveNotificationSettings,
   sendTestNotification,
 } from '../services/notificationSettingsService'
-import { initNativePush, isNativeApp } from '../utils/nativePush'
+import {
+  initPushNotifications,
+  isNativeApp,
+  isWebPushEnvironment,
+  supportsPushNotifications,
+} from '../utils/pushNotifications'
 
 const SETUP_STEPS = [
   {
@@ -22,8 +27,13 @@ const SETUP_STEPS = [
   },
   {
     id: 'device',
-    title: 'iOS uygulamasında cihaz kaydı',
-    hint: 'TestFlight uygulaması, giriş, bildirim izni',
+    title: 'Cihaz kaydı (web veya iOS)',
+    hint: 'Bu sayfada “Bu cihazı kaydet” veya giriş sonrası otomatik',
+  },
+  {
+    id: 'vapid',
+    title: 'Web push anahtarı (VAPID)',
+    hint: 'Firebase Console → Cloud Messaging → Web Push certificates',
   },
   {
     id: 'test',
@@ -35,7 +45,9 @@ const SETUP_STEPS = [
 function Notifications() {
   const { user } = useAuth()
   const native = isNativeApp()
+  const web = isWebPushEnvironment()
   const [settings, setSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS)
+  const [pushSupported, setPushSupported] = useState(null)
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -70,16 +82,26 @@ function Notifications() {
   }, [loadPage])
 
   useEffect(() => {
-    if (!user || !native) return
+    supportsPushNotifications().then(setPushSupported)
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
 
     let cancelled = false
     setRegistering(true)
-    initNativePush(user)
+    initPushNotifications(user)
       .then((result) => {
         if (cancelled) return
         if (result.registered) {
-          setPushStatus('Bu cihaz otomatik olarak kaydedildi.')
+          setPushStatus(
+            native
+              ? 'Bu cihaz otomatik olarak kaydedildi.'
+              : 'Bu tarayıcı bildirimler için kaydedildi.',
+          )
           loadPage()
+        } else if (result.reason === 'no-vapid-key' && web) {
+          setPushStatus('Web bildirimi için VITE_FIREBASE_VAPID_KEY tanımlanmalı.')
         }
       })
       .finally(() => {
@@ -89,7 +111,7 @@ function Notifications() {
     return () => {
       cancelled = true
     }
-  }, [user, native, loadPage])
+  }, [user, native, web, loadPage])
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target
@@ -150,7 +172,7 @@ function Notifications() {
     setPushStatus('')
     setError('')
     setRegistering(true)
-    const result = await initNativePush(user)
+    const result = await initPushNotifications(user)
     setRegistering(false)
 
     if (result.registered) {
@@ -159,24 +181,40 @@ function Notifications() {
       return
     }
 
-    if (result.reason === 'not-native') {
+    if (result.reason === 'no-vapid-key') {
       setPushStatus(
-        'Web tarayıcısında push kaydı yok. iOS uygulamasını (TestFlight) kullanın.',
+        'Web için Firebase Console’dan VAPID anahtarı alın; Vercel’e VITE_FIREBASE_VAPID_KEY ekleyin.',
       )
       return
     }
 
-    if (result.reason === 'permission-denied') {
-      setPushStatus('Bildirim izni verilmedi. iPhone Ayarlar → Hansaray → Bildirimler.')
+    if (result.reason === 'unsupported') {
+      setPushStatus('Bu tarayıcı web bildirimlerini desteklemiyor (Safari/Chrome güncel sürüm deneyin).')
       return
     }
 
-    setPushStatus('Cihaz kaydı tamamlanamadı. APNs ve TestFlight kurulumunu kontrol edin.')
+    if (result.reason === 'permission-denied') {
+      setPushStatus(
+        native
+          ? 'Bildirim izni verilmedi. iPhone Ayarlar → Hansaray → Bildirimler.'
+          : 'Bildirim izni verilmedi. Tarayıcı adres çubuğundaki kilit simgesinden izin verin.',
+      )
+      return
+    }
+
+    setPushStatus(
+      native
+        ? 'Cihaz kaydı tamamlanamadı. APNs ve TestFlight kurulumunu kontrol edin.'
+        : 'Kayıt tamamlanamadı. HTTPS (Vercel) üzerinden deneyin.',
+    )
   }
+
+  const hasVapidKey = Boolean(import.meta.env.VITE_FIREBASE_VAPID_KEY)
 
   const stepDone = {
     firebase: functionsOnline === true,
     apns: devices.length > 0 || testPassed,
+    vapid: !web || hasVapidKey,
     device: devices.length > 0,
     test: testPassed,
   }
@@ -186,7 +224,8 @@ function Notifications() {
       <div className='card'>
         <h2 className='text-lg font-semibold text-blue-950'>Bildirimler</h2>
         <p className='mt-1 text-sm text-slate-600'>
-          Kayıtlı telefonlara giriş/çıkış hatırlatmaları, ödeme uyarıları ve günlük özetler gider.
+          Kayıtlı cihazlara (web tarayıcı veya iOS) giriş/çıkış hatırlatmaları, ödeme uyarıları ve
+          günlük özetler gider.
         </p>
       </div>
 
@@ -226,8 +265,8 @@ function Notifications() {
           <p className='text-sm text-slate-500'>Yükleniyor...</p>
         ) : devices.length === 0 ? (
           <p className='text-sm text-slate-500'>
-            Henüz kayıtlı telefon yok. TestFlight uygulamasında giriş yapın; bu sayfayı açınca cihaz
-            otomatik kayıt olur.
+            Henüz kayıtlı cihaz yok. Web’de veya iOS uygulamasında giriş yapıp bu sayfada “Bu cihazı
+            kaydet”e basın.
           </p>
         ) : (
           <ul className='space-y-2'>
@@ -253,9 +292,9 @@ function Notifications() {
             type='button'
             className='btn border border-slate-300 bg-white'
             onClick={handleRegisterThisDevice}
-            disabled={!native || registering}
+            disabled={registering || pushSupported === false}
           >
-            {registering ? 'Kaydediliyor...' : 'Bu cihazı yeniden kaydet'}
+            {registering ? 'Kaydediliyor...' : 'Bu cihazı kaydet'}
           </button>
           <button
             type='button'
@@ -268,10 +307,15 @@ function Notifications() {
         </div>
 
         {pushStatus ? <p className='text-sm text-slate-600'>{pushStatus}</p> : null}
-        {!native ? (
+        {web && pushSupported === false ? (
           <p className='text-xs text-slate-500'>
-            Şu an web sürümündesiniz. Push için iOS uygulamasını (TestFlight) kullanın; mobil menüde
-            Bildirim sekmesi görünür.
+            Bu tarayıcı web push desteklemiyor. Chrome veya Safari (güncel) ile deneyin.
+          </p>
+        ) : null}
+        {web && !hasVapidKey ? (
+          <p className='text-xs text-amber-800'>
+            Web bildirimi için Firebase’den VAPID anahtarı alıp Vercel ortam değişkenine{' '}
+            <strong>VITE_FIREBASE_VAPID_KEY</strong> olarak ekleyin.
           </p>
         ) : null}
       </div>

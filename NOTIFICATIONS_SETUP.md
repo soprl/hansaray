@@ -1,6 +1,6 @@
 # Bildirimleri canlıya alma (Hansaray)
 
-Push bildirimleri **Firebase Cloud Functions + iOS uygulama (TestFlight)** ile çalışır. Web/PWA’da cihaz kaydı yoktur.
+Push bildirimleri **Firebase Cloud Functions** ile gider. Cihaz kaydı **web tarayıcı** (Chrome, Safari) veya **iOS uygulama (TestFlight)** üzerinden yapılır.
 
 ## 1) Firebase (senin Mac’inde)
 
@@ -29,16 +29,30 @@ Deploy edilen fonksiyonlar (`europe-west1`):
    Apple Developer’dan `.p8` anahtarı yükle (Key ID, Team ID, Bundle ID).
 2. **Bundle ID:** `com.hansaray.otel` (Xcode ile aynı olmalı).
 3. iOS uygulaması Firebase projesine ekli değilse ekle.
+4. **Web Push (VAPID):** Project Settings → **Cloud Messaging** → **Web Push certificates** → anahtar çifti oluştur. **Key pair** değerini kopyalayın.
 
-## 3) Panel ayarları
+## 3) Vercel ortam değişkeni (web)
+
+Panelde ve yerelde `.env` içinde:
+
+```env
+VITE_FIREBASE_VAPID_KEY=BNx...  # Firebase’deki Web Push public key
+```
+
+Deploy sonrası `public/firebase-messaging-sw.js` build sırasında otomatik üretilir (`vite.config.js`).
+
+> Web push yalnızca **HTTPS** üzerinde çalışır (Vercel uygun). Safari 16.4+ ve güncel Chrome destekler.
+
+## 4) Panel ayarları
 
 1. https://hansaray.vercel.app → **Bildirimler**
 2. Tüm seçenekleri açık bırakıp **Ayarları kaydet**
-3. iOS uygulamasında giriş yap → bildirim izni ver
-4. **Bildirimler** sayfasında cihaz listede görünmeli
-5. **Test bildirimi gönder**
+3. **Web:** giriş yap → tarayıcı bildirim iznini ver → **Bu cihazı kaydet** (veya sayfa açılınca otomatik kayıt)
+4. **iOS:** TestFlight uygulamasında giriş → bildirim izni
+5. **Bildirimler** sayfasında cihaz listede görünmeli (`web` veya `ios`)
+6. **Test bildirimi gönder**
 
-## 4) iOS uygulama (Apple Developer ~99$/yıl)
+## 5) iOS uygulama (Apple Developer ~99$/yıl)
 
 ```bash
 npm install
@@ -54,14 +68,15 @@ Xcode:
 - Uygulama ikonu: `resources/icon.png` (veya `npm run icons` sonrası sync)
 - Archive → TestFlight
 
-## 5) Sorun giderme
+## 6) Sorun giderme
 
 | Belirti | Çözüm |
 |---------|--------|
 | `functions/not-found` | `npm run mobile:firebase` |
-| Kayıtlı cihaz yok | TestFlight uygulaması, giriş, bildirim izni |
-| Test 0 cihaz | APNs anahtarı + bundle id kontrolü |
-| Web’de kayıt yok | Normal; iOS uygulama gerekir |
+| Kayıtlı cihaz yok | Giriş + bildirim izni + **Bu cihazı kaydet** |
+| Web kayıt olmuyor | `VITE_FIREBASE_VAPID_KEY` Vercel’de tanımlı mı? HTTPS mi? |
+| Test 0 cihaz | APNs (iOS) veya VAPID (web) + Functions deploy |
+| Safari’de yok | macOS/iOS Safari 16.4+; izin site ayarlarından |
 
 ## Logo değiştirme
 
