@@ -236,6 +236,7 @@ function Reservations() {
           submitting={submitting}
           reservations={reservations}
           excludeId={editingReservation?.id}
+          relaxedEdit={listTab === LIST_TABS.COMPLETED}
         />
       </div>
 

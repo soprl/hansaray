@@ -74,10 +74,15 @@ function Reports() {
     [reservations, transactions, monthDate],
   )
 
-  const lodgingReservations = useMemo(
-    () => getReservationsForMonth(reservations, monthDate),
-    [reservations, monthDate],
-  )
+  const lodgingReservations = useMemo(() => {
+    const list = getReservationsForMonth(reservations, monthDate)
+    return [...list].sort((a, b) => {
+      const aPaid = isFullyPaidReservation(a)
+      const bPaid = isFullyPaidReservation(b)
+      if (aPaid !== bPaid) return aPaid ? 1 : -1
+      return (a.checkInDate || '').localeCompare(b.checkInDate || '')
+    })
+  }, [reservations, monthDate])
 
   const monthTransactions = useMemo(
     () =>

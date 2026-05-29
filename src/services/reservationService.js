@@ -142,7 +142,7 @@ export async function addReservation(data) {
   const payload = normalizeReservationPayload(data)
 
   const hasConflict = await checkReservationConflict(payload)
-  if (hasConflict && payload.reservationStatus !== 'İptal') {
+  if (hasConflict && payload.reservationStatus === 'Aktif') {
     throw new Error('CONFLICT')
   }
 
@@ -159,7 +159,7 @@ export async function updateReservation(id, data) {
   const payload = normalizeReservationPayload(data)
 
   const hasConflict = await checkReservationConflict({ ...payload, excludeId: id })
-  if (hasConflict && payload.reservationStatus !== 'İptal') {
+  if (hasConflict && payload.reservationStatus === 'Aktif') {
     throw new Error('CONFLICT')
   }
 
