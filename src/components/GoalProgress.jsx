@@ -1,19 +1,46 @@
-function GoalProgress({ label, currentLabel, targetLabel, percent, hasTarget, hint }) {
+import { formatCurrencyTRY } from '../utils/formatters'
+
+function gapLine({ achieved, remaining, kind }) {
+  if (achieved) return 'Hedefe ulaştınız'
+  if (kind === 'percent') return `Hedeften %${Math.round(remaining)} uzaktayız`
+  return `Hedeften ${formatCurrencyTRY(remaining)} uzaktayız`
+}
+
+function GoalProgress({
+  label,
+  currentLabel,
+  targetLabel,
+  percent,
+  hasTarget,
+  hint,
+  achieved = false,
+  remaining = 0,
+  kind = 'currency',
+  compact = false,
+}) {
   return (
-    <article className='card'>
+    <div className={compact ? '' : 'card'}>
       <div className='flex items-start justify-between gap-2'>
-        <p className='text-sm text-slate-500'>{label}</p>
+        <p className={`text-slate-500 ${compact ? 'text-xs' : 'text-sm'}`}>{label}</p>
         {hasTarget ? (
           <span className='shrink-0 text-sm font-semibold text-blue-950'>%{percent}</span>
         ) : null}
       </div>
-      <p className='mt-1 text-lg font-semibold text-blue-950 sm:text-xl'>{currentLabel}</p>
+      <p className={`font-semibold text-blue-950 ${compact ? 'mt-0.5 text-base' : 'mt-1 text-lg sm:text-xl'}`}>
+        {currentLabel}
+      </p>
       {hasTarget ? (
         <>
-          <p className='mt-0.5 text-xs text-slate-500'>Hedef: {targetLabel}</p>
-          <div className='mt-2 h-2 overflow-hidden rounded-full bg-slate-100'>
+          <p className='mt-0.5 text-sm text-slate-600'>
+            Hedef {targetLabel}
+            <span className='text-slate-400'> · </span>
+            <span className={achieved ? 'text-emerald-700' : 'text-amber-800'}>
+              {gapLine({ achieved, remaining, kind })}
+            </span>
+          </p>
+          <div className={`overflow-hidden rounded-full bg-slate-100 ${compact ? 'mt-1.5 h-1.5' : 'mt-2 h-2'}`}>
             <div
-              className='h-full rounded-full bg-emerald-500 transition-all'
+              className={`h-full rounded-full transition-all ${achieved ? 'bg-emerald-600' : 'bg-emerald-500'}`}
               style={{ width: `${percent}%` }}
             />
           </div>
@@ -21,7 +48,7 @@ function GoalProgress({ label, currentLabel, targetLabel, percent, hasTarget, hi
       ) : (
         <p className='mt-1 text-xs text-slate-400'>{hint ?? 'Raporlar sayfasından hedef girebilirsiniz.'}</p>
       )}
-    </article>
+    </div>
   )
 }
 

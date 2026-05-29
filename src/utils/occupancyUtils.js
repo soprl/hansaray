@@ -105,12 +105,15 @@ export const getGoalProgress = (current, target) => {
   const safeTarget = Number(target) || 0
   const safeCurrent = Number(current) || 0
   if (safeTarget <= 0) {
-    return { hasTarget: false, percent: 0, current: safeCurrent, target: 0 }
+    return { hasTarget: false, percent: 0, current: safeCurrent, target: 0, remaining: 0, achieved: false }
   }
+  const achieved = safeCurrent >= safeTarget
   return {
     hasTarget: true,
     percent: Math.min(100, Math.round((safeCurrent / safeTarget) * 100)),
     current: safeCurrent,
     target: safeTarget,
+    remaining: Math.max(0, safeTarget - safeCurrent),
+    achieved,
   }
 }

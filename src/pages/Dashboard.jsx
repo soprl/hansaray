@@ -1,6 +1,7 @@
 import { format } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import ReservationNote from '../components/ReservationNote'
 import StatCard from '../components/StatCard'
 import { useAuth } from '../context/useAuth'
@@ -10,6 +11,7 @@ import { formatDateTR, formatCurrencyTRY } from '../utils/formatters'
 import {
   DEFAULT_BUSINESS_TARGETS,
   getBusinessTargets,
+  hasConfiguredTargets,
 } from '../services/businessTargetsService'
 import { getGoalProgress, getOccupancySnapshot, ROOM_COUNT } from '../utils/occupancyUtils'
 import { getDashboardReservationMetrics, getReservationNightCount } from '../utils/reservationUtils'
@@ -113,6 +115,8 @@ function Dashboard() {
     }
   }, [reservations])
   const monthLabel = format(new Date(), 'MMMM yyyy', { locale: tr })
+  const year = new Date().getFullYear()
+  const targetsConfigured = hasConfiguredTargets(targets)
 
   const occupancy = useMemo(() => getOccupancySnapshot(reservations), [reservations])
 
@@ -144,56 +148,95 @@ function Dashboard() {
     <section className='space-y-4'>
       <h2 className='text-base font-semibold capitalize text-blue-950 sm:text-lg'>{monthLabel} özeti</h2>
 
-      <div>
-        <h3 className='mb-2 text-sm font-medium text-slate-600'>Doluluk ve hedefler</h3>
-        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-          <StatCard
-            title='Bugün doluluk'
-            value={loading ? '...' : todayOccupancyPercent}
-            subtitle={loading ? null : `${metrics.todaysOccupancyCount} / ${ROOM_COUNT} oda`}
-            tone='warning'
-          />
-          <StatCard
-            title='Bu ay doluluk'
-            value={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
-            subtitle={
-              loading
-                ? null
-                : `${occupancy.monthOccupiedNights} dolu gece · ${occupancy.monthEmptyNights} boş`
-            }
-            tone='default'
-          />
-          <GoalProgress
-            label='Bu ay gelir hedefi'
-            currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.monthLodgingIncome)}
-            targetLabel={formatCurrencyTRY(monthlyRevenueGoal.target)}
-            percent={monthlyRevenueGoal.percent}
-            hasTarget={monthlyRevenueGoal.hasTarget}
-          />
-          <GoalProgress
-            label='Bu ay doluluk hedefi'
-            currentLabel={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
-            targetLabel={`%${monthlyOccupancyGoal.target}`}
-            percent={monthlyOccupancyGoal.percent}
-            hasTarget={monthlyOccupancyGoal.hasTarget}
-          />
+      <article className='card space-y-4'>
+        <div className='flex flex-wrap items-start justify-between gap-2'>
+          <h3 className='text-base font-semibold text-blue-950'>{year} hedefi</h3>
+          <Link to='/reports' className='text-sm font-medium text-blue-700 hover:underline'>
+            Hedefleri düzenle →
+          </Link>
         </div>
-        <div className='mt-3 grid gap-3 sm:grid-cols-2'>
-          <GoalProgress
-            label='Yıllık gelir hedefi (yıl başından bugüne)'
-            currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.yearLodgingIncome)}
-            targetLabel={formatCurrencyTRY(yearlyRevenueGoal.target)}
-            percent={yearlyRevenueGoal.percent}
-            hasTarget={yearlyRevenueGoal.hasTarget}
-          />
-          <GoalProgress
-            label='Yıllık doluluk (yıl başından bugüne)'
-            currentLabel={loading ? '...' : `%${occupancy.yearOccupancyPercent}`}
-            targetLabel={`%${yearlyOccupancyGoal.target}`}
-            percent={yearlyOccupancyGoal.percent}
-            hasTarget={yearlyOccupancyGoal.hasTarget}
-          />
-        </div>
+
+        {!loading && !targetsConfigured ? (
+          <p className='text-sm text-slate-600'>
+            Henüz hedef kaydı yok.{' '}
+            <Link to='/reports' className='font-medium text-blue-700 hover:underline'>
+              Raporlar
+            </Link>{' '}
+            sayfasından yıllık gelir ve doluluk hedeflerinizi kaydedin; burada “hedeften ne kadar uzaktayız”
+            görünür.
+          </p>
+        ) : (
+          <>
+            <GoalProgress
+              label={`${year} konaklama geliri (yıl başından bugüne)`}
+              currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.yearLodgingIncome)}
+              targetLabel={formatCurrencyTRY(yearlyRevenueGoal.target)}
+              percent={yearlyRevenueGoal.percent}
+              hasTarget={yearlyRevenueGoal.hasTarget}
+              achieved={yearlyRevenueGoal.achieved}
+              remaining={yearlyRevenueGoal.remaining}
+              kind='currency'
+              compact
+            />
+            <GoalProgress
+              label={`${year} doluluk (yıl başından bugüne)`}
+              currentLabel={loading ? '...' : `%${occupancy.yearOccupancyPercent}`}
+              targetLabel={`%${yearlyOccupancyGoal.target}`}
+              percent={yearlyOccupancyGoal.percent}
+              hasTarget={yearlyOccupancyGoal.hasTarget}
+              achieved={yearlyOccupancyGoal.achieved}
+              remaining={yearlyOccupancyGoal.remaining}
+              kind='percent'
+              compact
+            />
+            <div className='border-t border-slate-100 pt-3'>
+              <p className='mb-2 text-xs font-medium uppercase tracking-wide text-slate-400'>Bu ay</p>
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <GoalProgress
+                  label='Gelir'
+                  currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.monthLodgingIncome)}
+                  targetLabel={formatCurrencyTRY(monthlyRevenueGoal.target)}
+                  percent={monthlyRevenueGoal.percent}
+                  hasTarget={monthlyRevenueGoal.hasTarget}
+                  achieved={monthlyRevenueGoal.achieved}
+                  remaining={monthlyRevenueGoal.remaining}
+                  kind='currency'
+                  compact
+                />
+                <GoalProgress
+                  label='Doluluk'
+                  currentLabel={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
+                  targetLabel={`%${monthlyOccupancyGoal.target}`}
+                  percent={monthlyOccupancyGoal.percent}
+                  hasTarget={monthlyOccupancyGoal.hasTarget}
+                  achieved={monthlyOccupancyGoal.achieved}
+                  remaining={monthlyOccupancyGoal.remaining}
+                  kind='percent'
+                  compact
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </article>
+
+      <div className='grid gap-3 sm:grid-cols-2'>
+        <StatCard
+          title='Bugün doluluk'
+          value={loading ? '...' : todayOccupancyPercent}
+          subtitle={loading ? null : `${metrics.todaysOccupancyCount} / ${ROOM_COUNT} oda`}
+          tone='warning'
+        />
+        <StatCard
+          title='Bu ay doluluk'
+          value={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
+          subtitle={
+            loading
+              ? null
+              : `${occupancy.monthOccupiedNights} dolu gece · ${occupancy.monthEmptyNights} boş`
+          }
+          tone='default'
+        />
       </div>
 
       <div className='grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3'>
