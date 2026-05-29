@@ -72,9 +72,10 @@ service cloud.firestore {
     match /notificationSettings/{document=**} {
       allow read, write: if request.auth != null;
     }
-    match /deviceTokens/{userId} {
+    match /deviceTokens/{docId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null
+        && (docId == request.auth.uid || docId.matches('^' + request.auth.uid + '_.+'));
     }
     match /{document=**} {
       allow read, write: if false;
