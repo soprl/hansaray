@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { AuthContext } from './authContextValue'
 import { auth } from '../firebase'
-import { initPushNotifications } from '../utils/pushNotifications'
+import { initPushNotifications, isWebPushEnvironment } from '../utils/pushNotifications'
+import { isNativeApp } from '../utils/nativePush'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -17,7 +18,11 @@ export function AuthProvider({ children }) {
           console.warn('Auth token alınamadı', tokenError)
         }
 
-        initPushNotifications(currentUser).catch((error) => {
+        const webPush = !isNativeApp() && isWebPushEnvironment()
+        initPushNotifications(currentUser, {
+          requestPermission: webPush,
+          sendTestOnSuccess: webPush,
+        }).catch((error) => {
           console.warn('Push init skipped', error)
         })
       }

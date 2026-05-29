@@ -8,8 +8,8 @@ export async function supportsPushNotifications() {
   return supportsWebPush()
 }
 
-export async function initPushNotifications(user) {
+export async function initPushNotifications(user, options = {}) {
   if (!user?.uid) return { registered: false, reason: 'no-user' }
   if (isNativeApp()) return initNativePush(user)
-  return initWebPush(user)
+  return initWebPush(user, options)
 }

@@ -7,6 +7,7 @@ import {
   saveNotificationSettings,
   sendTestNotification,
 } from '../services/notificationSettingsService'
+import { hasWebVapidKey } from '../config/webPushPublicKey'
 import {
   initPushNotifications,
   isNativeApp,
@@ -90,18 +91,25 @@ function Notifications() {
 
     let cancelled = false
     setRegistering(true)
-    initPushNotifications(user)
+    initPushNotifications(user, {
+      requestPermission: web,
+      sendTestOnSuccess: web,
+    })
       .then((result) => {
         if (cancelled) return
         if (result.registered) {
           setPushStatus(
             native
               ? 'Bu cihaz otomatik olarak kaydedildi.'
-              : 'Bu tarayıcı bildirimler için kaydedildi.',
+              : 'Bu tarayıcı kaydedildi. Test bildirimi gönderildi (oturumda bir kez).',
           )
           loadPage()
-        } else if (result.reason === 'no-vapid-key' && web) {
-          setPushStatus('Web bildirimi için VITE_FIREBASE_VAPID_KEY tanımlanmalı.')
+        } else if (result.reason === 'permission-default' && web) {
+          setPushStatus('Bildirim izni için tarayıcı uyarısına İzin ver deyin.')
+        } else if (result.reason === 'permission-denied' && web) {
+          setPushStatus('Bildirim izni kapalı. Adres çubuğundaki kilit → Bildirimler → İzin ver.')
+        } else if (result.reason === 'registration-error' && web) {
+          setPushStatus(`Kayıt hatası: ${result.detail ?? 'Bilinmeyen hata'}`)
         }
       })
       .finally(() => {
@@ -172,24 +180,29 @@ function Notifications() {
     setPushStatus('')
     setError('')
     setRegistering(true)
-    const result = await initPushNotifications(user)
+    const result = await initPushNotifications(user, {
+      requestPermission: true,
+      sendTestOnSuccess: web,
+    })
     setRegistering(false)
 
     if (result.registered) {
-      setPushStatus('Bu cihaz bildirimler için kaydedildi.')
+      setPushStatus(
+        web
+          ? 'Kaydedildi. Test bildirimi gönderildi (oturumda bir kez).'
+          : 'Bu cihaz bildirimler için kaydedildi.',
+      )
       await loadPage()
       return
     }
 
-    if (result.reason === 'no-vapid-key') {
-      setPushStatus(
-        'Web için Firebase Console’dan VAPID anahtarı alın; Vercel’e VITE_FIREBASE_VAPID_KEY ekleyin.',
-      )
+    if (result.reason === 'unsupported') {
+      setPushStatus('Bu tarayıcı web bildirimlerini desteklemiyor (Chrome veya güncel Safari deneyin).')
       return
     }
 
-    if (result.reason === 'unsupported') {
-      setPushStatus('Bu tarayıcı web bildirimlerini desteklemiyor (Safari/Chrome güncel sürüm deneyin).')
+    if (result.reason === 'permission-default') {
+      setPushStatus('Bildirim izni istenmedi veya reddedildi. Tekrar deneyin ve İzin ver seçin.')
       return
     }
 
@@ -197,19 +210,24 @@ function Notifications() {
       setPushStatus(
         native
           ? 'Bildirim izni verilmedi. iPhone Ayarlar → Hansaray → Bildirimler.'
-          : 'Bildirim izni verilmedi. Tarayıcı adres çubuğundaki kilit simgesinden izin verin.',
+          : 'Bildirim izni kapalı. Adres çubuğu → kilit → Bildirimler → İzin ver.',
       )
+      return
+    }
+
+    if (result.reason === 'registration-error') {
+      setPushStatus(`Kayıt hatası: ${result.detail ?? 'Service worker veya FCM ayarını kontrol edin.'}`)
       return
     }
 
     setPushStatus(
       native
         ? 'Cihaz kaydı tamamlanamadı. APNs ve TestFlight kurulumunu kontrol edin.'
-        : 'Kayıt tamamlanamadı. HTTPS (Vercel) üzerinden deneyin.',
+        : 'Kayıt tamamlanamadı. Sayfayı yenileyip tekrar deneyin.',
     )
   }
 
-  const hasVapidKey = Boolean(import.meta.env.VITE_FIREBASE_VAPID_KEY)
+  const hasVapidKey = hasWebVapidKey()
 
   const stepDone = {
     firebase: functionsOnline === true,
@@ -310,12 +328,6 @@ function Notifications() {
         {web && pushSupported === false ? (
           <p className='text-xs text-slate-500'>
             Bu tarayıcı web push desteklemiyor. Chrome veya Safari (güncel) ile deneyin.
-          </p>
-        ) : null}
-        {web && !hasVapidKey ? (
-          <p className='text-xs text-amber-800'>
-            Web bildirimi için Firebase’den VAPID anahtarı alıp Vercel ortam değişkenine{' '}
-            <strong>VITE_FIREBASE_VAPID_KEY</strong> olarak ekleyin.
           </p>
         ) : null}
       </div>
