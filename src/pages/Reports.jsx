@@ -29,6 +29,7 @@ function Reports() {
   const [error, setError] = useState('')
   const [monthDate, setMonthDate] = useState(() => startOfMonth(new Date()))
   const [payingReservationId, setPayingReservationId] = useState(null)
+  const [lodgingSearch, setLodgingSearch] = useState('')
 
   useEffect(() => {
     if (!user) return
@@ -57,6 +58,10 @@ function Reports() {
 
   const monthKey = format(monthDate, 'yyyy-MM')
 
+  useEffect(() => {
+    setLodgingSearch('')
+  }, [monthKey])
+
   const monthOptions = useMemo(() => getMonthNavigationOptions(monthDate), [monthDate])
 
   const reservationBreakdown = useMemo(
@@ -83,6 +88,17 @@ function Reports() {
       return (a.checkInDate || '').localeCompare(b.checkInDate || '')
     })
   }, [reservations, monthDate])
+
+  const displayedLodgingReservations = useMemo(() => {
+    const term = lodgingSearch.trim().toLocaleLowerCase('tr')
+    if (!term) return lodgingReservations
+
+    return lodgingReservations.filter(
+      (reservation) =>
+        reservation.customerName?.toLocaleLowerCase('tr').includes(term) ||
+        reservation.customerPhone?.toLocaleLowerCase('tr').includes(term),
+    )
+  }, [lodgingReservations, lodgingSearch])
 
   const monthTransactions = useMemo(
     () =>
@@ -263,8 +279,23 @@ function Reports() {
         <p className='text-sm text-slate-500'>Yükleniyor...</p>
       ) : (
         <div className='space-y-4'>
-          <ReportSection title='Konaklama gelirleri' count={lodgingReservations.length} emptyText='Bu ay konaklama geliri yok.'>
-            {lodgingReservations.map((reservation) => (
+          <ReportSection
+            title='Konaklama gelirleri'
+            count={displayedLodgingReservations.length}
+            emptyText={
+              lodgingSearch.trim() ? 'Arama sonucu bulunamadı.' : 'Bu ay konaklama geliri yok.'
+            }
+            header={
+              <input
+                type='search'
+                className='input mt-3'
+                placeholder='Misafir adı veya telefon ara...'
+                value={lodgingSearch}
+                onChange={(event) => setLodgingSearch(event.target.value)}
+              />
+            }
+          >
+            {displayedLodgingReservations.map((reservation) => (
               <article key={reservation.id} className='rounded-lg border border-slate-200 p-4'>
                 <div className='flex flex-col justify-between gap-2 sm:flex-row sm:items-start'>
                   <div>
@@ -317,12 +348,13 @@ function Reports() {
   )
 }
 
-function ReportSection({ title, count, emptyText, children }) {
+function ReportSection({ title, count, emptyText, header, children }) {
   return (
     <section className='card'>
       <h2 className='text-base font-semibold text-blue-950'>
         {title} <span className='font-normal text-slate-400'>({count})</span>
       </h2>
+      {header}
       {count === 0 ? (
         <p className='mt-3 text-sm text-slate-500'>{emptyText}</p>
       ) : (
