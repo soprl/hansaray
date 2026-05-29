@@ -7,7 +7,7 @@ import {
   saveNotificationSettings,
   sendTestNotification,
 } from '../services/notificationSettingsService'
-import { hasWebVapidKey } from '../config/webPushPublicKey'
+import { hasConfiguredVapidEnv, hasValidVapidEnv } from '../config/webPushPublicKey'
 import {
   initPushNotifications,
   isNativeApp,
@@ -108,6 +108,10 @@ function Notifications() {
           setPushStatus('Bildirim izni için tarayıcı uyarısına İzin ver deyin.')
         } else if (result.reason === 'permission-denied' && web) {
           setPushStatus('Bildirim izni kapalı. Adres çubuğundaki kilit → Bildirimler → İzin ver.')
+        } else if (result.reason === 'invalid-vapid-key' && web) {
+          setPushStatus(
+            'VAPID anahtarı hatalı. Firebase Console → Cloud Messaging → Web Push → uzun anahtar (B ile başlar, ~88 karakter). Vercel’deki eski değeri silin veya düzeltin.',
+          )
         } else if (result.reason === 'registration-error' && web) {
           setPushStatus(`Kayıt hatası: ${result.detail ?? 'Bilinmeyen hata'}`)
         }
@@ -215,6 +219,13 @@ function Notifications() {
       return
     }
 
+    if (result.reason === 'invalid-vapid-key') {
+      setPushStatus(
+        'VAPID anahtarı geçersiz. Firebase’de “Key pair” satırındaki uzun anahtarı kopyalayın (ktGl… gibi kısa değil). Vercel’de VITE_FIREBASE_VAPID_KEY güncelleyin veya silin.',
+      )
+      return
+    }
+
     if (result.reason === 'registration-error') {
       setPushStatus(`Kayıt hatası: ${result.detail ?? 'Service worker veya FCM ayarını kontrol edin.'}`)
       return
@@ -227,12 +238,12 @@ function Notifications() {
     )
   }
 
-  const hasVapidKey = hasWebVapidKey()
+  const vapidOk = !web || hasValidVapidEnv() || !hasConfiguredVapidEnv()
 
   const stepDone = {
     firebase: functionsOnline === true,
     apns: devices.length > 0 || testPassed,
-    vapid: !web || hasVapidKey,
+    vapid: vapidOk,
     device: devices.length > 0,
     test: testPassed,
   }

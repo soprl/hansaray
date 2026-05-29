@@ -1,5 +1,9 @@
 import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging'
-import { getWebVapidKey } from '../config/webPushPublicKey'
+import {
+  hasConfiguredVapidEnv,
+  hasValidVapidEnv,
+  resolveWebVapidKey,
+} from '../config/webPushPublicKey'
 import { firebaseApp } from '../firebase'
 import { registerDeviceToken } from '../services/notificationSettingsService'
 import { isNativeApp } from './nativePush'
@@ -62,10 +66,37 @@ function mapRegistrationError(error) {
   if (code === 'messaging/unsupported-browser') {
     return { registered: false, reason: 'unsupported', detail: error?.message }
   }
+  const message = error?.message || String(error)
+  if (message.includes('applicationServerKey') || message.includes('P-256')) {
+    return { registered: false, reason: 'invalid-vapid-key', detail: message }
+  }
   return {
     registered: false,
     reason: 'registration-error',
-    detail: error?.message || String(error),
+    detail: message,
+  }
+}
+
+async function fetchFcmToken(messaging, registration) {
+  const vapidKey = resolveWebVapidKey()
+  const tokenOptions = { serviceWorkerRegistration: registration }
+  if (vapidKey) {
+    tokenOptions.vapidKey = vapidKey
+  }
+
+  try {
+    return await getToken(messaging, tokenOptions)
+  } catch (error) {
+    const message = error?.message || ''
+    if (
+      vapidKey &&
+      hasConfiguredVapidEnv() &&
+      !hasValidVapidEnv() &&
+      (message.includes('applicationServerKey') || message.includes('P-256'))
+    ) {
+      return getToken(messaging, { serviceWorkerRegistration: registration })
+    }
+    throw error
   }
 }
 
@@ -74,9 +105,10 @@ export async function initWebPush(user, options = {}) {
 
   if (!user?.uid || isNativeApp()) return { registered: false, reason: 'not-web' }
 
-  const vapidKey = getWebVapidKey()
-  if (!vapidKey) {
-    return { registered: false, reason: 'no-vapid-key' }
+  if (hasConfiguredVapidEnv() && !hasValidVapidEnv()) {
+    console.warn(
+      'VITE_FIREBASE_VAPID_KEY geçersiz; Firebase Console Web Push anahtarı kullanılacak.',
+    )
   }
 
   const supported = await supportsWebPush()
@@ -105,10 +137,7 @@ export async function initWebPush(user, options = {}) {
     const messaging = getMessaging(firebaseApp)
     attachForegroundListener(messaging)
 
-    const token = await getToken(messaging, {
-      vapidKey,
-      serviceWorkerRegistration: registration,
-    })
+    const token = await fetchFcmToken(messaging, registration)
 
     if (!token) {
       return { registered: false, reason: 'no-token' }

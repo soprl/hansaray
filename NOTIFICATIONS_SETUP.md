@@ -29,14 +29,14 @@ Deploy edilen fonksiyonlar (`europe-west1`):
    Apple Developer’dan `.p8` anahtarı yükle (Key ID, Team ID, Bundle ID).
 2. **Bundle ID:** `com.hansaray.otel` (Xcode ile aynı olmalı).
 3. iOS uygulaması Firebase projesine ekli değilse ekle.
-4. **Web Push (VAPID):** Project Settings → **Cloud Messaging** → **Web Push certificates** → anahtar çifti oluştur. **Key pair** değerini kopyalayın.
+4. **Web Push (VAPID):** Project Settings → **Cloud Messaging** → **Web Push certificates** → anahtar çifti oluştur. **Key pair** satırındaki **uzun** anahtarı kopyalayın (genelde `B` ile başlar, ~88 karakter). Kısa veya `ktGl…` gibi değerler **çalışmaz**.
 
 ## 3) Vercel ortam değişkeni (web)
 
 Panelde ve yerelde `.env` içinde:
 
 ```env
-VITE_FIREBASE_VAPID_KEY=BNx...  # Firebase’deki Web Push public key
+VITE_FIREBASE_VAPID_KEY=BNx...  # Key pair (uzun public key). İsteğe bağlı; Console’da anahtar varsa boş bırakılabilir.
 ```
 
 Deploy sonrası `public/firebase-messaging-sw.js` build sırasında otomatik üretilir (`vite.config.js`).
