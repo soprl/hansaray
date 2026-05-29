@@ -7,7 +7,7 @@ export const getFirestoreErrorMessage = (error, fallback = 'Veriler yüklenemedi
   const code = error?.code ?? ''
 
   if (code === 'permission-denied') {
-    return 'Firestore erişimi reddedildi. Firebase Console’da güvenlik kuralları yayınlanmamış olabilir. Mac’te: npm run mobile:firebase'
+    return 'Firestore erişimi reddedildi. Firebase Console → Firestore → Rules → Publish (deviceTokens + businessTargets). Mac’te: npm run firebase:rules'
   }
 
   if (code === 'unavailable' || code === 'network-request-failed') {

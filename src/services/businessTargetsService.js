@@ -11,15 +11,23 @@ export const DEFAULT_BUSINESS_TARGETS = {
 }
 
 export async function getBusinessTargets() {
-  const snapshot = await getDoc(doc(db, 'businessTargets', TARGETS_DOC_ID))
+  try {
+    const snapshot = await getDoc(doc(db, 'businessTargets', TARGETS_DOC_ID))
 
-  if (!snapshot.exists()) {
-    return { ...DEFAULT_BUSINESS_TARGETS }
-  }
+    if (!snapshot.exists()) {
+      return { ...DEFAULT_BUSINESS_TARGETS }
+    }
 
-  return {
-    ...DEFAULT_BUSINESS_TARGETS,
-    ...snapshot.data(),
+    return {
+      ...DEFAULT_BUSINESS_TARGETS,
+      ...snapshot.data(),
+    }
+  } catch (error) {
+    if (error?.code === 'permission-denied') {
+      console.warn('businessTargets okunamadı — Firestore kurallarına businessTargets ekleyin')
+      return { ...DEFAULT_BUSINESS_TARGETS }
+    }
+    throw error
   }
 }
 

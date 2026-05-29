@@ -72,6 +72,9 @@ service cloud.firestore {
     match /notificationSettings/{document=**} {
       allow read, write: if request.auth != null;
     }
+    match /businessTargets/{document=**} {
+      allow read, write: if request.auth != null;
+    }
     match /deviceTokens/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
