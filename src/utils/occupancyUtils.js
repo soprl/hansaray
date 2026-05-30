@@ -1,23 +1,33 @@
 import {
   addDays,
-  differenceInCalendarDays,
   endOfMonth,
-  endOfYear,
   isBefore,
   startOfDay,
   startOfMonth,
   startOfYear,
 } from 'date-fns'
 import { ROOMS } from '../config/rooms'
+import {
+  countSeasonDaysInRange,
+  getSeasonYearToDateRange,
+  isDateInSeason,
+  SEASON_LENGTH_DAYS,
+} from '../config/season'
 import { parseISODateSafe } from './formatters'
 import { getMonthlyReservationIncome, RES_STATUS } from './reservationUtils'
 
 export const ROOM_COUNT = ROOMS.length
+export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ROOM_COUNT
 
 const isCancelled = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
 
-/** Gecelik: giriş günü dahil, çıkış günü hariç. */
-export const countReservationNightsInRange = (reservation, rangeStart, rangeEnd) => {
+/** Gecelik: giriş günü dahil, çıkış günü hariç. seasonOnly: sadece sezon içi geceler */
+export const countReservationNightsInRange = (
+  reservation,
+  rangeStart,
+  rangeEnd,
+  { seasonOnly = false } = {},
+) => {
   if (isCancelled(reservation)) return 0
 
   const checkIn = parseISODateSafe(reservation.checkInDate)
@@ -30,7 +40,9 @@ export const countReservationNightsInRange = (reservation, rangeStart, rangeEnd)
   let night = checkIn
 
   while (isBefore(night, checkOut)) {
-    if (night >= start && night <= end) count += 1
+    if (night >= start && night <= end && (!seasonOnly || isDateInSeason(night))) {
+      count += 1
+    }
     night = addDays(night, 1)
   }
 
@@ -38,10 +50,7 @@ export const countReservationNightsInRange = (reservation, rangeStart, rangeEnd)
 }
 
 export const getAvailableRoomNights = (rangeStart, rangeEnd) => {
-  const start = startOfDay(rangeStart)
-  const end = startOfDay(rangeEnd)
-  const days = differenceInCalendarDays(addDays(end, 1), start)
-  return Math.max(days, 0) * ROOM_COUNT
+  return countSeasonDaysInRange(rangeStart, rangeEnd) * ROOM_COUNT
 }
 
 const occupancyPercent = (occupied, available) => {
@@ -68,20 +77,23 @@ export const getOccupancySnapshot = (reservations, referenceDate = new Date()) =
   const today = startOfDay(new Date())
   const monthStart = startOfMonth(referenceDate)
   const monthEnd = endOfMonth(referenceDate)
-  const yearStart = startOfYear(today)
-  const yearEnd = endOfYear(today)
-  const yearCapEnd = today < yearEnd ? today : yearEnd
+  const yearRange = getSeasonYearToDateRange(today)
+  const seasonDaysInMonth = countSeasonDaysInRange(monthStart, monthEnd)
 
   let monthOccupied = 0
   let yearOccupied = 0
 
   reservations.forEach((reservation) => {
-    monthOccupied += countReservationNightsInRange(reservation, monthStart, monthEnd)
-    yearOccupied += countReservationNightsInRange(reservation, yearStart, yearCapEnd)
+    monthOccupied += countReservationNightsInRange(reservation, monthStart, monthEnd, {
+      seasonOnly: true,
+    })
+    yearOccupied += countReservationNightsInRange(reservation, yearRange.start, yearRange.end, {
+      seasonOnly: true,
+    })
   })
 
   const monthAvailable = getAvailableRoomNights(monthStart, monthEnd)
-  const yearAvailable = getAvailableRoomNights(yearStart, yearCapEnd)
+  const yearAvailable = getAvailableRoomNights(yearRange.start, yearRange.end)
   const monthLodgingIncome = getMonthlyReservationIncome(reservations, referenceDate)
   const yearLodgingIncome = getYearToDateReservationIncome(reservations, today)
 
@@ -90,10 +102,13 @@ export const getOccupancySnapshot = (reservations, referenceDate = new Date()) =
     monthAvailableNights: monthAvailable,
     monthEmptyNights: Math.max(monthAvailable - monthOccupied, 0),
     monthOccupancyPercent: occupancyPercent(monthOccupied, monthAvailable),
+    monthInSeason: seasonDaysInMonth > 0,
     yearOccupiedNights: yearOccupied,
     yearAvailableNights: yearAvailable,
     yearEmptyNights: Math.max(yearAvailable - yearOccupied, 0),
     yearOccupancyPercent: occupancyPercent(yearOccupied, yearAvailable),
+    seasonDaysInMonth,
+    seasonRoomNightsPerYear: SEASON_ROOM_NIGHTS_PER_YEAR,
     monthAverageDailyRate:
       monthOccupied > 0 ? Math.round(monthLodgingIncome / monthOccupied) : 0,
     monthLodgingIncome,
