@@ -11,7 +11,11 @@ import {
   DEFAULT_BUSINESS_TARGETS,
   getBusinessTargets,
 } from '../services/businessTargetsService'
+import { formatEvSeasonCapacity } from '../config/units'
+import { SEASON_LENGTH_DAYS } from '../config/season'
+import UnitEvCard from '../components/UnitEvCard'
 import { getGoalProgress, getOccupancySnapshot, ROOM_COUNT } from '../utils/occupancyUtils'
+import { attachUnitGoals, getUnitOccupancySnapshots } from '../utils/unitOccupancyUtils'
 import { getDashboardReservationMetrics, getReservationNightCount } from '../utils/reservationUtils'
 import GoalProgress from '../components/GoalProgress'
 
@@ -136,6 +140,11 @@ function Dashboard() {
     [occupancy.yearOccupancyPercent, targets.yearlyOccupancyTargetPercent],
   )
 
+  const unitSnapshots = useMemo(() => {
+    const snapshots = getUnitOccupancySnapshots(reservations)
+    return attachUnitGoals(snapshots, targets.unitTargets)
+  }, [reservations, targets.unitTargets])
+
   const todayOccupancyPercent = loading
     ? '...'
     : `${Math.round((metrics.todaysOccupancyCount / ROOM_COUNT) * 100)}%`
@@ -150,7 +159,7 @@ function Dashboard() {
           <StatCard
             title='Bugün doluluk'
             value={loading ? '...' : todayOccupancyPercent}
-            subtitle={loading ? null : `${metrics.todaysOccupancyCount} / ${ROOM_COUNT} oda`}
+            subtitle={loading ? null : `${metrics.todaysOccupancyCount} / ${ROOM_COUNT} ev`}
             tone='warning'
           />
           <StatCard
@@ -159,7 +168,9 @@ function Dashboard() {
             subtitle={
               loading
                 ? null
-                : `${occupancy.monthOccupiedNights} dolu gece · ${occupancy.monthEmptyNights} boş`
+                : occupancy.monthInSeason
+                  ? `${occupancy.monthOccupiedNights} dolu · ${occupancy.monthEmptyNights} boş (sezon)`
+                  : 'Sezon dışı ay'
             }
             tone='default'
           />
@@ -193,7 +204,7 @@ function Dashboard() {
             kind='currency'
           />
           <GoalProgress
-            label='Yıllık doluluk (yıl başından bugüne)'
+            label={`Yıllık doluluk (sezon ${SEASON_LENGTH_DAYS} gün)`}
             currentLabel={loading ? '...' : `%${occupancy.yearOccupancyPercent}`}
             targetLabel={`%${yearlyOccupancyGoal.target}`}
             percent={yearlyOccupancyGoal.percent}
@@ -201,6 +212,20 @@ function Dashboard() {
             progress={yearlyOccupancyGoal}
             kind='percent'
           />
+        </div>
+      </div>
+
+      <div>
+        <h3 className='mb-1 text-sm font-medium text-slate-600'>Evler · yıllık sezon</h3>
+        <p className='mb-2 text-xs text-slate-500'>{formatEvSeasonCapacity()}</p>
+        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
+          {loading
+            ? Array.from({ length: ROOM_COUNT }, (_, index) => (
+                <article key={index} className='card'>
+                  <p className='text-sm text-slate-500'>Yükleniyor...</p>
+                </article>
+              ))
+            : unitSnapshots.map((unit) => <UnitEvCard key={unit.roomId} unit={unit} compact />)}
         </div>
       </div>
 

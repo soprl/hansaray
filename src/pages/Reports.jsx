@@ -18,17 +18,19 @@ import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { parseMoneyInput } from '../utils/moneyInput'
 import {
+  createEmptyUnitTargets,
   DEFAULT_BUSINESS_TARGETS,
   getBusinessTargets,
   hasConfiguredTargets,
+  hasConfiguredUnitTargets,
+  normalizeUnitTargets,
   saveBusinessTargets,
 } from '../services/businessTargetsService'
 import GoalProgress from '../components/GoalProgress'
-import {
-  getGoalProgress,
-  getOccupancySnapshot,
-  ROOM_COUNT,
-} from '../utils/occupancyUtils'
+import UnitEvCard from '../components/UnitEvCard'
+import { EV_COUNT, EV_UNITS, formatEvSeasonCapacity } from '../config/units'
+import { getGoalProgress, getOccupancySnapshot } from '../utils/occupancyUtils'
+import { attachUnitGoals, getUnitOccupancySnapshots } from '../utils/unitOccupancyUtils'
 import {
   getMonthlyReservationBreakdown,
   getOutstandingPayment,
@@ -205,6 +207,11 @@ function Reports() {
     [occupancy.yearOccupancyPercent, targets.yearlyOccupancyTargetPercent],
   )
 
+  const unitSnapshots = useMemo(() => {
+    const snapshots = getUnitOccupancySnapshots(reservations, monthDate)
+    return attachUnitGoals(snapshots, targets.unitTargets)
+  }, [reservations, monthDate, targets.unitTargets])
+
   const handleTargetChange = (event) => {
     const { name, value } = event.target
     setTargetsDraft((prev) => ({ ...prev, [name]: value }))
@@ -212,6 +219,38 @@ function Reports() {
 
   const handleTargetMoneyChange = (name, value) => {
     setTargetsDraft((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleUnitTargetMoneyChange = (roomId, value) => {
+    setTargetsDraft((prev) => {
+      const unitTargets = normalizeUnitTargets(prev.unitTargets)
+      unitTargets[roomId] = { ...unitTargets[roomId], yearlyLodgingTarget: value }
+      return { ...prev, unitTargets }
+    })
+  }
+
+  const handleUnitTargetPercentChange = (roomId, value) => {
+    setTargetsDraft((prev) => {
+      const unitTargets = normalizeUnitTargets(prev.unitTargets)
+      unitTargets[roomId] = { ...unitTargets[roomId], yearlyOccupancyTargetPercent: value }
+      return { ...prev, unitTargets }
+    })
+  }
+
+  const distributeYearlyLodgingToUnits = () => {
+    const total = parseMoneyInput(targetsDraft.yearlyLodgingTarget)
+    if (total <= 0) return
+    const perEv = Math.round(total / EV_COUNT)
+    setTargetsDraft((prev) => {
+      const unitTargets = createEmptyUnitTargets()
+      EV_UNITS.forEach(({ roomId }) => {
+        unitTargets[roomId] = {
+          ...normalizeUnitTargets(prev.unitTargets)[roomId],
+          yearlyLodgingTarget: perEv,
+        }
+      })
+      return { ...prev, unitTargets }
+    })
   }
 
   const openTargetEditor = () => {
@@ -241,6 +280,9 @@ function Reports() {
     if (Number(targets.yearlyOccupancyTargetPercent) > 0) {
       parts.push(`Yıllık doluluk %${targets.yearlyOccupancyTargetPercent}`)
     }
+    if (hasConfiguredUnitTargets(targets.unitTargets)) {
+      parts.push('5 ev yıllık hedefi')
+    }
     return parts.join(' · ')
   }, [targets])
 
@@ -254,10 +296,18 @@ function Reports() {
         yearlyLodgingTarget: parseMoneyInput(targetsDraft.yearlyLodgingTarget),
         monthlyOccupancyTargetPercent: Number(targetsDraft.monthlyOccupancyTargetPercent) || 0,
         yearlyOccupancyTargetPercent: Number(targetsDraft.yearlyOccupancyTargetPercent) || 0,
+        unitTargets: EV_UNITS.reduce((acc, { roomId }) => {
+          const unit = normalizeUnitTargets(targetsDraft.unitTargets)[roomId]
+          acc[roomId] = {
+            yearlyLodgingTarget: parseMoneyInput(unit.yearlyLodgingTarget),
+            yearlyOccupancyTargetPercent: Number(unit.yearlyOccupancyTargetPercent) || 0,
+          }
+          return acc
+        }, {}),
       }
       await saveBusinessTargets(payload)
       setTargets(payload)
-      setTargetsDraft(payload)
+      setTargetsDraft({ ...payload, unitTargets: normalizeUnitTargets(payload.unitTargets) })
       setEditingTargets(false)
       setTargetsMessage('Hedefler kaydedildi.')
     } catch (saveError) {
@@ -313,7 +363,7 @@ function Reports() {
             ) : null}
             {editingTargets ? (
               <p className='mt-1 text-xs text-slate-500'>
-                {ROOM_COUNT} oda · aylık/yıllık gelir ve doluluk hedefi
+                {formatEvSeasonCapacity()} · genel ve ev hedefleri
               </p>
             ) : null}
           </div>
@@ -372,6 +422,51 @@ function Reports() {
                 onChange={handleTargetChange}
               />
             </label>
+            <div className='sm:col-span-2'>
+              <p className='mb-2 text-sm font-medium text-slate-700'>Ev başına yıllık hedef ({EV_COUNT} ev × 180 gün)</p>
+              <button
+                type='button'
+                className='mb-3 text-sm font-medium text-blue-700 hover:underline'
+                onClick={distributeYearlyLodgingToUnits}
+              >
+                Genel yıllık geliri 5 eve eşit böl
+              </button>
+              <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+                {EV_UNITS.map((unit) => {
+                  const unitDraft = normalizeUnitTargets(targetsDraft.unitTargets)[unit.roomId]
+                  return (
+                    <div key={unit.roomId} className='rounded-lg border border-slate-200 p-3'>
+                      <p className='mb-2 text-sm font-medium text-blue-950'>
+                        {unit.evLabel}{' '}
+                        <span className='font-normal text-slate-400'>({unit.caption})</span>
+                      </p>
+                      <label className='mb-2 block text-sm'>
+                        <span className='mb-1 block text-slate-600'>Yıllık gelir (₺)</span>
+                        <MoneyInput
+                          name={`unit-${unit.roomId}-revenue`}
+                          value={unitDraft.yearlyLodgingTarget}
+                          onChange={(_name, value) => handleUnitTargetMoneyChange(unit.roomId, value)}
+                          placeholder='700.000'
+                        />
+                      </label>
+                      <label className='block text-sm'>
+                        <span className='mb-1 block text-slate-600'>Yıllık doluluk (%)</span>
+                        <input
+                          type='number'
+                          min='0'
+                          max='100'
+                          className='input'
+                          value={unitDraft.yearlyOccupancyTargetPercent || ''}
+                          onChange={(event) =>
+                            handleUnitTargetPercentChange(unit.roomId, event.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
             <div className='flex flex-wrap items-center gap-2 sm:col-span-2'>
               <button type='submit' className='btn-success' disabled={savingTargets}>
                 {savingTargets ? 'Kaydediliyor...' : 'Kaydet'}
@@ -392,7 +487,9 @@ function Reports() {
       </section>
 
       <section>
-        <h2 className='mb-2 text-sm font-medium text-slate-600'>Doluluk (seçili ay)</h2>
+        <h2 className='mb-2 text-sm font-medium text-slate-600'>
+          Doluluk (seçili ay · sezon içi günler)
+        </h2>
         <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
           <article className='card'>
             <p className='text-sm text-slate-500'>Doluluk oranı</p>
@@ -402,7 +499,9 @@ function Reports() {
             <p className='mt-1 text-xs text-slate-400'>
               {loading
                 ? null
-                : `${occupancy.monthOccupiedNights} dolu · ${occupancy.monthEmptyNights} boş gece (${occupancy.monthAvailableNights} kapasite)`}
+                : occupancy.monthInSeason
+                  ? `${occupancy.monthOccupiedNights} dolu · ${occupancy.monthEmptyNights} boş gece (${occupancy.monthAvailableNights} kapasite, ${occupancy.seasonDaysInMonth} sezon günü)`
+                  : 'Sezon dışı ay'}
             </p>
           </article>
           <article className='card'>
@@ -442,7 +541,7 @@ function Reports() {
             kind='currency'
           />
           <GoalProgress
-            label='Yıllık doluluk hedefi'
+            label='Yıllık doluluk hedefi (sezon)'
             currentLabel={loading ? '...' : `%${occupancy.yearOccupancyPercent}`}
             targetLabel={`%${yearlyOccupancyGoal.target}`}
             percent={yearlyOccupancyGoal.percent}
@@ -450,6 +549,20 @@ function Reports() {
             progress={yearlyOccupancyGoal}
             kind='percent'
           />
+        </div>
+      </section>
+
+      <section>
+        <h2 className='mb-1 text-sm font-medium text-slate-600'>Evler · yıllık (sezon)</h2>
+        <p className='mb-2 text-xs text-slate-400'>{formatEvSeasonCapacity()}</p>
+        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
+          {loading
+            ? EV_UNITS.map((unit) => (
+                <article key={unit.roomId} className='card'>
+                  <p className='text-sm text-slate-500'>Yükleniyor...</p>
+                </article>
+              ))
+            : unitSnapshots.map((unit) => <UnitEvCard key={unit.roomId} unit={unit} />)}
         </div>
       </section>
 
