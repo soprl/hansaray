@@ -22,7 +22,7 @@ import {
   getRemainingStayLabel,
   getReservationDayTags,
   getReservationNightCount,
-  PAYMENT_STATUS,
+  isFullyPaidReservation,
 } from '../utils/reservationUtils'
 import { ROOM_COUNT } from '../utils/occupancyUtils'
 
@@ -41,13 +41,6 @@ const tagClass = {
   Konaklıyor: 'bg-emerald-100 text-emerald-800',
 }
 
-function isReservationMarkedPaid(reservation) {
-  if (reservation.paymentStatus === PAYMENT_STATUS.PAID) return true
-  const total = Number(reservation.totalPrice) || 0
-  const deposit = Number(reservation.deposit) || 0
-  return total > 0 && deposit >= total
-}
-
 function CalendarGuestCard({
   reservation,
   referenceDate,
@@ -60,7 +53,7 @@ function CalendarGuestCard({
   const remainingLabel = getRemainingStayLabel(reservation, referenceDate)
   const totalPrice = Number(reservation.totalPrice) || 0
   const deposit = Number(reservation.deposit) || 0
-  const isPaid = isReservationMarkedPaid(reservation)
+  const isPaid = isFullyPaidReservation(reservation)
   const outstanding = isPaid ? 0 : Math.max(totalPrice - deposit, 0)
   const canMarkPaid = Boolean(onMarkFullyPaid) && !isPaid && totalPrice > 0
   const marking = payingReservationId === reservation.id

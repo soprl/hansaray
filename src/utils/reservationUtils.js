@@ -37,15 +37,17 @@ export const derivePaymentStatus = (totalPrice, deposit) => {
 export const getOutstandingPayment = (reservation) => {
   if (reservation.paymentStatus === PAYMENT_STATUS.PAID) return 0
 
-  const remaining = Number(reservation.remainingPayment)
-  if (Number.isFinite(remaining) && remaining >= 0) return remaining
-
   const totalPrice = Number(reservation.totalPrice) || 0
   const deposit = Number(reservation.deposit) || 0
   return Math.max(totalPrice - deposit, 0)
 }
 
-export const isFullyPaidReservation = (reservation) => getOutstandingPayment(reservation) <= 0
+export const isFullyPaidReservation = (reservation) => {
+  if (reservation.paymentStatus === PAYMENT_STATUS.PAID) return true
+  const totalPrice = Number(reservation.totalPrice) || 0
+  const deposit = Number(reservation.deposit) || 0
+  return totalPrice > 0 && deposit >= totalPrice
+}
 
 export const isCancelledReservation = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
 
@@ -239,11 +241,7 @@ export const getReservationDayTags = (reservation, referenceDate = new Date()) =
 
 /** Takvim satırında ödeme metinleri */
 export const getCalendarPaymentDisplay = (reservation) => {
-  const outstanding = getOutstandingPayment(reservation)
-  const isFullyPaid =
-    reservation.paymentStatus === PAYMENT_STATUS.PAID || outstanding <= 0
-
-  if (isFullyPaid) {
+  if (isFullyPaidReservation(reservation)) {
     return { primary: 'Tamamı ödendi', primaryTone: 'paid', showUnpaid: false }
   }
 
