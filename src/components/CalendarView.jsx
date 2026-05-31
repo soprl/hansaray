@@ -22,7 +22,6 @@ import {
   getRemainingStayLabel,
   getReservationDayTags,
   getReservationNightCount,
-  isFullyPaidReservation,
   PAYMENT_STATUS,
 } from '../utils/reservationUtils'
 import { ROOM_COUNT } from '../utils/occupancyUtils'
@@ -42,6 +41,13 @@ const tagClass = {
   Konaklıyor: 'bg-emerald-100 text-emerald-800',
 }
 
+function isReservationMarkedPaid(reservation) {
+  if (reservation.paymentStatus === PAYMENT_STATUS.PAID) return true
+  const total = Number(reservation.totalPrice) || 0
+  const deposit = Number(reservation.deposit) || 0
+  return total > 0 && deposit >= total
+}
+
 function CalendarGuestCard({
   reservation,
   referenceDate,
@@ -52,35 +58,25 @@ function CalendarGuestCard({
   const tags = getReservationDayTags(reservation, referenceDate)
   const totalNights = getReservationNightCount(reservation)
   const remainingLabel = getRemainingStayLabel(reservation, referenceDate)
-  const isPaid =
-    reservation.paymentStatus === PAYMENT_STATUS.PAID || isFullyPaidReservation(reservation)
-  const canMarkPaid = Boolean(onMarkFullyPaid) && !isPaid
+  const totalPrice = Number(reservation.totalPrice) || 0
+  const deposit = Number(reservation.deposit) || 0
+  const isPaid = isReservationMarkedPaid(reservation)
+  const outstanding = isPaid ? 0 : Math.max(totalPrice - deposit, 0)
+  const canMarkPaid = Boolean(onMarkFullyPaid) && !isPaid && totalPrice > 0
   const marking = payingReservationId === reservation.id
   const note = reservation.note?.trim()
   const phone = reservation.customerPhone?.trim()
 
-  const metaLine = [
-    reservation.roomName || 'Oda?',
-    totalNights ? `${totalNights} gece` : null,
-    formatCurrencyTRY(reservation.totalPrice),
-    remainingLabel,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  const cardClassName =
+    'w-full rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm'
 
-  const content = (
-    <div className='flex items-start justify-between gap-2'>
-      <div className='min-w-0 flex-1'>
-        <p className='truncate font-semibold text-blue-950'>{reservation.customerName || 'İsimsiz'}</p>
-        <p className='mt-0.5 text-xs text-slate-600'>{metaLine}</p>
-        <p className='text-xs text-slate-500'>
-          {formatDateTR(reservation.checkInDate)} → {formatDateTR(reservation.checkOutDate)}
+  const inner = (
+    <>
+      <div className='flex items-start justify-between gap-3'>
+        <p className='min-w-0 flex-1 break-words font-semibold leading-snug text-blue-950'>
+          {reservation.customerName || 'İsimsiz'}
         </p>
-        {phone ? <p className='mt-1 text-xs text-slate-700'>{phone}</p> : null}
-        {note ? <p className='mt-0.5 text-xs text-amber-900'>Not: {note}</p> : null}
-      </div>
-      <div className='flex shrink-0 flex-col items-end gap-1'>
-        <div className='flex flex-wrap justify-end gap-0.5'>
+        <div className='flex shrink-0 flex-wrap justify-end gap-0.5'>
           {tags.map((tag) => (
             <span
               key={tag}
@@ -90,9 +86,26 @@ function CalendarGuestCard({
             </span>
           ))}
         </div>
+      </div>
+
+      <p className='mt-1 text-sm text-slate-700'>
+        {reservation.roomName || 'Oda?'}
+        {totalNights ? ` · ${totalNights} gece` : ''}
+        {remainingLabel ? ` · ${remainingLabel}` : ''}
+      </p>
+
+      <p className='mt-1 text-sm font-semibold text-blue-950'>{formatCurrencyTRY(totalPrice)}</p>
+
+      <div className='mt-1 flex flex-wrap items-center justify-between gap-2'>
         {isPaid ? (
-          <span className='text-[11px] font-semibold text-emerald-700'>Ödendi</span>
-        ) : canMarkPaid ? (
+          <span className='text-sm font-medium text-emerald-700'>Tamamı ödendi</span>
+        ) : (
+          <span className='text-sm font-medium text-rose-700'>
+            Kalan: {formatCurrencyTRY(outstanding)}
+            {reservation.paymentStatus === PAYMENT_STATUS.DEPOSIT ? ' (kapora var)' : ''}
+          </span>
+        )}
+        {canMarkPaid ? (
           <button
             type='button'
             disabled={marking}
@@ -100,30 +113,30 @@ function CalendarGuestCard({
               event.stopPropagation()
               onMarkFullyPaid(reservation)
             }}
-            className='rounded-md border border-emerald-600 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60'
+            className='shrink-0 rounded-md border border-emerald-600 bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60'
           >
-            {marking ? '…' : 'Ödendi'}
+            {marking ? 'Kaydediliyor…' : 'Tam öde'}
           </button>
-        ) : (
-          <span className='text-[11px] font-medium text-rose-600'>Ödenmedi</span>
-        )}
+        ) : null}
       </div>
-    </div>
+
+      <p className='mt-1 text-xs text-slate-500'>
+        {formatDateTR(reservation.checkInDate)} → {formatDateTR(reservation.checkOutDate)}
+      </p>
+      {phone ? <p className='mt-1 text-sm text-slate-800'>{phone}</p> : null}
+      {note ? <p className='mt-0.5 break-words text-xs text-amber-900'>Not: {note}</p> : null}
+    </>
   )
 
   if (onSelect) {
     return (
-      <button
-        type='button'
-        onClick={onSelect}
-        className='w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-blue-200'
-      >
-        {content}
+      <button type='button' onClick={onSelect} className={`${cardClassName} transition hover:border-blue-300`}>
+        {inner}
       </button>
     )
   }
 
-  return <div className='rounded-lg border border-slate-200 bg-white p-2.5'>{content}</div>
+  return <div className={cardClassName}>{inner}</div>
 }
 
 function DaySection({ title, tone, reservations, referenceDate, onMarkFullyPaid, payingReservationId }) {
