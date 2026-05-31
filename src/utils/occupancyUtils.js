@@ -31,12 +31,19 @@ export const getOvernightStayStats = (stayList = []) => {
   const guestCount = stayList.length
   const occupiedRoomCount = occupiedRooms.size
 
+  const isAllRoomsFull = occupiedRoomCount >= ROOM_COUNT
+  const isNearlyFull = occupiedRoomCount === ROOM_COUNT - 1 && !isAllRoomsFull
+
   return {
     guestCount,
     occupiedRoomCount,
-    isAllRoomsFull: occupiedRoomCount >= ROOM_COUNT,
+    isAllRoomsFull,
+    isNearlyFull,
+    level: isAllRoomsFull ? 'full' : isNearlyFull ? 'high' : guestCount > 0 ? 'normal' : 'empty',
   }
 }
+
+export const getOccupancyLevel = (stats) => stats.level ?? 'empty'
 
 const isCancelled = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
 

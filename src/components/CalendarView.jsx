@@ -24,7 +24,7 @@ import {
   getReservationNightCount,
   isFullyPaidReservation,
 } from '../utils/reservationUtils'
-import { getOvernightStayStats, ROOM_COUNT } from '../utils/occupancyUtils'
+import { getOccupancyLevel, getOvernightStayStats, ROOM_COUNT } from '../utils/occupancyUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
@@ -45,6 +45,22 @@ const tagClass = {
 function formatOvernightGuestCount(count) {
   if (count <= 0) return null
   return count === 1 ? '1 kişi' : `${count} kişi`
+}
+
+function getWeekDayButtonClass({ selected, level }) {
+  if (selected && level === 'full') return 'border-blue-800 bg-rose-100 ring-2 ring-blue-800'
+  if (selected && level === 'high') return 'border-blue-800 bg-orange-100 ring-2 ring-blue-800'
+  if (selected) return 'border-blue-800 bg-blue-50 ring-2 ring-blue-800'
+  if (level === 'full') return 'border-rose-500 bg-rose-100 ring-2 ring-rose-400'
+  if (level === 'high') return 'border-orange-500 bg-orange-100 ring-2 ring-orange-400'
+  if (level === 'normal') return 'border-emerald-200 bg-emerald-50/80'
+  return 'border-slate-200 bg-white hover:bg-slate-50'
+}
+
+function getGuestCountBadgeClass(level) {
+  if (level === 'full') return 'bg-rose-700'
+  if (level === 'high') return 'bg-orange-600'
+  return 'bg-emerald-600'
 }
 
 function CalendarGuestCard({
@@ -250,9 +266,12 @@ function CalendarView({
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return ''
     const classes = ['calendar-tile']
-    const { guestCount, isAllRoomsFull } = getDayStayStats(date)
+    const dayStats = getDayStayStats(date)
+    const { guestCount } = dayStats
+    const level = getOccupancyLevel(dayStats)
     if (guestCount > 0) classes.push('tile-has-events')
-    if (isAllRoomsFull) classes.push('tile-full')
+    if (level === 'full') classes.push('tile-full')
+    if (level === 'high') classes.push('tile-high')
     if (isSameDay(date, getToday())) classes.push('tile-today')
     if (isSameDay(date, selectedDate)) classes.push('tile-selected')
     return classes.join(' ')
@@ -354,8 +373,12 @@ function CalendarView({
                 En az 1 kişi konaklıyor
               </span>
               <span className='flex items-center gap-1.5'>
+                <span className='inline-block h-3 w-3 rounded bg-orange-100 ring-1 ring-orange-500' />
+                {ROOM_COUNT - 1} oda dolu = turuncu
+              </span>
+              <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded bg-rose-100 ring-1 ring-rose-500' />
-                {ROOM_COUNT} oda dolu = kırmızı kutucuk
+                {ROOM_COUNT} oda dolu = kırmızı
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
@@ -392,25 +415,15 @@ function CalendarView({
               {weekDaysActivity.map(({ date, details, stayStats }) => {
                 const selected = isSameDay(date, selectedDate)
                 const isToday = isSameDay(date, getToday())
-                const { guestCount, isAllRoomsFull } = stayStats
-                const full = isAllRoomsFull
+                const { guestCount } = stayStats
+                const level = getOccupancyLevel(stayStats)
                 return (
                   <button
                     key={dayKey(date)}
                     ref={isToday ? weekTodayButtonRef : undefined}
                     type='button'
                     onClick={() => onDateChange(clampCalendarDate(date))}
-                    className={`flex min-h-[4.5rem] flex-col items-center rounded-lg border p-1.5 text-center transition sm:p-2 ${
-                      selected && full
-                        ? 'border-blue-800 bg-rose-100 ring-2 ring-blue-800'
-                        : selected
-                          ? 'border-blue-800 bg-blue-50 ring-2 ring-blue-800'
-                          : full
-                            ? 'border-rose-500 bg-rose-100 ring-2 ring-rose-400'
-                            : guestCount > 0
-                              ? 'border-emerald-200 bg-emerald-50/80'
-                              : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
+                    className={`flex min-h-[4.5rem] flex-col items-center rounded-lg border p-1.5 text-center transition sm:p-2 ${getWeekDayButtonClass({ selected, level })}`}
                   >
                     <span className='text-[10px] font-medium uppercase text-slate-500 sm:text-xs'>
                       {format(date, 'EEE', { locale: tr })}
@@ -420,9 +433,7 @@ function CalendarView({
                     </span>
                     {guestCount > 0 ? (
                       <span
-                        className={`mt-0.5 rounded px-1 py-0.5 text-[9px] font-bold text-white sm:text-[10px] ${
-                          full ? 'bg-rose-700' : 'bg-emerald-600'
-                        }`}
+                        className={`mt-0.5 rounded px-1 py-0.5 text-[9px] font-bold text-white sm:text-[10px] ${getGuestCountBadgeClass(level)}`}
                       >
                         {formatOvernightGuestCount(guestCount)}
                       </span>
@@ -478,7 +489,11 @@ function CalendarView({
                 <>
                   {' '}
                   · <strong>{selectedDayStayStats.guestCount} kişi o gece konaklıyor</strong>
-                  {selectedDayStayStats.isAllRoomsFull ? ' · tüm evler dolu' : ''}
+                  {selectedDayStayStats.isAllRoomsFull
+                    ? ' · tüm evler dolu'
+                    : selectedDayStayStats.isNearlyFull
+                      ? ` · ${ROOM_COUNT - 1} ev dolu`
+                      : ''}
                   {' '}
                   · {checkIns.length} giriş · {checkOuts.length} çıkış
                   {uniqueRoomsToday > 0 ? ` · ${uniqueRoomsToday} oda/ev` : ''}
@@ -508,12 +523,18 @@ function CalendarView({
               className={`rounded-lg px-3 py-2 text-center ${
                 selectedDayStayStats.isAllRoomsFull
                   ? 'bg-rose-100 ring-2 ring-rose-400'
-                  : 'bg-emerald-50'
+                  : selectedDayStayStats.isNearlyFull
+                    ? 'bg-orange-100 ring-2 ring-orange-400'
+                    : 'bg-emerald-50'
               }`}
             >
               <p
                 className={`text-2xl font-bold ${
-                  selectedDayStayStats.isAllRoomsFull ? 'text-rose-800' : 'text-emerald-900'
+                  selectedDayStayStats.isAllRoomsFull
+                    ? 'text-rose-800'
+                    : selectedDayStayStats.isNearlyFull
+                      ? 'text-orange-900'
+                      : 'text-emerald-900'
                 }`}
               >
                 {selectedDayStayStats.guestCount}
