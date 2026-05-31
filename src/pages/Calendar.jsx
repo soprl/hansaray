@@ -71,7 +71,7 @@ function Calendar() {
     const map = new Map()
 
     reservations.forEach((reservation) => {
-      if (getEffectiveReservationStatus(reservation) !== RES_STATUS.ACTIVE) return
+      if (reservation.reservationStatus === RES_STATUS.CANCELLED) return
 
       const checkIn = parseISODateSafe(reservation.checkInDate)
       const checkOut = parseISODateSafe(reservation.checkOutDate)
@@ -83,7 +83,10 @@ function Calendar() {
           end: subDays(checkOut, 1),
         })
 
-        rangeDays.forEach((date) => addReservationToMap(map, date, reservation))
+        rangeDays.forEach((date) => {
+          if (getEffectiveReservationStatus(reservation, date) !== RES_STATUS.ACTIVE) return
+          addReservationToMap(map, date, reservation)
+        })
       } catch {
         // Geçersiz tarih aralığı atlanır.
       }

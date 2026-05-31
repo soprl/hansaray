@@ -234,11 +234,15 @@ html.native-app .min-h-screen.bg-slate-100 {
   @apply bg-rose-100 text-rose-950 ring-2 ring-blue-800 ring-inset;
 }
 
+.calendar-shell .react-calendar__tile.tile-selected:not(.tile-full) {
+  @apply bg-blue-50 text-blue-950 ring-2 ring-blue-800 ring-inset;
+}
+
 .calendar-shell .react-calendar__tile.tile-selected.tile-full .tile-guest-label {
   @apply bg-rose-700;
 }
 
-.calendar-shell .react-calendar__tile.tile-selected .tile-guest-label {
+.calendar-shell .react-calendar__tile.tile-selected:not(.tile-full) .tile-guest-label {
   @apply bg-blue-900;
 }
 

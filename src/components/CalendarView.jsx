@@ -401,13 +401,15 @@ function CalendarView({
                     type='button'
                     onClick={() => onDateChange(clampCalendarDate(date))}
                     className={`flex min-h-[4.5rem] flex-col items-center rounded-lg border p-1.5 text-center transition sm:p-2 ${
-                      selected
-                        ? 'border-blue-800 bg-blue-50 ring-2 ring-blue-800'
-                        : full
-                          ? 'border-rose-500 bg-rose-100 ring-2 ring-rose-400'
-                          : guestCount > 0
-                            ? 'border-emerald-200 bg-emerald-50/80'
-                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                      selected && full
+                        ? 'border-blue-800 bg-rose-100 ring-2 ring-blue-800'
+                        : selected
+                          ? 'border-blue-800 bg-blue-50 ring-2 ring-blue-800'
+                          : full
+                            ? 'border-rose-500 bg-rose-100 ring-2 ring-rose-400'
+                            : guestCount > 0
+                              ? 'border-emerald-200 bg-emerald-50/80'
+                              : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
                     <span className='text-[10px] font-medium uppercase text-slate-500 sm:text-xs'>
