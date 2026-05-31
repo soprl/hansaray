@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   addWeeks,
   eachDayOfInterval,
@@ -6,6 +6,7 @@ import {
   format,
   isSameDay,
   startOfDay,
+  startOfMonth,
   startOfWeek,
 } from 'date-fns'
 import { tr } from 'date-fns/locale'
@@ -158,9 +159,11 @@ function CalendarView({
   onSearchResultSelect,
 }) {
   const [dayFilter, setDayFilter] = useState('all')
-  const [viewMode, setViewMode] = useState('month')
+  const [viewMode, setViewMode] = useState('week')
+  const weekTodayButtonRef = useRef(null)
   const isSearching = searchQuery.trim().length > 0
-  const today = clampCalendarDate(startOfDay(new Date()))
+
+  const getToday = () => clampCalendarDate(startOfDay(new Date()))
 
   const { checkIns, checkOuts, stayingOnly, stays } = selectedDayDetails
 
@@ -179,14 +182,6 @@ function CalendarView({
       })),
     [weekRange.days, reservations, overnightStaysMap],
   )
-
-  const weekReservationCount = useMemo(() => {
-    const seen = new Set()
-    weekDaysActivity.forEach(({ details }) => {
-      details.allForDay.forEach((reservation) => seen.add(reservation.id))
-    })
-    return seen.size
-  }, [weekDaysActivity])
 
   useEffect(() => {
     setDayFilter('all')
@@ -222,7 +217,11 @@ function CalendarView({
   }, [stays])
 
   const goToToday = () => {
-    onDateChange(today)
+    const now = getToday()
+    onDateChange(now)
+    requestAnimationFrame(() => {
+      weekTodayButtonRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    })
   }
 
   const tileClassName = ({ date, view }) => {
@@ -231,7 +230,7 @@ function CalendarView({
     const nightCount = overnightStaysMap.get(dayKey(date))?.length ?? 0
     if (nightCount > 0) classes.push('tile-has-events')
     if (nightCount >= ROOM_COUNT) classes.push('tile-full')
-    if (isSameDay(date, today)) classes.push('tile-today')
+    if (isSameDay(date, getToday())) classes.push('tile-today')
     if (isSameDay(date, selectedDate)) classes.push('tile-selected')
     return classes.join(' ')
   }
@@ -258,7 +257,9 @@ function CalendarView({
           <div>
             <h2 className='text-lg font-semibold text-blue-950'>Takvim</h2>
             <p className='mt-0.5 text-sm text-slate-500'>
-              Güne tıklayın — o günkü konuklar, gece sayısı ve giriş/çıkışlar altta listelenir.
+              {viewMode === 'week'
+                ? 'Haftayı seçin, güne tıklayın — o günün konukları altta görünür.'
+                : 'Güne tıklayın — konuklar ve giriş/çıkışlar altta listelenir.'}
             </p>
           </div>
           <div className='flex w-full flex-col gap-2 sm:max-w-lg'>
@@ -313,10 +314,12 @@ function CalendarView({
             <p className='mb-2 text-xs text-slate-500'>2026 – 2030</p>
             <div className='calendar-shell'>
               <TurkishCalendar
+                key={format(selectedDate, 'yyyy-MM')}
                 value={selectedDate}
                 onChange={onDateChange}
                 minDate={CALENDAR_MIN_DATE}
                 maxDate={CALENDAR_MAX_DATE}
+                activeStartDate={startOfMonth(selectedDate)}
                 tileClassName={tileClassName}
                 tileContent={tileContent}
               />
@@ -365,10 +368,12 @@ function CalendarView({
             <div className='grid grid-cols-7 gap-1 sm:gap-2'>
               {weekDaysActivity.map(({ date, details, nightCount }) => {
                 const selected = isSameDay(date, selectedDate)
+                const isToday = isSameDay(date, getToday())
                 const full = nightCount >= ROOM_COUNT
                 return (
                   <button
                     key={dayKey(date)}
+                    ref={isToday ? weekTodayButtonRef : undefined}
                     type='button'
                     onClick={() => onDateChange(clampCalendarDate(date))}
                     className={`flex min-h-[4.5rem] flex-col items-center rounded-lg border p-1.5 text-center transition sm:p-2 ${
@@ -407,11 +412,6 @@ function CalendarView({
                 )
               })}
             </div>
-
-            <p className='text-sm text-slate-600'>
-              Bu hafta <strong>{weekReservationCount} rezervasyon</strong> (giriş, çıkış ve konaklama
-              dahil). Aşağıda gün gün listelenir.
-            </p>
           </div>
         )}
       </div>
@@ -439,53 +439,7 @@ function CalendarView({
         </div>
       ) : null}
 
-      {viewMode === 'week' && !isSearching ? (
-        <div className='card space-y-4'>
-          <h3 className='text-base font-semibold text-blue-950'>
-            Haftalık liste{' '}
-            <span className='font-normal text-slate-500'>
-              ({format(weekRange.start, 'd MMM', { locale: tr })} –{' '}
-              {format(weekRange.end, 'd MMM', { locale: tr })})
-            </span>
-          </h3>
-
-          {loading ? (
-            <p className='text-sm text-slate-500'>Yükleniyor...</p>
-          ) : weekReservationCount === 0 ? (
-            <p className='text-sm text-slate-500'>Bu hafta için rezervasyon yok.</p>
-          ) : (
-            <div className='space-y-4'>
-              {weekDaysActivity.map(({ date, details }) => {
-                if (details.allForDay.length === 0) return null
-
-                const dayStays = details.stays.length
-                return (
-                  <div key={dayKey(date)} className='rounded-xl border border-slate-200 bg-slate-50/50 p-3'>
-                    <div className='mb-2 flex flex-wrap items-baseline justify-between gap-2'>
-                      <h4 className='font-semibold capitalize text-blue-950'>
-                        {format(date, 'd MMMM yyyy, EEEE', { locale: tr })}
-                      </h4>
-                      <p className='text-xs text-slate-600'>
-                        {details.allForDay.length} kayıt · {dayStays} gece konaklayan
-                        {dayStays >= ROOM_COUNT ? ' · dolu' : ''}
-                      </p>
-                    </div>
-                    <ul className='space-y-2'>
-                      {details.allForDay.map((reservation) => (
-                        <li key={`${dayKey(date)}-${reservation.id}`}>
-                          <CalendarGuestCard reservation={reservation} referenceDate={date} />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      {viewMode === 'month' && !isSearching ? (
+      {!isSearching ? (
       <div className='card space-y-4'>
         <div>
           <h3 className='text-base font-semibold capitalize text-blue-950'>{selectedLabel}</h3>

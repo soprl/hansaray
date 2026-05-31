@@ -10,6 +10,7 @@ function TurkishCalendar({
   onChange,
   minDate,
   maxDate,
+  activeStartDate,
   tileClassName,
   tileContent,
   className,
@@ -23,6 +24,7 @@ function TurkishCalendar({
       onChange={onChange}
       minDate={minDate}
       maxDate={maxDate}
+      activeStartDate={activeStartDate}
       minDetail={minDetail}
       maxDetail={maxDetail}
       formatMonthYear={(_, date) => format(date, 'MMMM yyyy', { locale: tr })}

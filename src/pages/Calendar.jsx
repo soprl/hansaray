@@ -30,7 +30,10 @@ function Calendar() {
   const [selectedDate, setSelectedDate] = useState(() => clampCalendarDate(startOfDay(new Date())))
 
   const handleDateChange = (date) => {
-    if (date instanceof Date) setSelectedDate(clampCalendarDate(date))
+    const next = Array.isArray(date) ? date[0] : date
+    if (next instanceof Date && !Number.isNaN(next.getTime())) {
+      setSelectedDate(clampCalendarDate(new Date(next.getTime())))
+    }
   }
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
