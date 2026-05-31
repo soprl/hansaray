@@ -68,15 +68,28 @@ function CalendarGuestCard({
   const phone = reservation.customerPhone?.trim()
 
   const cardClassName =
-    'w-full rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm'
+    'w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left shadow-sm'
 
   const inner = (
-    <>
-      <div className='flex items-start justify-between gap-3'>
-        <p className='min-w-0 flex-1 break-words font-semibold leading-snug text-blue-950'>
+    <div className='flex items-start justify-between gap-3'>
+      <div className='min-w-0 flex-1'>
+        <p className='break-words font-semibold leading-snug text-blue-950'>
           {reservation.customerName || 'İsimsiz'}
         </p>
-        <div className='flex shrink-0 flex-wrap justify-end gap-0.5'>
+        <p className='mt-0.5 text-sm text-slate-700'>
+          {reservation.roomName || 'Oda?'}
+          {totalNights ? ` · ${totalNights} gece` : ''}
+          {remainingLabel ? ` · ${remainingLabel}` : ''}
+        </p>
+        <p className='mt-1 text-xs text-slate-500'>
+          {formatDateTR(reservation.checkInDate)} → {formatDateTR(reservation.checkOutDate)}
+        </p>
+        {phone ? <p className='mt-1 text-sm text-slate-800'>{phone}</p> : null}
+        {note ? <p className='mt-0.5 break-words text-xs text-amber-900'>Not: {note}</p> : null}
+      </div>
+
+      <div className='flex shrink-0 flex-col items-end gap-1 text-right'>
+        <div className='flex flex-wrap justify-end gap-0.5'>
           {tags.map((tag) => (
             <span
               key={tag}
@@ -86,46 +99,30 @@ function CalendarGuestCard({
             </span>
           ))}
         </div>
-      </div>
-
-      <p className='mt-1 text-sm text-slate-700'>
-        {reservation.roomName || 'Oda?'}
-        {totalNights ? ` · ${totalNights} gece` : ''}
-        {remainingLabel ? ` · ${remainingLabel}` : ''}
-      </p>
-
-      <p className='mt-1 text-sm font-semibold text-blue-950'>{formatCurrencyTRY(totalPrice)}</p>
-
-      <div className='mt-1 flex flex-wrap items-center justify-between gap-2'>
+        <p className='text-sm font-semibold text-blue-950'>{formatCurrencyTRY(totalPrice)}</p>
+        <p className='text-xs text-amber-800'>Kapora: {formatCurrencyTRY(deposit)}</p>
         {isPaid ? (
-          <span className='text-sm font-medium text-emerald-700'>Tamamı ödendi</span>
+          <p className='text-xs font-medium text-emerald-700'>Tamamı ödendi</p>
         ) : (
-          <span className='text-sm font-medium text-rose-700'>
-            Kalan: {formatCurrencyTRY(outstanding)}
-            {reservation.paymentStatus === PAYMENT_STATUS.DEPOSIT ? ' (kapora var)' : ''}
-          </span>
+          <>
+            <p className='text-xs font-semibold text-rose-600'>Kalan: {formatCurrencyTRY(outstanding)}</p>
+            {canMarkPaid ? (
+              <button
+                type='button'
+                disabled={marking}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onMarkFullyPaid(reservation)
+                }}
+                className='mt-0.5 rounded-md border border-emerald-600 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60'
+              >
+                {marking ? 'Kaydediliyor…' : 'Tamamı ödendi'}
+              </button>
+            ) : null}
+          </>
         )}
-        {canMarkPaid ? (
-          <button
-            type='button'
-            disabled={marking}
-            onClick={(event) => {
-              event.stopPropagation()
-              onMarkFullyPaid(reservation)
-            }}
-            className='shrink-0 rounded-md border border-emerald-600 bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60'
-          >
-            {marking ? 'Kaydediliyor…' : 'Tam öde'}
-          </button>
-        ) : null}
       </div>
-
-      <p className='mt-1 text-xs text-slate-500'>
-        {formatDateTR(reservation.checkInDate)} → {formatDateTR(reservation.checkOutDate)}
-      </p>
-      {phone ? <p className='mt-1 text-sm text-slate-800'>{phone}</p> : null}
-      {note ? <p className='mt-0.5 break-words text-xs text-amber-900'>Not: {note}</p> : null}
-    </>
+    </div>
   )
 
   if (onSelect) {
