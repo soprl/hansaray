@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { eachDayOfInterval, format, subDays } from 'date-fns'
+import { eachDayOfInterval, format, startOfDay, subDays } from 'date-fns'
 import CalendarView from '../components/CalendarView'
+import { clampCalendarDate } from '../config/calendarBounds'
 import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
 import { parseISODateSafe } from '../utils/formatters'
@@ -26,7 +27,11 @@ const addReservationToMap = (map, date, reservation) => {
 function Calendar() {
   const { user } = useAuth()
   const [reservations, setReservations] = useState([])
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(() => clampCalendarDate(startOfDay(new Date())))
+
+  const handleDateChange = (date) => {
+    if (date instanceof Date) setSelectedDate(clampCalendarDate(date))
+  }
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -102,7 +107,7 @@ function Calendar() {
 
   const handleSearchResultSelect = (reservation) => {
     const checkIn = parseISODateSafe(reservation.checkInDate)
-    if (checkIn) setSelectedDate(checkIn)
+    if (checkIn) setSelectedDate(clampCalendarDate(checkIn))
     setSearchQuery('')
   }
 
@@ -110,8 +115,9 @@ function Calendar() {
     <CalendarView
       loading={loading}
       error={error}
+      reservations={reservations}
       selectedDate={selectedDate}
-      onDateChange={setSelectedDate}
+      onDateChange={handleDateChange}
       overnightStaysMap={overnightStaysMap}
       selectedDayReservations={selectedDayReservations}
       selectedDayDetails={selectedDayDetails}

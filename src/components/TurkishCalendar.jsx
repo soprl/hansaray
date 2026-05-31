@@ -13,6 +13,8 @@ function TurkishCalendar({
   tileClassName,
   tileContent,
   className,
+  minDetail = 'year',
+  maxDetail = 'month',
 }) {
   return (
     <ReactCalendar
@@ -21,6 +23,8 @@ function TurkishCalendar({
       onChange={onChange}
       minDate={minDate}
       maxDate={maxDate}
+      minDetail={minDetail}
+      maxDetail={maxDetail}
       formatMonthYear={(_, date) => format(date, 'MMMM yyyy', { locale: tr })}
       formatShortWeekday={(_, date) => TURKISH_WEEKDAYS[date.getDay()]}
       tileClassName={tileClassName}

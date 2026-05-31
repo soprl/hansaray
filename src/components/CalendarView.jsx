@@ -1,10 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { format, isSameDay, startOfDay } from 'date-fns'
+import {
+  addWeeks,
+  eachDayOfInterval,
+  endOfWeek,
+  format,
+  isSameDay,
+  startOfDay,
+  startOfWeek,
+} from 'date-fns'
 import { tr } from 'date-fns/locale'
 import ReservationNote from './ReservationNote'
 import TurkishCalendar from './TurkishCalendar'
+import {
+  CALENDAR_MAX_DATE,
+  CALENDAR_MIN_DATE,
+  clampCalendarDate,
+} from '../config/calendarBounds'
 import { formatCurrencyTRY, formatDateTR, parseISODateSafe } from '../utils/formatters'
 import {
+  getCalendarDayReservations,
   getCalendarPaymentDisplay,
   getRemainingStayLabel,
   getReservationDayTags,
@@ -132,6 +146,7 @@ function DaySection({ title, tone, reservations, referenceDate }) {
 function CalendarView({
   loading,
   error,
+  reservations,
   selectedDate,
   onDateChange,
   overnightStaysMap,
@@ -143,14 +158,43 @@ function CalendarView({
   onSearchResultSelect,
 }) {
   const [dayFilter, setDayFilter] = useState('all')
+  const [viewMode, setViewMode] = useState('month')
   const isSearching = searchQuery.trim().length > 0
-  const today = startOfDay(new Date())
+  const today = clampCalendarDate(startOfDay(new Date()))
 
   const { checkIns, checkOuts, stayingOnly, stays } = selectedDayDetails
 
+  const weekRange = useMemo(() => {
+    const start = startOfWeek(selectedDate, { locale: tr, weekStartsOn: 1 })
+    const end = endOfWeek(selectedDate, { locale: tr, weekStartsOn: 1 })
+    return { start, end, days: eachDayOfInterval({ start, end }) }
+  }, [selectedDate])
+
+  const weekDaysActivity = useMemo(
+    () =>
+      weekRange.days.map((day) => ({
+        date: day,
+        details: getCalendarDayReservations(reservations, day),
+        nightCount: overnightStaysMap.get(dayKey(day))?.length ?? 0,
+      })),
+    [weekRange.days, reservations, overnightStaysMap],
+  )
+
+  const weekReservationCount = useMemo(() => {
+    const seen = new Set()
+    weekDaysActivity.forEach(({ details }) => {
+      details.allForDay.forEach((reservation) => seen.add(reservation.id))
+    })
+    return seen.size
+  }, [weekDaysActivity])
+
   useEffect(() => {
     setDayFilter('all')
-  }, [selectedDate])
+  }, [selectedDate, viewMode])
+
+  const shiftWeek = (delta) => {
+    onDateChange(clampCalendarDate(addWeeks(selectedDate, delta)))
+  }
 
   const filteredDayReservations = useMemo(() => {
     const tagOrder = { Giriş: 0, Çıkış: 1, Konaklıyor: 2 }
@@ -177,7 +221,9 @@ function CalendarView({
     return rooms.size
   }, [stays])
 
-  const goToToday = () => onDateChange(today)
+  const goToToday = () => {
+    onDateChange(today)
+  }
 
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return ''
@@ -215,24 +261,46 @@ function CalendarView({
               Güne tıklayın — o günkü konuklar, gece sayısı ve giriş/çıkışlar altta listelenir.
             </p>
           </div>
-          <div className='flex w-full flex-col gap-2 sm:max-w-md sm:flex-row'>
-            <input
-              id='calendar-search'
-              type='search'
-              className='input flex-1'
-              placeholder='Misafir ara…'
-              value={searchQuery}
-              onChange={(event) => onSearchQueryChange(event.target.value)}
-              disabled={loading}
-              aria-label='Misafir ara'
-            />
-            <button
-              type='button'
-              className='shrink-0 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
-              onClick={goToToday}
-            >
-              Bugüne git
-            </button>
+          <div className='flex w-full flex-col gap-2 sm:max-w-lg'>
+            <div className='flex rounded-lg border border-slate-200 bg-slate-50 p-0.5'>
+              <button
+                type='button'
+                onClick={() => setViewMode('month')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  viewMode === 'month' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600'
+                }`}
+              >
+                Aylık
+              </button>
+              <button
+                type='button'
+                onClick={() => setViewMode('week')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  viewMode === 'week' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600'
+                }`}
+              >
+                Haftalık gör
+              </button>
+            </div>
+            <div className='flex flex-col gap-2 sm:flex-row'>
+              <input
+                id='calendar-search'
+                type='search'
+                className='input flex-1'
+                placeholder='Misafir ara…'
+                value={searchQuery}
+                onChange={(event) => onSearchQueryChange(event.target.value)}
+                disabled={loading}
+                aria-label='Misafir ara'
+              />
+              <button
+                type='button'
+                className='shrink-0 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
+                onClick={goToToday}
+              >
+                Bugüne git
+              </button>
+            </div>
           </div>
         </div>
 
@@ -240,12 +308,15 @@ function CalendarView({
 
         {loading ? (
           <p className='text-sm text-slate-500'>Takvim yükleniyor...</p>
-        ) : (
+        ) : viewMode === 'month' ? (
           <>
+            <p className='mb-2 text-xs text-slate-500'>2026 – 2030</p>
             <div className='calendar-shell'>
               <TurkishCalendar
                 value={selectedDate}
                 onChange={onDateChange}
+                minDate={CALENDAR_MIN_DATE}
+                maxDate={CALENDAR_MAX_DATE}
                 tileClassName={tileClassName}
                 tileContent={tileContent}
               />
@@ -266,6 +337,82 @@ function CalendarView({
               </span>
             </div>
           </>
+        ) : (
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between gap-2'>
+              <button
+                type='button'
+                className='btn border border-slate-300 bg-white px-3 text-sm'
+                onClick={() => shiftWeek(-1)}
+                disabled={weekRange.start <= CALENDAR_MIN_DATE}
+              >
+                ← Önceki
+              </button>
+              <p className='text-center text-sm font-semibold text-blue-950'>
+                {format(weekRange.start, 'd MMM', { locale: tr })} –{' '}
+                {format(weekRange.end, 'd MMM yyyy', { locale: tr })}
+              </p>
+              <button
+                type='button'
+                className='btn border border-slate-300 bg-white px-3 text-sm'
+                onClick={() => shiftWeek(1)}
+                disabled={weekRange.end >= CALENDAR_MAX_DATE}
+              >
+                Sonraki →
+              </button>
+            </div>
+
+            <div className='grid grid-cols-7 gap-1 sm:gap-2'>
+              {weekDaysActivity.map(({ date, details, nightCount }) => {
+                const selected = isSameDay(date, selectedDate)
+                const full = nightCount >= ROOM_COUNT
+                return (
+                  <button
+                    key={dayKey(date)}
+                    type='button'
+                    onClick={() => onDateChange(clampCalendarDate(date))}
+                    className={`flex min-h-[4.5rem] flex-col items-center rounded-lg border p-1.5 text-center transition sm:p-2 ${
+                      selected
+                        ? 'border-blue-800 bg-blue-50 ring-2 ring-blue-800'
+                        : full
+                          ? 'border-rose-300 bg-rose-50'
+                          : nightCount > 0
+                            ? 'border-emerald-200 bg-emerald-50/80'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className='text-[10px] font-medium uppercase text-slate-500 sm:text-xs'>
+                      {format(date, 'EEE', { locale: tr })}
+                    </span>
+                    <span className='text-base font-bold text-blue-950 sm:text-lg'>
+                      {format(date, 'd')}
+                    </span>
+                    {nightCount > 0 ? (
+                      <span
+                        className={`mt-0.5 rounded px-1 py-0.5 text-[9px] font-bold text-white sm:text-[10px] ${
+                          full ? 'bg-rose-600' : 'bg-emerald-600'
+                        }`}
+                      >
+                        {nightCount} gece
+                      </span>
+                    ) : (
+                      <span className='mt-0.5 text-[10px] text-slate-400'>—</span>
+                    )}
+                    {details.allForDay.length > 0 ? (
+                      <span className='mt-0.5 hidden text-[10px] text-slate-600 sm:block'>
+                        {details.allForDay.length} kayıt
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+
+            <p className='text-sm text-slate-600'>
+              Bu hafta <strong>{weekReservationCount} rezervasyon</strong> (giriş, çıkış ve konaklama
+              dahil). Aşağıda gün gün listelenir.
+            </p>
+          </div>
         )}
       </div>
 
@@ -292,6 +439,53 @@ function CalendarView({
         </div>
       ) : null}
 
+      {viewMode === 'week' && !isSearching ? (
+        <div className='card space-y-4'>
+          <h3 className='text-base font-semibold text-blue-950'>
+            Haftalık liste{' '}
+            <span className='font-normal text-slate-500'>
+              ({format(weekRange.start, 'd MMM', { locale: tr })} –{' '}
+              {format(weekRange.end, 'd MMM', { locale: tr })})
+            </span>
+          </h3>
+
+          {loading ? (
+            <p className='text-sm text-slate-500'>Yükleniyor...</p>
+          ) : weekReservationCount === 0 ? (
+            <p className='text-sm text-slate-500'>Bu hafta için rezervasyon yok.</p>
+          ) : (
+            <div className='space-y-4'>
+              {weekDaysActivity.map(({ date, details }) => {
+                if (details.allForDay.length === 0) return null
+
+                const dayStays = details.stays.length
+                return (
+                  <div key={dayKey(date)} className='rounded-xl border border-slate-200 bg-slate-50/50 p-3'>
+                    <div className='mb-2 flex flex-wrap items-baseline justify-between gap-2'>
+                      <h4 className='font-semibold capitalize text-blue-950'>
+                        {format(date, 'd MMMM yyyy, EEEE', { locale: tr })}
+                      </h4>
+                      <p className='text-xs text-slate-600'>
+                        {details.allForDay.length} kayıt · {dayStays} gece konaklayan
+                        {dayStays >= ROOM_COUNT ? ' · dolu' : ''}
+                      </p>
+                    </div>
+                    <ul className='space-y-2'>
+                      {details.allForDay.map((reservation) => (
+                        <li key={`${dayKey(date)}-${reservation.id}`}>
+                          <CalendarGuestCard reservation={reservation} referenceDate={date} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {viewMode === 'month' && !isSearching ? (
       <div className='card space-y-4'>
         <div>
           <h3 className='text-base font-semibold capitalize text-blue-950'>{selectedLabel}</h3>
@@ -417,6 +611,7 @@ function CalendarView({
           </ul>
         )}
       </div>
+      ) : null}
     </section>
   )
 }
