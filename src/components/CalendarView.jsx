@@ -10,7 +10,6 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { tr } from 'date-fns/locale'
-import ReservationNote from './ReservationNote'
 import TurkishCalendar from './TurkishCalendar'
 import {
   CALENDAR_MAX_DATE,
@@ -20,10 +19,11 @@ import {
 import { formatCurrencyTRY, formatDateTR, parseISODateSafe } from '../utils/formatters'
 import {
   getCalendarDayReservations,
-  getCalendarPaymentDisplay,
   getRemainingStayLabel,
   getReservationDayTags,
   getReservationNightCount,
+  isFullyPaidReservation,
+  PAYMENT_STATUS,
 } from '../utils/reservationUtils'
 import { ROOM_COUNT } from '../utils/occupancyUtils'
 
@@ -42,84 +42,91 @@ const tagClass = {
   Konaklıyor: 'bg-emerald-100 text-emerald-800',
 }
 
-function CalendarPaymentLabels({ reservation }) {
-  const { primary, primaryTone, showUnpaid } = getCalendarPaymentDisplay(reservation)
-
-  if (!primary && !showUnpaid) return null
-
-  const primaryClass =
-    primaryTone === 'paid' ? 'font-medium text-emerald-700' : 'font-medium text-amber-800'
-
-  return (
-    <div className='flex flex-col items-end gap-0.5 text-sm'>
-      {primary ? <span className={primaryClass}>{primary}</span> : null}
-      {showUnpaid ? <span className='font-semibold text-rose-600'>Ödenmedi</span> : null}
-    </div>
-  )
-}
-
-function CalendarGuestCard({ reservation, referenceDate, onSelect }) {
+function CalendarGuestCard({
+  reservation,
+  referenceDate,
+  onSelect,
+  onMarkFullyPaid,
+  payingReservationId,
+}) {
   const tags = getReservationDayTags(reservation, referenceDate)
   const totalNights = getReservationNightCount(reservation)
   const remainingLabel = getRemainingStayLabel(reservation, referenceDate)
-  const Wrapper = onSelect ? 'button' : 'div'
-  const wrapperProps = onSelect
-    ? {
-        type: 'button',
-        onClick: onSelect,
-        className:
-          'w-full rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md',
-      }
-    : {
-        className: 'rounded-xl border border-slate-200 bg-white p-3 shadow-sm',
-      }
+  const isPaid =
+    reservation.paymentStatus === PAYMENT_STATUS.PAID || isFullyPaidReservation(reservation)
+  const canMarkPaid = Boolean(onMarkFullyPaid) && !isPaid
+  const marking = payingReservationId === reservation.id
+  const note = reservation.note?.trim()
+  const phone = reservation.customerPhone?.trim()
 
-  return (
-    <Wrapper {...wrapperProps}>
-      <div className='flex items-start justify-between gap-3'>
-        <div className='min-w-0 flex-1'>
-          <p className='text-base font-semibold text-blue-950'>{reservation.customerName || 'İsimsiz'}</p>
-          <p className='mt-1 text-sm font-medium text-slate-700'>
-            {reservation.roomName || 'Oda belirtilmemiş'}
-          </p>
-          <p className='mt-2 text-sm text-slate-600'>
-            {formatDateTR(reservation.checkInDate)} → {formatDateTR(reservation.checkOutDate)}
-          </p>
-          <div className='mt-2 flex flex-wrap gap-2 text-sm'>
-            {totalNights ? (
-              <span className='rounded-md bg-blue-50 px-2 py-0.5 font-medium text-blue-900'>
-                Toplam {totalNights} gece
-              </span>
-            ) : null}
-            {remainingLabel ? (
-              <span className='rounded-md bg-emerald-50 px-2 py-0.5 font-medium text-emerald-900'>
-                {remainingLabel}
-              </span>
-            ) : null}
-          </div>
-          <p className='mt-1 text-sm text-slate-500'>Tel: {reservation.customerPhone || '—'}</p>
-          <ReservationNote note={reservation.note} className='mt-2 text-xs' />
-        </div>
-        <div className='flex shrink-0 flex-col items-end gap-2'>
-          <div className='flex flex-wrap justify-end gap-1'>
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className={`rounded-md px-2 py-0.5 text-xs font-semibold ${tagClass[tag]}`}
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-          <CalendarPaymentLabels reservation={reservation} />
-          <p className='text-sm font-medium text-slate-700'>{formatCurrencyTRY(reservation.totalPrice)}</p>
-        </div>
+  const metaLine = [
+    reservation.roomName || 'Oda?',
+    totalNights ? `${totalNights} gece` : null,
+    formatCurrencyTRY(reservation.totalPrice),
+    remainingLabel,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const content = (
+    <div className='flex items-start justify-between gap-2'>
+      <div className='min-w-0 flex-1'>
+        <p className='truncate font-semibold text-blue-950'>{reservation.customerName || 'İsimsiz'}</p>
+        <p className='mt-0.5 text-xs text-slate-600'>{metaLine}</p>
+        <p className='text-xs text-slate-500'>
+          {formatDateTR(reservation.checkInDate)} → {formatDateTR(reservation.checkOutDate)}
+        </p>
+        {phone ? <p className='mt-1 text-xs text-slate-700'>{phone}</p> : null}
+        {note ? <p className='mt-0.5 text-xs text-amber-900'>Not: {note}</p> : null}
       </div>
-    </Wrapper>
+      <div className='flex shrink-0 flex-col items-end gap-1'>
+        <div className='flex flex-wrap justify-end gap-0.5'>
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-tight ${tagClass[tag]}`}
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+        {isPaid ? (
+          <span className='text-[11px] font-semibold text-emerald-700'>Ödendi</span>
+        ) : canMarkPaid ? (
+          <button
+            type='button'
+            disabled={marking}
+            onClick={(event) => {
+              event.stopPropagation()
+              onMarkFullyPaid(reservation)
+            }}
+            className='rounded-md border border-emerald-600 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60'
+          >
+            {marking ? '…' : 'Ödendi'}
+          </button>
+        ) : (
+          <span className='text-[11px] font-medium text-rose-600'>Ödenmedi</span>
+        )}
+      </div>
+    </div>
   )
+
+  if (onSelect) {
+    return (
+      <button
+        type='button'
+        onClick={onSelect}
+        className='w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-blue-200'
+      >
+        {content}
+      </button>
+    )
+  }
+
+  return <div className='rounded-lg border border-slate-200 bg-white p-2.5'>{content}</div>
 }
 
-function DaySection({ title, tone, reservations, referenceDate }) {
+function DaySection({ title, tone, reservations, referenceDate, onMarkFullyPaid, payingReservationId }) {
   if (reservations.length === 0) return null
 
   const toneClass = {
@@ -136,7 +143,12 @@ function DaySection({ title, tone, reservations, referenceDate }) {
       <ul className='space-y-2'>
         {reservations.map((reservation) => (
           <li key={reservation.id}>
-            <CalendarGuestCard reservation={reservation} referenceDate={referenceDate} />
+            <CalendarGuestCard
+              reservation={reservation}
+              referenceDate={referenceDate}
+              onMarkFullyPaid={onMarkFullyPaid}
+              payingReservationId={payingReservationId}
+            />
           </li>
         ))}
       </ul>
@@ -157,6 +169,8 @@ function CalendarView({
   onSearchQueryChange,
   searchResults,
   onSearchResultSelect,
+  onMarkFullyPaid,
+  payingReservationId,
 }) {
   const [dayFilter, setDayFilter] = useState('all')
   const [viewMode, setViewMode] = useState('week')
@@ -431,6 +445,8 @@ function CalendarView({
                     reservation={reservation}
                     referenceDate={parseISODateSafe(reservation.checkInDate) || selectedDate}
                     onSelect={() => onSearchResultSelect(reservation)}
+                    onMarkFullyPaid={onMarkFullyPaid}
+                    payingReservationId={payingReservationId}
                   />
                 </li>
               ))}
@@ -532,24 +548,35 @@ function CalendarView({
               tone='sky'
               reservations={checkIns}
               referenceDate={selectedDate}
+              onMarkFullyPaid={onMarkFullyPaid}
+              payingReservationId={payingReservationId}
             />
             <DaySection
               title='Çıkış yapacaklar'
               tone='violet'
               reservations={checkOuts}
               referenceDate={selectedDate}
+              onMarkFullyPaid={onMarkFullyPaid}
+              payingReservationId={payingReservationId}
             />
             <DaySection
               title='Konaklayanlar (gece)'
               tone='emerald'
               reservations={stayingOnly}
               referenceDate={selectedDate}
+              onMarkFullyPaid={onMarkFullyPaid}
+              payingReservationId={payingReservationId}
             />
             {checkIns.length === 0 && checkOuts.length === 0 && stayingOnly.length === 0 ? (
               <ul className='space-y-2'>
                 {filteredDayReservations.map((reservation) => (
                   <li key={reservation.id}>
-                    <CalendarGuestCard reservation={reservation} referenceDate={selectedDate} />
+                    <CalendarGuestCard
+                      reservation={reservation}
+                      referenceDate={selectedDate}
+                      onMarkFullyPaid={onMarkFullyPaid}
+                      payingReservationId={payingReservationId}
+                    />
                   </li>
                 ))}
               </ul>
@@ -559,7 +586,12 @@ function CalendarView({
           <ul className='space-y-2'>
             {filteredDayReservations.map((reservation) => (
               <li key={reservation.id}>
-                <CalendarGuestCard reservation={reservation} referenceDate={selectedDate} />
+                <CalendarGuestCard
+                  reservation={reservation}
+                  referenceDate={selectedDate}
+                  onMarkFullyPaid={onMarkFullyPaid}
+                  payingReservationId={payingReservationId}
+                />
               </li>
             ))}
           </ul>

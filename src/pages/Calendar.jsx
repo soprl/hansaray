@@ -3,12 +3,13 @@ import { eachDayOfInterval, format, startOfDay, subDays } from 'date-fns'
 import CalendarView from '../components/CalendarView'
 import { clampCalendarDate } from '../config/calendarBounds'
 import { useAuth } from '../context/useAuth'
-import { getReservations } from '../services/reservationService'
+import { getReservations, updateReservation } from '../services/reservationService'
 import { parseISODateSafe } from '../utils/formatters'
 import {
   filterReservationsByName,
   getCalendarDayReservations,
   getEffectiveReservationStatus,
+  PAYMENT_STATUS,
   RES_STATUS,
 } from '../utils/reservationUtils'
 
@@ -38,6 +39,7 @@ function Calendar() {
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [payingReservationId, setPayingReservationId] = useState(null)
 
   useEffect(() => {
     if (!user) return
@@ -114,6 +116,37 @@ function Calendar() {
     setSearchQuery('')
   }
 
+  const handleMarkFullyPaid = async (reservation) => {
+    const totalPrice = Number(reservation.totalPrice) || 0
+    setPayingReservationId(reservation.id)
+    setError('')
+
+    try {
+      await updateReservation(reservation.id, {
+        ...reservation,
+        paymentStatus: PAYMENT_STATUS.PAID,
+        deposit: totalPrice,
+      })
+      setReservations((prev) =>
+        prev.map((item) =>
+          item.id === reservation.id
+            ? {
+                ...item,
+                paymentStatus: PAYMENT_STATUS.PAID,
+                deposit: totalPrice,
+                remainingPayment: 0,
+              }
+            : item,
+        ),
+      )
+    } catch (paymentError) {
+      setError('Ödeme güncellenemedi.')
+      console.error(paymentError)
+    } finally {
+      setPayingReservationId(null)
+    }
+  }
+
   return (
     <CalendarView
       loading={loading}
@@ -128,6 +161,8 @@ function Calendar() {
       onSearchQueryChange={setSearchQuery}
       searchResults={searchResults}
       onSearchResultSelect={handleSearchResultSelect}
+      onMarkFullyPaid={handleMarkFullyPaid}
+      payingReservationId={payingReservationId}
     />
   )
 }
