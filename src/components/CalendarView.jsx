@@ -257,8 +257,8 @@ function CalendarView({
                 Konuk var
               </span>
               <span className='flex items-center gap-1.5'>
-                <span className='inline-block h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-500' />
-                {ROOM_COUNT} ev dolu
+                <span className='inline-block h-3 w-3 rounded bg-rose-100 ring-1 ring-rose-500' />
+                {ROOM_COUNT} ev dolu (kırmızı)
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
