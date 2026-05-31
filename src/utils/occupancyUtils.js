@@ -6,7 +6,7 @@ import {
   startOfMonth,
   startOfYear,
 } from 'date-fns'
-import { ROOMS } from '../config/rooms'
+import { canonicalRoomName, ROOMS } from '../config/rooms'
 import {
   countSeasonDaysInRange,
   getSeasonYearToDateRange,
@@ -18,6 +18,25 @@ import { getMonthlyReservationIncome, RES_STATUS } from './reservationUtils'
 
 export const ROOM_COUNT = ROOMS.length
 export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ROOM_COUNT
+
+/** O gece konaklayanlar: kişi sayısı + dolu oda sayısı (5 oda = tam dolu) */
+export const getOvernightStayStats = (stayList = []) => {
+  const occupiedRooms = new Set()
+
+  stayList.forEach((reservation) => {
+    const room = canonicalRoomName(reservation.roomName)
+    if (room) occupiedRooms.add(room)
+  })
+
+  const guestCount = stayList.length
+  const occupiedRoomCount = occupiedRooms.size
+
+  return {
+    guestCount,
+    occupiedRoomCount,
+    isAllRoomsFull: occupiedRoomCount >= ROOM_COUNT,
+  }
+}
 
 const isCancelled = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
 

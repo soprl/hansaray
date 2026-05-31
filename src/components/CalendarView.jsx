@@ -24,7 +24,7 @@ import {
   getReservationNightCount,
   isFullyPaidReservation,
 } from '../utils/reservationUtils'
-import { ROOM_COUNT } from '../utils/occupancyUtils'
+import { getOvernightStayStats, ROOM_COUNT } from '../utils/occupancyUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
@@ -39,6 +39,12 @@ const tagClass = {
   Giriş: 'bg-sky-100 text-sky-800',
   Çıkış: 'bg-violet-100 text-violet-800',
   Konaklıyor: 'bg-emerald-100 text-emerald-800',
+}
+
+/** O gece yatakta kalan misafir sayısı (giriş dahil, çıkış günü hariç) */
+function formatOvernightGuestCount(count) {
+  if (count <= 0) return null
+  return count === 1 ? '1 kişi' : `${count} kişi`
 }
 
 function CalendarGuestCard({
@@ -71,7 +77,7 @@ function CalendarGuestCard({
         </p>
         <p className='mt-0.5 text-sm text-slate-700'>
           {reservation.roomName || 'Oda?'}
-          {totalNights ? ` · ${totalNights} gece` : ''}
+          {totalNights ? ` · ${totalNights} gece konaklama` : ''}
           {remainingLabel ? ` · ${remainingLabel}` : ''}
         </p>
         <p className='mt-1 text-xs text-slate-500'>
@@ -190,12 +196,15 @@ function CalendarView({
     return { start, end, days: eachDayOfInterval({ start, end }) }
   }, [selectedDate])
 
+  const getDayStayStats = (date) =>
+    getOvernightStayStats(overnightStaysMap.get(dayKey(date)) ?? [])
+
   const weekDaysActivity = useMemo(
     () =>
       weekRange.days.map((day) => ({
         date: day,
         details: getCalendarDayReservations(reservations, day),
-        nightCount: overnightStaysMap.get(dayKey(day))?.length ?? 0,
+        stayStats: getOvernightStayStats(overnightStaysMap.get(dayKey(day)) ?? []),
       })),
     [weekRange.days, reservations, overnightStaysMap],
   )
@@ -226,12 +235,9 @@ function CalendarView({
     })
   }, [selectedDayReservations, selectedDate, dayFilter])
 
-  const uniqueRoomsToday = useMemo(() => {
-    const rooms = new Set(
-      stays.map((reservation) => (reservation.roomName || '').trim()).filter(Boolean),
-    )
-    return rooms.size
-  }, [stays])
+  const selectedDayStayStats = useMemo(() => getOvernightStayStats(stays), [stays])
+
+  const uniqueRoomsToday = selectedDayStayStats.occupiedRoomCount
 
   const goToToday = () => {
     const now = getToday()
@@ -244,9 +250,9 @@ function CalendarView({
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return ''
     const classes = ['calendar-tile']
-    const nightCount = overnightStaysMap.get(dayKey(date))?.length ?? 0
-    if (nightCount > 0) classes.push('tile-has-events')
-    if (nightCount >= ROOM_COUNT) classes.push('tile-full')
+    const { guestCount, isAllRoomsFull } = getDayStayStats(date)
+    if (guestCount > 0) classes.push('tile-has-events')
+    if (isAllRoomsFull) classes.push('tile-full')
     if (isSameDay(date, getToday())) classes.push('tile-today')
     if (isSameDay(date, selectedDate)) classes.push('tile-selected')
     return classes.join(' ')
@@ -254,10 +260,10 @@ function CalendarView({
 
   const tileContent = ({ date, view }) => {
     if (view !== 'month') return null
-    const nightCount = overnightStaysMap.get(dayKey(date))?.length ?? 0
-    if (nightCount === 0) return null
+    const { guestCount } = getDayStayStats(date)
+    const label = formatOvernightGuestCount(guestCount)
+    if (!label) return null
 
-    const label = nightCount === 1 ? '1 gece' : `${nightCount} gece`
     return (
       <div className='tile-day-summary' aria-hidden>
         <span className='tile-guest-label'>{label}</span>
@@ -345,11 +351,11 @@ function CalendarView({
             <div className='mt-3 flex flex-wrap gap-3 text-xs text-slate-600'>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400' />
-                Gece konaklama var
+                En az 1 kişi konaklıyor
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded bg-rose-100 ring-1 ring-rose-500' />
-                {ROOM_COUNT} gece konaklayan = dolu (kırmızı)
+                {ROOM_COUNT} oda dolu = kırmızı kutucuk
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
@@ -383,10 +389,11 @@ function CalendarView({
             </div>
 
             <div className='grid grid-cols-7 gap-1 sm:gap-2'>
-              {weekDaysActivity.map(({ date, details, nightCount }) => {
+              {weekDaysActivity.map(({ date, details, stayStats }) => {
                 const selected = isSameDay(date, selectedDate)
                 const isToday = isSameDay(date, getToday())
-                const full = nightCount >= ROOM_COUNT
+                const { guestCount, isAllRoomsFull } = stayStats
+                const full = isAllRoomsFull
                 return (
                   <button
                     key={dayKey(date)}
@@ -397,8 +404,8 @@ function CalendarView({
                       selected
                         ? 'border-blue-800 bg-blue-50 ring-2 ring-blue-800'
                         : full
-                          ? 'border-rose-300 bg-rose-50'
-                          : nightCount > 0
+                          ? 'border-rose-500 bg-rose-100 ring-2 ring-rose-400'
+                          : guestCount > 0
                             ? 'border-emerald-200 bg-emerald-50/80'
                             : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
@@ -409,13 +416,13 @@ function CalendarView({
                     <span className='text-base font-bold text-blue-950 sm:text-lg'>
                       {format(date, 'd')}
                     </span>
-                    {nightCount > 0 ? (
+                    {guestCount > 0 ? (
                       <span
                         className={`mt-0.5 rounded px-1 py-0.5 text-[9px] font-bold text-white sm:text-[10px] ${
-                          full ? 'bg-rose-600' : 'bg-emerald-600'
+                          full ? 'bg-rose-700' : 'bg-emerald-600'
                         }`}
                       >
-                        {nightCount} gece
+                        {formatOvernightGuestCount(guestCount)}
                       </span>
                     ) : (
                       <span className='mt-0.5 text-[10px] text-slate-400'>—</span>
@@ -468,8 +475,8 @@ function CalendarView({
               {selectedDayReservations.length > 0 ? (
                 <>
                   {' '}
-                  · <strong>{stays.length} gece konaklayan</strong>
-                  {stays.length >= ROOM_COUNT ? ' · tüm evler dolu' : ''}
+                  · <strong>{selectedDayStayStats.guestCount} kişi o gece konaklıyor</strong>
+                  {selectedDayStayStats.isAllRoomsFull ? ' · tüm evler dolu' : ''}
                   {' '}
                   · {checkIns.length} giriş · {checkOuts.length} çıkış
                   {uniqueRoomsToday > 0 ? ` · ${uniqueRoomsToday} oda/ev` : ''}
@@ -497,17 +504,19 @@ function CalendarView({
             </div>
             <div
               className={`rounded-lg px-3 py-2 text-center ${
-                stays.length >= ROOM_COUNT ? 'bg-rose-50 ring-1 ring-rose-300' : 'bg-emerald-50'
+                selectedDayStayStats.isAllRoomsFull
+                  ? 'bg-rose-100 ring-2 ring-rose-400'
+                  : 'bg-emerald-50'
               }`}
             >
               <p
                 className={`text-2xl font-bold ${
-                  stays.length >= ROOM_COUNT ? 'text-rose-700' : 'text-emerald-900'
+                  selectedDayStayStats.isAllRoomsFull ? 'text-rose-800' : 'text-emerald-900'
                 }`}
               >
-                {stays.length}
+                {selectedDayStayStats.guestCount}
               </p>
-              <p className='text-xs text-slate-600'>Gece konaklayan</p>
+              <p className='text-xs text-slate-600'>O gece konaklayan</p>
             </div>
           </div>
         ) : null}
@@ -563,7 +572,7 @@ function CalendarView({
               payingReservationId={payingReservationId}
             />
             <DaySection
-              title='Konaklayanlar (gece)'
+              title='O gece konaklayanlar'
               tone='emerald'
               reservations={stayingOnly}
               referenceDate={selectedDate}

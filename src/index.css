@@ -210,12 +210,12 @@ html.native-app .min-h-screen.bg-slate-100 {
   @apply bg-blue-50 text-blue-950 ring-2 ring-blue-800 ring-inset;
 }
 
-.calendar-shell .react-calendar__tile.tile-has-events {
+.calendar-shell .react-calendar__tile.tile-has-events:not(.tile-full) {
   @apply bg-emerald-50/90;
 }
 
-.calendar-shell .react-calendar__tile.tile-has-events.tile-full {
-  @apply bg-rose-50 ring-1 ring-rose-400 ring-inset;
+.calendar-shell .react-calendar__tile.tile-full {
+  @apply bg-rose-100 ring-2 ring-rose-500 ring-inset;
 }
 
 .calendar-shell .react-calendar__tile .tile-day-summary {
@@ -231,7 +231,7 @@ html.native-app .min-h-screen.bg-slate-100 {
 }
 
 .calendar-shell .react-calendar__tile.tile-selected.tile-full {
-  @apply bg-rose-50 text-rose-950 ring-2 ring-blue-800 ring-inset;
+  @apply bg-rose-100 text-rose-950 ring-2 ring-blue-800 ring-inset;
 }
 
 .calendar-shell .react-calendar__tile.tile-selected.tile-full .tile-guest-label {
