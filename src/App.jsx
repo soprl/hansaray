@@ -11,7 +11,6 @@ const Calendar = lazy(() => import('./pages/Calendar'))
 const Reservations = lazy(() => import('./pages/Reservations'))
 const Finance = lazy(() => import('./pages/Finance'))
 const Reports = lazy(() => import('./pages/Reports'))
-const ConflictCheck = lazy(() => import('./pages/ConflictCheck'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 
 function App() {
@@ -35,7 +34,6 @@ function App() {
               <Route path='rezervasyonlar' element={<Reservations />} />
               <Route path='gelir-gider' element={<Finance />} />
               <Route path='raporlar' element={<Reports />} />
-              <Route path='cakisma-kontrol' element={<ConflictCheck />} />
               {isNativeApp() ? <Route path='bildirimler' element={<Notifications />} /> : null}
             </Route>
 

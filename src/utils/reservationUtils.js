@@ -153,6 +153,26 @@ export const getReservationNightCount = (reservation) => {
   return nights > 0 ? nights : null
 }
 
+/** Seçilen günden itibaren kalan konaklama (takvim detayı) */
+export const getRemainingStayLabel = (reservation, referenceDate = new Date()) => {
+  const checkIn = parseISODateSafe(reservation.checkInDate)
+  const checkOut = parseISODateSafe(reservation.checkOutDate)
+  if (!checkIn || !checkOut) return null
+
+  const day = startOfDay(referenceDate)
+  const totalNights = differenceInCalendarDays(checkOut, checkIn)
+  if (totalNights <= 0) return null
+
+  if (isSameDay(checkOut, day)) return 'Bugün çıkış'
+  if (checkIn && isSameDay(checkIn, day)) {
+    return `${totalNights} gece kalacak`
+  }
+
+  const remaining = differenceInCalendarDays(checkOut, day)
+  if (remaining <= 0) return 'Bugün çıkış'
+  return `${remaining} gece daha kalacak`
+}
+
 /** Seçilen gün için giriş, çıkış ve konaklama listeleri (Dashboard ile aynı mantık). */
 export const getCalendarDayReservations = (reservations, referenceDate = new Date()) => {
   const day = startOfDay(referenceDate)

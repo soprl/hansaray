@@ -150,7 +150,7 @@ html.native-app .calendar-shell .react-calendar__tile.tile-selected {
   @apply border-brand-gold-dark bg-amber-50/80 text-brand-ink ring-2 ring-brand-gold;
 }
 
-html.native-app .calendar-shell .react-calendar__tile.tile-has-events .tile-count {
+html.native-app .calendar-shell .react-calendar__tile .tile-guest-label {
   @apply bg-brand-gold text-brand-ink;
 }
 
@@ -191,7 +191,7 @@ html.native-app .min-h-screen.bg-slate-100 {
 }
 
 .calendar-shell .react-calendar__tile {
-  @apply relative flex min-h-[3.25rem] flex-col items-center justify-start rounded-lg border border-transparent p-1 text-sm font-medium text-slate-700;
+  @apply relative flex min-h-[4.75rem] flex-col items-center justify-start rounded-lg border border-transparent px-0.5 pb-1 pt-1.5 text-sm font-medium text-slate-700;
 }
 
 .calendar-shell .react-calendar__tile--now {
@@ -210,8 +210,28 @@ html.native-app .min-h-screen.bg-slate-100 {
   @apply bg-blue-50 text-blue-950 ring-2 ring-blue-800 ring-inset;
 }
 
-.calendar-shell .react-calendar__tile.tile-has-events .tile-count {
-  @apply absolute bottom-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-semibold leading-none text-white;
+.calendar-shell .react-calendar__tile.tile-has-events {
+  @apply bg-emerald-50/90;
+}
+
+.calendar-shell .react-calendar__tile.tile-has-events.tile-full {
+  @apply bg-amber-50 ring-1 ring-amber-300 ring-inset;
+}
+
+.calendar-shell .react-calendar__tile .tile-day-summary {
+  @apply mt-0.5 flex w-full justify-center;
+}
+
+.calendar-shell .react-calendar__tile .tile-guest-label {
+  @apply rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white;
+}
+
+.calendar-shell .react-calendar__tile.tile-full .tile-guest-label {
+  @apply bg-amber-600;
+}
+
+.calendar-shell .react-calendar__tile.tile-selected .tile-guest-label {
+  @apply bg-blue-900;
 }
 
 .date-picker-popover .react-calendar {

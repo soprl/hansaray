@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { FiAlertTriangle, FiBarChart2, FiBell, FiCalendar, FiDollarSign, FiHome, FiLogOut, FiUsers } from 'react-icons/fi'
+import { FiBarChart2, FiBell, FiCalendar, FiDollarSign, FiHome, FiLogOut, FiUsers } from 'react-icons/fi'
 import AppLogo from './AppLogo'
 import { useAuth } from '../context/useAuth'
 import { isNativeApp } from '../utils/nativePush'
@@ -10,7 +10,6 @@ const baseNavItems = [
   { to: '/rezervasyonlar', label: 'Rezervasyonlar', icon: FiUsers },
   { to: '/gelir-gider', label: 'Gelir / Gider', icon: FiDollarSign },
   { to: '/raporlar', label: 'Raporlar', icon: FiBarChart2 },
-  { to: '/cakisma-kontrol', label: 'Çakışma kontrolü', icon: FiAlertTriangle },
 ]
 
 const nativeNavItem = { to: '/bildirimler', label: 'Bildirimler', icon: FiBell }

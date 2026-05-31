@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { differenceInCalendarDays, format, isSameDay, startOfDay } from 'date-fns'
+import { format, isSameDay, startOfDay } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import ReservationNote from './ReservationNote'
 import TurkishCalendar from './TurkishCalendar'
-import { formatDateTR, parseISODateSafe } from '../utils/formatters'
-import { getCalendarPaymentDisplay, getReservationDayTags } from '../utils/reservationUtils'
+import { formatCurrencyTRY, formatDateTR, parseISODateSafe } from '../utils/formatters'
+import {
+  getCalendarPaymentDisplay,
+  getRemainingStayLabel,
+  getReservationDayTags,
+  getReservationNightCount,
+} from '../utils/reservationUtils'
+import { ROOM_COUNT } from '../utils/occupancyUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
@@ -19,15 +25,6 @@ const tagClass = {
   Giriş: 'bg-sky-100 text-sky-800',
   Çıkış: 'bg-violet-100 text-violet-800',
   Konaklıyor: 'bg-emerald-100 text-emerald-800',
-}
-
-function getStayNights(reservation) {
-  const checkIn = parseISODateSafe(reservation.checkInDate)
-  const checkOut = parseISODateSafe(reservation.checkOutDate)
-  if (!checkIn || !checkOut) return null
-  const nights = differenceInCalendarDays(checkOut, checkIn)
-  if (nights <= 0) return null
-  return `${nights} gece`
 }
 
 function CalendarPaymentLabels({ reservation }) {
@@ -46,68 +43,88 @@ function CalendarPaymentLabels({ reservation }) {
   )
 }
 
-function CalendarRow({ reservation, referenceDate, expanded, onToggle, onSelect }) {
+function CalendarGuestCard({ reservation, referenceDate, onSelect }) {
   const tags = getReservationDayTags(reservation, referenceDate)
-  const nights = getStayNights(reservation)
+  const totalNights = getReservationNightCount(reservation)
+  const remainingLabel = getRemainingStayLabel(reservation, referenceDate)
   const Wrapper = onSelect ? 'button' : 'div'
   const wrapperProps = onSelect
     ? {
         type: 'button',
         onClick: onSelect,
         className:
-          'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-blue-200 hover:bg-slate-50',
+          'w-full rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md',
       }
     : {
-        className: 'rounded-lg border border-slate-200 bg-white px-3 py-2.5',
+        className: 'rounded-xl border border-slate-200 bg-white p-3 shadow-sm',
       }
 
   return (
-    <div className='space-y-0'>
-      <Wrapper {...wrapperProps}>
-        <div className='flex items-start justify-between gap-2'>
-          <div className='min-w-0 flex-1'>
-            <p className='truncate font-medium text-blue-950'>{reservation.customerName}</p>
-            <p className='mt-0.5 text-sm text-slate-500'>
-              {reservation.roomName || 'Oda yok'}
-              {nights ? ` · ${nights}` : ''}
-            </p>
-            <p className='text-sm text-slate-500'>Tel: {reservation.customerPhone || '-'}</p>
-          </div>
-          <div className='flex shrink-0 flex-col items-end gap-1.5'>
-            <div className='flex flex-wrap justify-end gap-1'>
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className={`rounded-md px-2 py-0.5 text-sm font-medium ${tagClass[tag]}`}
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-            <CalendarPaymentLabels reservation={reservation} />
-          </div>
-        </div>
-      </Wrapper>
-
-      {!onSelect ? (
-        <button
-          type='button'
-          onClick={onToggle}
-          className='-mt-px w-full rounded-b-lg border border-t-0 border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100'
-        >
-          {expanded ? 'Detayı gizle' : 'Detay'}
-        </button>
-      ) : null}
-
-      {!onSelect && expanded ? (
-        <div className='rounded-b-lg border border-t-0 border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600'>
-          <p>
-            {formatDateTR(reservation.checkInDate)} – {formatDateTR(reservation.checkOutDate)}
+    <Wrapper {...wrapperProps}>
+      <div className='flex items-start justify-between gap-3'>
+        <div className='min-w-0 flex-1'>
+          <p className='text-base font-semibold text-blue-950'>{reservation.customerName || 'İsimsiz'}</p>
+          <p className='mt-1 text-sm font-medium text-slate-700'>
+            {reservation.roomName || 'Oda belirtilmemiş'}
           </p>
-          <p className='mt-1'>Tel: {reservation.customerPhone || '-'}</p>
-          <ReservationNote note={reservation.note} className='mt-1' />
+          <p className='mt-2 text-sm text-slate-600'>
+            {formatDateTR(reservation.checkInDate)} → {formatDateTR(reservation.checkOutDate)}
+          </p>
+          <div className='mt-2 flex flex-wrap gap-2 text-sm'>
+            {totalNights ? (
+              <span className='rounded-md bg-blue-50 px-2 py-0.5 font-medium text-blue-900'>
+                Toplam {totalNights} gece
+              </span>
+            ) : null}
+            {remainingLabel ? (
+              <span className='rounded-md bg-emerald-50 px-2 py-0.5 font-medium text-emerald-900'>
+                {remainingLabel}
+              </span>
+            ) : null}
+          </div>
+          <p className='mt-1 text-sm text-slate-500'>Tel: {reservation.customerPhone || '—'}</p>
+          <ReservationNote note={reservation.note} className='mt-2 text-xs' />
         </div>
-      ) : null}
+        <div className='flex shrink-0 flex-col items-end gap-2'>
+          <div className='flex flex-wrap justify-end gap-1'>
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className={`rounded-md px-2 py-0.5 text-xs font-semibold ${tagClass[tag]}`}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+          <CalendarPaymentLabels reservation={reservation} />
+          <p className='text-sm font-medium text-slate-700'>{formatCurrencyTRY(reservation.totalPrice)}</p>
+        </div>
+      </div>
+    </Wrapper>
+  )
+}
+
+function DaySection({ title, tone, reservations, referenceDate }) {
+  if (reservations.length === 0) return null
+
+  const toneClass = {
+    sky: 'border-sky-200 bg-sky-50/80',
+    violet: 'border-violet-200 bg-violet-50/80',
+    emerald: 'border-emerald-200 bg-emerald-50/80',
+  }[tone]
+
+  return (
+    <div className={`rounded-xl border p-3 ${toneClass}`}>
+      <h4 className='mb-2 text-sm font-semibold text-blue-950'>
+        {title} <span className='font-normal text-slate-500'>({reservations.length})</span>
+      </h4>
+      <ul className='space-y-2'>
+        {reservations.map((reservation) => (
+          <li key={reservation.id}>
+            <CalendarGuestCard reservation={reservation} referenceDate={referenceDate} />
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -126,15 +143,13 @@ function CalendarView({
   onSearchResultSelect,
 }) {
   const [dayFilter, setDayFilter] = useState('all')
-  const [expandedId, setExpandedId] = useState(null)
   const isSearching = searchQuery.trim().length > 0
   const today = startOfDay(new Date())
 
-  const { checkIns, checkOuts } = selectedDayDetails
+  const { checkIns, checkOuts, stayingOnly, stays } = selectedDayDetails
 
   useEffect(() => {
     setDayFilter('all')
-    setExpandedId(null)
   }, [selectedDate])
 
   const filteredDayReservations = useMemo(() => {
@@ -155,12 +170,21 @@ function CalendarView({
     })
   }, [selectedDayReservations, selectedDate, dayFilter])
 
+  const uniqueRoomsToday = useMemo(() => {
+    const rooms = new Set(
+      stays.map((reservation) => (reservation.roomName || '').trim()).filter(Boolean),
+    )
+    return rooms.size
+  }, [stays])
+
   const goToToday = () => onDateChange(today)
 
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return ''
     const classes = ['calendar-tile']
-    if (occupiedDatesMap.has(dayKey(date))) classes.push('tile-has-events')
+    const count = occupiedDatesMap.get(dayKey(date))?.length ?? 0
+    if (count > 0) classes.push('tile-has-events')
+    if (count >= ROOM_COUNT) classes.push('tile-full')
     if (isSameDay(date, today)) classes.push('tile-today')
     if (isSameDay(date, selectedDate)) classes.push('tile-selected')
     return classes.join(' ')
@@ -170,14 +194,27 @@ function CalendarView({
     if (view !== 'month') return null
     const count = occupiedDatesMap.get(dayKey(date))?.length ?? 0
     if (count === 0) return null
-    return <span className='tile-count'>{count > 9 ? '9+' : count}</span>
+
+    const label = count === 1 ? '1 kişi' : `${count} kişi`
+    return (
+      <div className='tile-day-summary' aria-hidden>
+        <span className='tile-guest-label'>{label}</span>
+      </div>
+    )
   }
+
+  const selectedLabel = format(selectedDate, 'd MMMM yyyy, EEEE', { locale: tr })
 
   return (
     <section className='space-y-4'>
       <div className='card overflow-x-auto'>
         <div className='mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-          <h2 className='text-lg font-semibold text-blue-950'>Takvim</h2>
+          <div>
+            <h2 className='text-lg font-semibold text-blue-950'>Takvim</h2>
+            <p className='mt-0.5 text-sm text-slate-500'>
+              Güne tıklayın — o günkü konuklar, gece sayısı ve giriş/çıkışlar altta listelenir.
+            </p>
+          </div>
           <div className='flex w-full flex-col gap-2 sm:max-w-md sm:flex-row'>
             <input
               id='calendar-search'
@@ -214,40 +251,19 @@ function CalendarView({
               />
             </div>
 
-            <div className='mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700'>
-              <span className='font-medium text-blue-950'>
-                {format(selectedDate, 'd MMMM yyyy', { locale: tr })}
+            <div className='mt-3 flex flex-wrap gap-3 text-xs text-slate-600'>
+              <span className='flex items-center gap-1.5'>
+                <span className='inline-block h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400' />
+                Konuk var
               </span>
-              <span className='text-slate-300'>|</span>
-              <span>{selectedDayReservations.length} rezervasyon</span>
-              {checkIns.length > 0 ? <span>{checkIns.length} giriş</span> : null}
-              {checkOuts.length > 0 ? <span>{checkOuts.length} çıkış</span> : null}
-            </div>
-
-            <div className='mt-2 flex flex-wrap gap-1.5'>
-              {DAY_FILTERS.map((filter) => {
-                const count =
-                  filter.id === 'all'
-                    ? selectedDayReservations.length
-                    : selectedDayReservations.filter((r) =>
-                        getReservationDayTags(r, selectedDate).includes(filter.id),
-                      ).length
-
-                return (
-                  <button
-                    key={filter.id}
-                    type='button'
-                    onClick={() => setDayFilter(filter.id)}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                      dayFilter === filter.id
-                        ? 'bg-blue-900 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {filter.label} ({count})
-                  </button>
-                )
-              })}
+              <span className='flex items-center gap-1.5'>
+                <span className='inline-block h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-500' />
+                {ROOM_COUNT} ev dolu
+              </span>
+              <span className='flex items-center gap-1.5'>
+                <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
+                Seçili gün
+              </span>
             </div>
           </>
         )}
@@ -261,12 +277,12 @@ function CalendarView({
           {loading ? null : searchResults.length === 0 ? (
             <p className='mt-2 text-sm text-slate-500'>Eşleşen misafir bulunamadı.</p>
           ) : (
-            <ul className='mt-2 space-y-2'>
+            <ul className='mt-3 space-y-2'>
               {searchResults.map((reservation) => (
                 <li key={reservation.id}>
-                  <CalendarRow
+                  <CalendarGuestCard
                     reservation={reservation}
-                    referenceDate={selectedDate}
+                    referenceDate={parseISODateSafe(reservation.checkInDate) || selectedDate}
                     onSelect={() => onSearchResultSelect(reservation)}
                   />
                 </li>
@@ -276,30 +292,114 @@ function CalendarView({
         </div>
       ) : null}
 
-      <div className='card'>
-        <h3 className='text-sm font-semibold text-blue-950'>
-          Günün listesi{' '}
-          <span className='font-normal text-slate-400'>({filteredDayReservations.length})</span>
-        </h3>
+      <div className='card space-y-4'>
+        <div>
+          <h3 className='text-base font-semibold capitalize text-blue-950'>{selectedLabel}</h3>
+          {loading ? null : (
+            <p className='mt-1 text-sm text-slate-600'>
+              <strong className='text-blue-950'>{selectedDayReservations.length} konuk</strong>
+              {selectedDayReservations.length > 0 ? (
+                <>
+                  {' '}
+                  · {checkIns.length} giriş · {checkOuts.length} çıkış · {stayingOnly.length} gece
+                  konaklıyor
+                  {uniqueRoomsToday > 0 ? ` · ${uniqueRoomsToday} oda/ev dolu` : ''}
+                </>
+              ) : (
+                ' — bu gün için kayıt yok.'
+              )}
+            </p>
+          )}
+        </div>
+
+        {!loading && selectedDayReservations.length > 0 ? (
+          <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+            <div className='rounded-lg bg-slate-100 px-3 py-2 text-center'>
+              <p className='text-2xl font-bold text-blue-950'>{selectedDayReservations.length}</p>
+              <p className='text-xs text-slate-600'>Toplam</p>
+            </div>
+            <div className='rounded-lg bg-sky-50 px-3 py-2 text-center'>
+              <p className='text-2xl font-bold text-sky-900'>{checkIns.length}</p>
+              <p className='text-xs text-slate-600'>Giriş</p>
+            </div>
+            <div className='rounded-lg bg-violet-50 px-3 py-2 text-center'>
+              <p className='text-2xl font-bold text-violet-900'>{checkOuts.length}</p>
+              <p className='text-xs text-slate-600'>Çıkış</p>
+            </div>
+            <div className='rounded-lg bg-emerald-50 px-3 py-2 text-center'>
+              <p className='text-2xl font-bold text-emerald-900'>{stays.length}</p>
+              <p className='text-xs text-slate-600'>Gece konaklayan</p>
+            </div>
+          </div>
+        ) : null}
+
+        {!loading && selectedDayReservations.length > 0 ? (
+          <div className='flex flex-wrap gap-1.5'>
+            {DAY_FILTERS.map((filter) => {
+              const count =
+                filter.id === 'all'
+                  ? selectedDayReservations.length
+                  : selectedDayReservations.filter((r) =>
+                      getReservationDayTags(r, selectedDate).includes(filter.id),
+                    ).length
+
+              return (
+                <button
+                  key={filter.id}
+                  type='button'
+                  onClick={() => setDayFilter(filter.id)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                    dayFilter === filter.id
+                      ? 'bg-blue-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {filter.label} ({count})
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
 
         {loading ? (
-          <p className='mt-2 text-sm text-slate-500'>Yükleniyor...</p>
-        ) : filteredDayReservations.length === 0 ? (
-          <p className='mt-2 text-sm text-slate-500'>
-            {dayFilter === 'all' ? 'Bu gün için rezervasyon yok.' : 'Bu filtrede kayıt yok.'}
-          </p>
+          <p className='text-sm text-slate-500'>Yükleniyor...</p>
+        ) : selectedDayReservations.length === 0 ? (
+          <p className='text-sm text-slate-500'>Bu gün için rezervasyon yok. Takvimden başka bir gün seçin.</p>
+        ) : dayFilter === 'all' ? (
+          <div className='space-y-3'>
+            <DaySection
+              title='Giriş yapacaklar'
+              tone='sky'
+              reservations={checkIns}
+              referenceDate={selectedDate}
+            />
+            <DaySection
+              title='Çıkış yapacaklar'
+              tone='violet'
+              reservations={checkOuts}
+              referenceDate={selectedDate}
+            />
+            <DaySection
+              title='Konaklayanlar (gece)'
+              tone='emerald'
+              reservations={stayingOnly}
+              referenceDate={selectedDate}
+            />
+            {checkIns.length === 0 && checkOuts.length === 0 && stayingOnly.length === 0 ? (
+              <ul className='space-y-2'>
+                {filteredDayReservations.map((reservation) => (
+                  <li key={reservation.id}>
+                    <CalendarGuestCard reservation={reservation} referenceDate={selectedDate} />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : (
-          <ul className='mt-2 space-y-2'>
+          <ul className='space-y-2'>
             {filteredDayReservations.map((reservation) => (
               <li key={reservation.id}>
-                <CalendarRow
-                  reservation={reservation}
-                  referenceDate={selectedDate}
-                  expanded={expandedId === reservation.id}
-                  onToggle={() =>
-                    setExpandedId((current) => (current === reservation.id ? null : reservation.id))
-                  }
-                />
+                <CalendarGuestCard reservation={reservation} referenceDate={selectedDate} />
               </li>
             ))}
           </ul>

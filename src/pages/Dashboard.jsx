@@ -1,7 +1,6 @@
 import { format } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import ReservationNote from '../components/ReservationNote'
 import StatCard from '../components/StatCard'
 import { useAuth } from '../context/useAuth'
@@ -152,12 +151,7 @@ function Dashboard() {
 
   return (
     <section className='space-y-4'>
-      <div className='flex flex-wrap items-center justify-between gap-2'>
-        <h2 className='text-base font-semibold capitalize text-blue-950 sm:text-lg'>{monthLabel} özeti</h2>
-        <Link to='/cakisma-kontrol' className='text-sm font-medium text-blue-700 hover:underline lg:hidden'>
-          Çakışma kontrolü →
-        </Link>
-      </div>
+      <h2 className='text-base font-semibold capitalize text-blue-950 sm:text-lg'>{monthLabel} özeti</h2>
 
       <div>
         <h3 className='mb-2 text-sm font-medium text-slate-600'>Doluluk ve hedefler</h3>
