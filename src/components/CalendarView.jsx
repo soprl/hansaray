@@ -134,7 +134,7 @@ function CalendarView({
   error,
   selectedDate,
   onDateChange,
-  occupiedDatesMap,
+  overnightStaysMap,
   selectedDayReservations,
   selectedDayDetails,
   searchQuery,
@@ -182,9 +182,9 @@ function CalendarView({
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return ''
     const classes = ['calendar-tile']
-    const count = occupiedDatesMap.get(dayKey(date))?.length ?? 0
-    if (count > 0) classes.push('tile-has-events')
-    if (count >= ROOM_COUNT) classes.push('tile-full')
+    const nightCount = overnightStaysMap.get(dayKey(date))?.length ?? 0
+    if (nightCount > 0) classes.push('tile-has-events')
+    if (nightCount >= ROOM_COUNT) classes.push('tile-full')
     if (isSameDay(date, today)) classes.push('tile-today')
     if (isSameDay(date, selectedDate)) classes.push('tile-selected')
     return classes.join(' ')
@@ -192,10 +192,10 @@ function CalendarView({
 
   const tileContent = ({ date, view }) => {
     if (view !== 'month') return null
-    const count = occupiedDatesMap.get(dayKey(date))?.length ?? 0
-    if (count === 0) return null
+    const nightCount = overnightStaysMap.get(dayKey(date))?.length ?? 0
+    if (nightCount === 0) return null
 
-    const label = count === 1 ? '1 kişi' : `${count} kişi`
+    const label = nightCount === 1 ? '1 gece' : `${nightCount} gece`
     return (
       <div className='tile-day-summary' aria-hidden>
         <span className='tile-guest-label'>{label}</span>
@@ -254,11 +254,11 @@ function CalendarView({
             <div className='mt-3 flex flex-wrap gap-3 text-xs text-slate-600'>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400' />
-                Konuk var
+                Gece konaklama var
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded bg-rose-100 ring-1 ring-rose-500' />
-                {ROOM_COUNT} ev dolu (kırmızı)
+                {ROOM_COUNT} gece konaklayan = dolu (kırmızı)
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
@@ -297,13 +297,15 @@ function CalendarView({
           <h3 className='text-base font-semibold capitalize text-blue-950'>{selectedLabel}</h3>
           {loading ? null : (
             <p className='mt-1 text-sm text-slate-600'>
-              <strong className='text-blue-950'>{selectedDayReservations.length} konuk</strong>
+              <strong className='text-blue-950'>{selectedDayReservations.length} kayıt</strong>
               {selectedDayReservations.length > 0 ? (
                 <>
                   {' '}
-                  · {checkIns.length} giriş · {checkOuts.length} çıkış · {stayingOnly.length} gece
-                  konaklıyor
-                  {uniqueRoomsToday > 0 ? ` · ${uniqueRoomsToday} oda/ev dolu` : ''}
+                  · <strong>{stays.length} gece konaklayan</strong>
+                  {stays.length >= ROOM_COUNT ? ' · tüm evler dolu' : ''}
+                  {' '}
+                  · {checkIns.length} giriş · {checkOuts.length} çıkış
+                  {uniqueRoomsToday > 0 ? ` · ${uniqueRoomsToday} oda/ev` : ''}
                 </>
               ) : (
                 ' — bu gün için kayıt yok.'
@@ -326,8 +328,18 @@ function CalendarView({
               <p className='text-2xl font-bold text-violet-900'>{checkOuts.length}</p>
               <p className='text-xs text-slate-600'>Çıkış</p>
             </div>
-            <div className='rounded-lg bg-emerald-50 px-3 py-2 text-center'>
-              <p className='text-2xl font-bold text-emerald-900'>{stays.length}</p>
+            <div
+              className={`rounded-lg px-3 py-2 text-center ${
+                stays.length >= ROOM_COUNT ? 'bg-rose-50 ring-1 ring-rose-300' : 'bg-emerald-50'
+              }`}
+            >
+              <p
+                className={`text-2xl font-bold ${
+                  stays.length >= ROOM_COUNT ? 'text-rose-700' : 'text-emerald-900'
+                }`}
+              >
+                {stays.length}
+              </p>
               <p className='text-xs text-slate-600'>Gece konaklayan</p>
             </div>
           </div>

@@ -56,16 +56,16 @@ function Calendar() {
     fetchReservations()
   }, [user])
 
-  const occupiedDatesMap = useMemo(() => {
+  /** O gece yatakta kalanlar (giriş günü dahil, çıkış günü hariç) — doluluk / kırmızı gün */
+  const overnightStaysMap = useMemo(() => {
     const map = new Map()
 
     reservations.forEach((reservation) => {
+      if (getEffectiveReservationStatus(reservation) !== RES_STATUS.ACTIVE) return
+
       const checkIn = parseISODateSafe(reservation.checkInDate)
       const checkOut = parseISODateSafe(reservation.checkOutDate)
       if (!checkIn || !checkOut || checkOut <= checkIn) return
-
-      addReservationToMap(map, checkIn, reservation)
-      addReservationToMap(map, checkOut, reservation)
 
       try {
         const rangeDays = eachDayOfInterval({
@@ -82,14 +82,14 @@ function Calendar() {
     return map
   }, [reservations])
 
-  const selectedDayReservations = useMemo(
-    () => occupiedDatesMap.get(dayKey(selectedDate)) ?? [],
-    [occupiedDatesMap, selectedDate],
-  )
-
   const selectedDayDetails = useMemo(
     () => getCalendarDayReservations(reservations, selectedDate),
     [reservations, selectedDate],
+  )
+
+  const selectedDayReservations = useMemo(
+    () => selectedDayDetails.allForDay,
+    [selectedDayDetails],
   )
 
   const searchResults = useMemo(
@@ -112,7 +112,7 @@ function Calendar() {
       error={error}
       selectedDate={selectedDate}
       onDateChange={setSelectedDate}
-      occupiedDatesMap={occupiedDatesMap}
+      overnightStaysMap={overnightStaysMap}
       selectedDayReservations={selectedDayReservations}
       selectedDayDetails={selectedDayDetails}
       searchQuery={searchQuery}
