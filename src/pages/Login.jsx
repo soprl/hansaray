@@ -1,14 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../firebase'
 import AppLogo from '../components/AppLogo'
+import { useAuth } from '../context/useAuth'
 
 function Login() {
   const navigate = useNavigate()
+  const { isAuthenticated, authLoading } = useAuth()
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate('/', { replace: true })
+    }
+  }, [authLoading, isAuthenticated, navigate])
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -29,6 +37,14 @@ function Login() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (authLoading || isAuthenticated) {
+    return (
+      <div className='flex min-h-screen items-center justify-center bg-slate-100 p-4'>
+        <p className='text-sm text-slate-600'>Oturum kontrol ediliyor…</p>
+      </div>
+    )
   }
 
   return (

@@ -1,5 +1,10 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import {
+  browserLocalPersistence,
+  getAuth,
+  indexedDBLocalPersistence,
+  initializeAuth,
+} from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -23,5 +28,19 @@ export const firebaseProjectId = firebaseConfig.projectId
 
 export const firebaseApp = initializeApp(firebaseConfig)
 
-export const auth = getAuth(firebaseApp)
+/** Mobilde (özellikle iOS Safari) oturum kalsın: IndexedDB + localStorage */
+function createAuth() {
+  try {
+    return initializeAuth(firebaseApp, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    })
+  } catch (error) {
+    if (error?.code === 'auth/already-initialized') {
+      return getAuth(firebaseApp)
+    }
+    throw error
+  }
+}
+
+export const auth = createAuth()
 export const db = getFirestore(firebaseApp)

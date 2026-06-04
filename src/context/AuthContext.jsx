@@ -36,14 +36,25 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
+      authLoading: loading,
       isAuthenticated: Boolean(user),
       logout: () => {
         lockSensitiveSection()
         return signOut(auth)
       },
     }),
-    [user],
+    [user, loading],
   )
 
-  return <AuthContext.Provider value={value}>{loading ? null : children}</AuthContext.Provider>
+  if (loading) {
+    return (
+      <AuthContext.Provider value={value}>
+        <div className='flex min-h-screen items-center justify-center bg-slate-50 px-6'>
+          <p className='text-sm text-slate-600'>Oturum kontrol ediliyor…</p>
+        </div>
+      </AuthContext.Provider>
+    )
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
