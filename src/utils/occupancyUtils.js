@@ -14,7 +14,7 @@ import {
   SEASON_LENGTH_DAYS,
 } from '../config/season'
 import { parseISODateSafe } from './formatters'
-import { getMonthlyReservationIncome, RES_STATUS } from './reservationUtils'
+import { getMonthlyReservationIncome, isCancelledReservation } from './reservationUtils'
 
 export const ROOM_COUNT = ROOMS.length
 export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ROOM_COUNT
@@ -45,7 +45,7 @@ export const getOvernightStayStats = (stayList = []) => {
 
 export const getOccupancyLevel = (stats) => stats.level ?? 'empty'
 
-const isCancelled = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
+const isCancelled = (reservation) => isCancelledReservation(reservation)
 
 /** Gecelik: giriş günü dahil, çıkış günü hariç. seasonOnly: sadece sezon içi geceler */
 export const countReservationNightsInRange = (

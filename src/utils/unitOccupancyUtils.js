@@ -11,9 +11,9 @@ import {
   countReservationNightsInRange,
   getGoalProgress,
 } from './occupancyUtils'
-import { RES_STATUS } from './reservationUtils'
+import { isCancelledReservation } from './reservationUtils'
 
-const isCancelled = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
+const isCancelled = (reservation) => isCancelledReservation(reservation)
 
 const occupancyPercent = (occupied, available) => {
   if (!available) return 0

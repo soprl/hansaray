@@ -83,6 +83,7 @@ function Reservations() {
     return reservations.reduce(
       (counts, reservation) => {
         const status = getEffectiveReservationStatus(reservation)
+        if (status === RES_STATUS.CANCELLED) return counts
         if (status === RES_STATUS.COMPLETED) counts.completed += 1
         else counts.active += 1
         return counts
@@ -102,7 +103,7 @@ function Reservations() {
         const matchTab =
           listTab === LIST_TABS.COMPLETED
             ? effectiveStatus === RES_STATUS.COMPLETED
-            : effectiveStatus !== RES_STATUS.COMPLETED
+            : effectiveStatus === RES_STATUS.ACTIVE
         const matchSearch =
           !searchTerm ||
           reservation.customerName?.toLowerCase('tr').includes(searchTerm) ||
@@ -125,15 +126,15 @@ function Reservations() {
     setError('')
 
     try {
-      const payload = {
-        ...formData,
-        createdBy: user?.email ?? 'unknown',
-      }
+      const createdBy = user?.email ?? editingReservation?.createdBy ?? 'unknown'
 
       if (editingReservation?.id) {
-        await updateReservation(editingReservation.id, payload)
+        await updateReservation(
+          editingReservation.id,
+          buildReservationUpdatePayload(editingReservation, { ...formData, createdBy }),
+        )
       } else {
-        await addReservation(payload)
+        await addReservation({ ...formData, createdBy })
         setNewReservationFormKey((key) => key + 1)
       }
 

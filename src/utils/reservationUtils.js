@@ -382,7 +382,7 @@ export const getDashboardReservationMetrics = (reservations, referenceDate = new
   const monthlyFullyPaidCount = nonCancelledReservations.filter((reservation) => {
     const checkInDate = parseISODateSafe(reservation.checkInDate)
     if (!checkInDate || !isWithinInterval(checkInDate, { start: monthStart, end: monthEnd })) return false
-    return reservation.paymentStatus === PAYMENT_STATUS.PAID
+    return isFullyPaidReservation(reservation)
   }).length
 
   return {
@@ -417,7 +417,7 @@ export const getMonthlyReservationBreakdown = (reservations, referenceDate = new
     const checkInDate = parseISODateSafe(reservation.checkInDate)
     if (!checkInDate || !isWithinInterval(checkInDate, { start: monthStart, end: monthEnd })) return
 
-    if (reservation.reservationStatus === RES_STATUS.CANCELLED) {
+    if (isCancelledReservation(reservation)) {
       counts.cancelled += 1
       return
     }

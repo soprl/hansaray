@@ -9,6 +9,7 @@ import {
   filterReservationsByName,
   getCalendarDayReservations,
   getEffectiveReservationStatus,
+  isCancelledReservation,
   PAYMENT_STATUS,
   RES_STATUS,
 } from '../utils/reservationUtils'
@@ -71,7 +72,7 @@ function Calendar() {
     const map = new Map()
 
     reservations.forEach((reservation) => {
-      if (reservation.reservationStatus === RES_STATUS.CANCELLED) return
+      if (isCancelledReservation(reservation)) return
 
       const checkIn = parseISODateSafe(reservation.checkInDate)
       const checkOut = parseISODateSafe(reservation.checkOutDate)

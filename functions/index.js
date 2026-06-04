@@ -59,14 +59,23 @@ const normalizeRoomName = (name) => {
   return ROOM_ALIASES[trimmed] ?? trimmed
 }
 
-const isActiveReservation = (reservation) => reservation?.reservationStatus !== 'İptal'
+const RES_ACTIVE = 'Aktif'
+
+const isActiveReservation = (reservation) => {
+  const status = (reservation?.reservationStatus ?? '').toString().trim()
+  if (!status || status === 'İptal' || status === 'Tamamlandı') return false
+  const key = status.toLocaleLowerCase('tr-TR')
+  if (['iptal', 'cancelled', 'canceled', 'tamamlandı', 'tamamlandi', 'completed'].includes(key)) {
+    return false
+  }
+  return status === RES_ACTIVE || key === 'aktif' || key === 'active'
+}
 
 const hasPendingPayment = (reservation) => {
   if (reservation.paymentStatus === PAYMENT_PAID) return false
-  const remaining =
-    Number(reservation.remainingPayment) ||
-    Number(reservation.totalPrice || 0) - Number(reservation.deposit || 0)
-  return remaining > 0
+  const total = Number(reservation.totalPrice) || 0
+  const deposit = Number(reservation.deposit) || 0
+  return Math.max(total - deposit, 0) > 0
 }
 
 const formatMoney = (value) =>
@@ -182,9 +191,9 @@ function buildPaymentPendingMessages(reservations, checkInDate) {
     .map((reservation) => {
       const room = normalizeRoomName(reservation.roomName) || 'Oda'
       const customer = reservation.customerName || 'Misafir'
-      const remaining =
-        Number(reservation.remainingPayment) ||
-        Number(reservation.totalPrice || 0) - Number(reservation.deposit || 0)
+      const total = Number(reservation.totalPrice) || 0
+      const deposit = Number(reservation.deposit) || 0
+      const remaining = Math.max(total - deposit, 0)
 
       return {
         title: 'Ödeme bekliyor',
