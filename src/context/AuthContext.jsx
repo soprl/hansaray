@@ -4,6 +4,7 @@ import { AuthContext } from './authContextValue'
 import { auth } from '../firebase'
 import { isNativeApp } from '../utils/nativePush'
 import { initPushNotifications } from '../utils/pushNotifications'
+import { lockSensitiveSection } from '../utils/sensitivePin'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -36,7 +37,10 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       isAuthenticated: Boolean(user),
-      logout: () => signOut(auth),
+      logout: () => {
+        lockSensitiveSection()
+        return signOut(auth)
+      },
     }),
     [user],
   )

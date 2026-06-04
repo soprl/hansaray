@@ -1,23 +1,10 @@
-import { format } from 'date-fns'
-import { tr } from 'date-fns/locale'
 import { useEffect, useMemo, useState } from 'react'
 import ReservationNote from '../components/ReservationNote'
-import StatCard from '../components/StatCard'
 import { useAuth } from '../context/useAuth'
 import { getReservations } from '../services/reservationService'
 import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
-import { formatDateTR, formatCurrencyTRY } from '../utils/formatters'
-import {
-  DEFAULT_BUSINESS_TARGETS,
-  getBusinessTargets,
-} from '../services/businessTargetsService'
-import { formatEvSeasonCapacity } from '../config/units'
-import { SEASON_LENGTH_DAYS } from '../config/season'
-import UnitEvCard from '../components/UnitEvCard'
-import { getGoalProgress, getOccupancySnapshot, ROOM_COUNT } from '../utils/occupancyUtils'
-import { attachUnitGoals, getUnitOccupancySnapshots } from '../utils/unitOccupancyUtils'
+import { formatDateTR } from '../utils/formatters'
 import { getDashboardReservationMetrics, getReservationNightCount } from '../utils/reservationUtils'
-import GoalProgress from '../components/GoalProgress'
 
 const paymentBadgeClass = {
   Ödenmedi: 'bg-rose-100 text-rose-700',
@@ -42,23 +29,23 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
             const nights = getReservationNightCount(reservation)
 
             return (
-            <li key={reservation.id} className='rounded-lg border border-slate-200 p-2.5'>
-              <p className='text-sm font-medium text-blue-950'>{reservation.customerName}</p>
-              <p className='text-xs text-slate-600'>
-                {reservation.roomName}
-                {showCheckInDate ? ` · Giriş ${formatDateTR(reservation.checkInDate)}` : null}
-                {nights ? ` · ${nights} gece` : ''}
-              </p>
-              <p className='text-xs text-slate-600'>Tel: {reservation.customerPhone || '-'}</p>
-              <ReservationNote note={reservation.note} className='mt-1 text-xs' />
-              <span
-                className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-medium ${
-                  paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                {reservation.paymentStatus || '-'}
-              </span>
-            </li>
+              <li key={reservation.id} className='rounded-lg border border-slate-200 p-2.5'>
+                <p className='text-sm font-medium text-blue-950'>{reservation.customerName}</p>
+                <p className='text-xs text-slate-600'>
+                  {reservation.roomName}
+                  {showCheckInDate ? ` · Giriş ${formatDateTR(reservation.checkInDate)}` : null}
+                  {nights ? ` · ${nights} gece` : ''}
+                </p>
+                <p className='text-xs text-slate-600'>Tel: {reservation.customerPhone || '-'}</p>
+                <ReservationNote note={reservation.note} className='mt-1 text-xs' />
+                <span
+                  className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-medium ${
+                    paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {reservation.paymentStatus || '-'}
+                </span>
+              </li>
             )
           })}
         </ul>
@@ -70,7 +57,6 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
 function Dashboard() {
   const { user } = useAuth()
   const [reservations, setReservations] = useState([])
-  const [targets, setTargets] = useState(DEFAULT_BUSINESS_TARGETS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -87,11 +73,8 @@ function Dashboard() {
       setError('')
 
       try {
-        const [data, targetsData] = await Promise.all([getReservations(), getBusinessTargets()])
-        if (!cancelled) {
-          setReservations(data)
-          setTargets(targetsData)
-        }
+        const data = await getReservations()
+        if (!cancelled) setReservations(data)
       } catch (fetchError) {
         if (cancelled) return
         setError(getFirestoreErrorMessage(fetchError, 'Dashboard verileri yüklenirken bir hata oluştu.'))
@@ -116,140 +99,10 @@ function Dashboard() {
       return getDashboardReservationMetrics([])
     }
   }, [reservations])
-  const monthLabel = format(new Date(), 'MMMM yyyy', { locale: tr })
-
-  const occupancy = useMemo(() => getOccupancySnapshot(reservations), [reservations])
-
-  const monthlyRevenueGoal = useMemo(
-    () => getGoalProgress(occupancy.monthLodgingIncome, targets.monthlyLodgingTarget),
-    [occupancy.monthLodgingIncome, targets.monthlyLodgingTarget],
-  )
-
-  const yearlyRevenueGoal = useMemo(
-    () => getGoalProgress(occupancy.yearLodgingIncome, targets.yearlyLodgingTarget),
-    [occupancy.yearLodgingIncome, targets.yearlyLodgingTarget],
-  )
-
-  const monthlyOccupancyGoal = useMemo(
-    () => getGoalProgress(occupancy.monthOccupancyPercent, targets.monthlyOccupancyTargetPercent),
-    [occupancy.monthOccupancyPercent, targets.monthlyOccupancyTargetPercent],
-  )
-
-  const yearlyOccupancyGoal = useMemo(
-    () => getGoalProgress(occupancy.yearOccupancyPercent, targets.yearlyOccupancyTargetPercent),
-    [occupancy.yearOccupancyPercent, targets.yearlyOccupancyTargetPercent],
-  )
-
-  const unitSnapshots = useMemo(() => {
-    const snapshots = getUnitOccupancySnapshots(reservations)
-    return attachUnitGoals(snapshots, targets.unitTargets)
-  }, [reservations, targets.unitTargets])
-
-  const todayOccupancyPercent = loading
-    ? '...'
-    : `${Math.round((metrics.todaysOccupancyCount / ROOM_COUNT) * 100)}%`
 
   return (
     <section className='space-y-4'>
-      <h2 className='text-base font-semibold capitalize text-blue-950 sm:text-lg'>{monthLabel} özeti</h2>
-
-      <div>
-        <h3 className='mb-2 text-sm font-medium text-slate-600'>Doluluk ve hedefler</h3>
-        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-          <StatCard
-            title='Bugün doluluk'
-            value={loading ? '...' : todayOccupancyPercent}
-            subtitle={loading ? null : `${metrics.todaysOccupancyCount} / ${ROOM_COUNT} ev`}
-            tone='warning'
-          />
-          <StatCard
-            title='Bu ay doluluk'
-            value={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
-            subtitle={
-              loading
-                ? null
-                : occupancy.monthInSeason
-                  ? `${occupancy.monthOccupiedNights} dolu · ${occupancy.monthEmptyNights} boş (sezon)`
-                  : 'Sezon dışı ay'
-            }
-            tone='default'
-          />
-          <GoalProgress
-            label='Bu ay gelir hedefi'
-            currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.monthLodgingIncome)}
-            targetLabel={formatCurrencyTRY(monthlyRevenueGoal.target)}
-            percent={monthlyRevenueGoal.percent}
-            hasTarget={monthlyRevenueGoal.hasTarget}
-            progress={monthlyRevenueGoal}
-            kind='currency'
-          />
-          <GoalProgress
-            label='Bu ay doluluk hedefi'
-            currentLabel={loading ? '...' : `%${occupancy.monthOccupancyPercent}`}
-            targetLabel={`%${monthlyOccupancyGoal.target}`}
-            percent={monthlyOccupancyGoal.percent}
-            hasTarget={monthlyOccupancyGoal.hasTarget}
-            progress={monthlyOccupancyGoal}
-            kind='percent'
-          />
-        </div>
-        <div className='mt-3 grid gap-3 sm:grid-cols-2'>
-          <GoalProgress
-            label='Yıllık gelir hedefi (yıl başından bugüne)'
-            currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.yearLodgingIncome)}
-            targetLabel={formatCurrencyTRY(yearlyRevenueGoal.target)}
-            percent={yearlyRevenueGoal.percent}
-            hasTarget={yearlyRevenueGoal.hasTarget}
-            progress={yearlyRevenueGoal}
-            kind='currency'
-          />
-          <GoalProgress
-            label={`Yıllık doluluk (sezon ${SEASON_LENGTH_DAYS} gün)`}
-            currentLabel={loading ? '...' : `%${occupancy.yearOccupancyPercent}`}
-            targetLabel={`%${yearlyOccupancyGoal.target}`}
-            percent={yearlyOccupancyGoal.percent}
-            hasTarget={yearlyOccupancyGoal.hasTarget}
-            progress={yearlyOccupancyGoal}
-            kind='percent'
-          />
-        </div>
-      </div>
-
-      <div>
-        <h3 className='mb-1 text-sm font-medium text-slate-600'>Evler · yıllık sezon</h3>
-        <p className='mb-2 text-xs text-slate-500'>{formatEvSeasonCapacity()}</p>
-        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
-          {loading
-            ? Array.from({ length: ROOM_COUNT }, (_, index) => (
-                <article key={index} className='card'>
-                  <p className='text-sm text-slate-500'>Yükleniyor...</p>
-                </article>
-              ))
-            : unitSnapshots.map((unit) => <UnitEvCard key={unit.roomId} unit={unit} compact />)}
-        </div>
-      </div>
-
-      <div className='grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3'>
-        <StatCard
-          title='Bu Ay Rezervasyon Geliri'
-          value={loading ? '...' : formatCurrencyTRY(metrics.monthlyReservationIncome)}
-          tone='success'
-        />
-        <StatCard title='Aktif Rezervasyon' value={loading ? '...' : metrics.activeCount} tone='default' />
-      </div>
-      <div className='grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3'>
-        <StatCard
-          title='Toplam Bekleyen Ödeme'
-          value={loading ? '...' : formatCurrencyTRY(metrics.totalPendingPayment)}
-          tone='warning'
-        />
-        <StatCard
-          title='Bu Ay Alınan Kapora'
-          value={loading ? '...' : formatCurrencyTRY(metrics.monthlyDeposit)}
-          tone='success'
-        />
-        <StatCard title='Bu Ay Tam Ödenen Rez.' value={loading ? '...' : metrics.monthlyFullyPaidCount} tone='default' />
-      </div>
+      <h2 className='text-base font-semibold text-blue-950 sm:text-lg'>Günlük işlemler</h2>
 
       {error ? <p className='text-sm text-rose-600'>{error}</p> : null}
       {!loading && !error && reservations.length === 0 ? (

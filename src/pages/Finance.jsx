@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import SensitivePinGate from '../components/SensitivePinGate'
 import TransactionForm from '../components/TransactionForm'
 import { useAuth } from '../context/useAuth'
 import { EXPENSE_CATEGORIES, EXTRA_INCOME_CATEGORIES } from '../config/financeCategories'
@@ -122,6 +123,7 @@ function Finance() {
   }
 
   return (
+    <SensitivePinGate title='Gelir / Gider' description='Finansal işlemler için PIN girin.'>
     <section className='space-y-4'>
       <TransactionForm
         key={editingTransaction?.id ?? 'new'}
@@ -298,6 +300,7 @@ function Finance() {
         </p>
       </div>
     </section>
+    </SensitivePinGate>
   )
 }
 

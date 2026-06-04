@@ -26,7 +26,9 @@ import {
   normalizeUnitTargets,
   saveBusinessTargets,
 } from '../services/businessTargetsService'
+import FinancialDashboardOverview from '../components/FinancialDashboardOverview'
 import GoalProgress from '../components/GoalProgress'
+import SensitivePinGate from '../components/SensitivePinGate'
 import UnitEvCard from '../components/UnitEvCard'
 import { EV_COUNT, EV_UNITS, formatEvSeasonCapacity } from '../config/units'
 import { getGoalProgress, getOccupancySnapshot } from '../utils/occupancyUtils'
@@ -319,7 +321,15 @@ function Reports() {
   }
 
   return (
+    <SensitivePinGate
+      title='Raporlar'
+      description='Finansal raporlar için PIN girin.'
+    >
     <section className='space-y-4'>
+      <FinancialDashboardOverview reservations={reservations} targets={targets} loading={loading} />
+
+      <h2 className='text-base font-semibold text-blue-950 sm:text-lg'>Aylık raporlar</h2>
+
       <div className='card'>
         <div className='flex items-center justify-center gap-2'>
           <button
@@ -715,6 +725,7 @@ function Reports() {
         </div>
       )}
     </section>
+    </SensitivePinGate>
   )
 }
 
