@@ -2,7 +2,7 @@ import {
   addMonths,
   differenceInCalendarDays,
   endOfMonth,
-  isBefore,
+  format,
   isAfter,
   isSameDay,
   isWithinInterval,
@@ -10,6 +10,7 @@ import {
   startOfMonth,
   subDays,
 } from 'date-fns'
+import { CHECKOUT_COMPLETE_HOUR, getHotelDateTime } from '../config/hotelTime'
 import { normalizeRoomName } from '../config/rooms'
 import { parseISODateSafe } from './formatters'
 
@@ -47,6 +48,42 @@ export const getStoredReservationStatus = (reservation) =>
 export const canMarkReservationComplete = (reservation) =>
   getStoredReservationStatus(reservation) === RES_STATUS.ACTIVE
 
+/**
+ * Çıkış tamamlandı mı? (İstanbul)
+ * — Çıkış gününden sonraki günler: evet
+ * — Çıkış günü saat 12:00 ve sonrası: evet
+ */
+export const isReservationCheckoutEnded = (reservation, referenceDate = new Date()) => {
+  const checkOutDate = parseISODateSafe(reservation.checkOutDate)
+  if (!checkOutDate) return false
+
+  const checkoutIso = format(startOfDay(checkOutDate), 'yyyy-MM-dd')
+  const hotel = getHotelDateTime(referenceDate)
+
+  if (hotel.dateIso > checkoutIso) return true
+  if (hotel.dateIso < checkoutIso) return false
+  return hotel.hour >= CHECKOUT_COMPLETE_HOUR
+}
+
+export const shouldAutoCompleteReservation = (reservation, referenceDate = new Date()) =>
+  getStoredReservationStatus(reservation) === RES_STATUS.ACTIVE &&
+  isReservationCheckoutEnded(reservation, referenceDate)
+
+/** Firestore güncellemesi için alanlar */
+export const toReservationUpdateData = (reservation) => ({
+  customerName: reservation.customerName,
+  customerPhone: reservation.customerPhone,
+  roomName: reservation.roomName,
+  checkInDate: reservation.checkInDate,
+  checkOutDate: reservation.checkOutDate,
+  totalPrice: reservation.totalPrice,
+  deposit: reservation.deposit,
+  paymentStatus: reservation.paymentStatus,
+  reservationStatus: reservation.reservationStatus,
+  note: reservation.note,
+  createdBy: reservation.createdBy ?? '',
+})
+
 export const PAYMENT_STATUS = {
   UNPAID: 'Ödenmedi',
   DEPOSIT: 'Kapora Alındı',
@@ -80,9 +117,11 @@ export const isFullyPaidReservation = (reservation) => {
 export const isCancelledReservation = (reservation) =>
   getStoredReservationStatus(reservation) === RES_STATUS.CANCELLED
 
-/** Yeni rezervasyon / tarih değişikliğinde yalnızca aktif kayıtlar odayı bloklar. */
-export const blocksRoomAvailability = (reservation) =>
-  getStoredReservationStatus(reservation) === RES_STATUS.ACTIVE
+/** Yeni rezervasyon / tarih değişikliğinde odayı bloklayan aktif konaklamalar (çıkış öğlen sonrası bloklamaz). */
+export const blocksRoomAvailability = (reservation, referenceDate = new Date()) => {
+  if (getStoredReservationStatus(reservation) !== RES_STATUS.ACTIVE) return false
+  return !isReservationCheckoutEnded(reservation, referenceDate)
+}
 
 export const hasReservationDateConflict = (incoming, existing) =>
   incoming.checkInDate < existing.checkOutDate && incoming.checkOutDate > existing.checkInDate
@@ -132,9 +171,10 @@ export const getEffectiveReservationStatus = (reservation, referenceDate = new D
   const storedStatus = getStoredReservationStatus(reservation)
   if (storedStatus === RES_STATUS.CANCELLED) return RES_STATUS.CANCELLED
 
-  const checkOutDate = parseISODateSafe(reservation.checkOutDate)
-  const today = startOfDay(referenceDate)
-  if (storedStatus === RES_STATUS.ACTIVE && checkOutDate && isBefore(checkOutDate, today)) {
+  if (
+    storedStatus === RES_STATUS.ACTIVE &&
+    isReservationCheckoutEnded(reservation, referenceDate)
+  ) {
     return RES_STATUS.COMPLETED
   }
 

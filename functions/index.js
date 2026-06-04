@@ -60,6 +60,7 @@ const normalizeRoomName = (name) => {
 }
 
 const RES_ACTIVE = 'Aktif'
+const CHECKOUT_COMPLETE_HOUR = 12
 
 const isActiveReservation = (reservation) => {
   const status = (reservation?.reservationStatus ?? '').toString().trim()
@@ -68,7 +69,16 @@ const isActiveReservation = (reservation) => {
   if (['iptal', 'cancelled', 'canceled', 'tamamlandı', 'tamamlandi', 'completed'].includes(key)) {
     return false
   }
-  return status === RES_ACTIVE || key === 'aktif' || key === 'active'
+  if (status !== RES_ACTIVE && key !== 'aktif' && key !== 'active') return false
+
+  const checkOut = reservation?.checkOutDate
+  if (!checkOut) return true
+
+  const today = todayIso()
+  const now = currentTime()
+  if (today > checkOut) return false
+  if (today < checkOut) return true
+  return now < `${String(CHECKOUT_COMPLETE_HOUR).padStart(2, '0')}:00`
 }
 
 const hasPendingPayment = (reservation) => {

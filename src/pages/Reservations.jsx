@@ -19,6 +19,7 @@ import {
   isFullyPaidReservation,
   PAYMENT_STATUS,
   RES_STATUS,
+  toReservationUpdateData,
 } from '../utils/reservationUtils'
 const statusBadgeClass = {
   Aktif: 'bg-emerald-100 text-emerald-700',
@@ -153,17 +154,7 @@ function Reservations() {
   }
 
   const buildReservationUpdatePayload = (reservation, overrides = {}) => ({
-    customerName: reservation.customerName,
-    customerPhone: reservation.customerPhone,
-    roomName: reservation.roomName,
-    checkInDate: reservation.checkInDate,
-    checkOutDate: reservation.checkOutDate,
-    totalPrice: reservation.totalPrice,
-    deposit: reservation.deposit,
-    paymentStatus: reservation.paymentStatus,
-    reservationStatus: reservation.reservationStatus,
-    note: reservation.note,
-    createdBy: reservation.createdBy,
+    ...toReservationUpdateData(reservation),
     ...overrides,
   })
 
@@ -349,10 +340,6 @@ function Reservations() {
                     <div className='flex flex-wrap gap-2 pt-1'>
                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass[effectiveStatus] ?? 'bg-slate-100 text-slate-700'}`}>
                         {effectiveStatus}
-                        {canMarkReservationComplete(reservation) &&
-                        effectiveStatus === RES_STATUS.COMPLETED ? (
-                          <span className='ml-1 font-normal text-amber-700'>(kayıt: Aktif)</span>
-                        ) : null}
                       </span>
                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'}`}>
                         {reservation.paymentStatus || '-'}

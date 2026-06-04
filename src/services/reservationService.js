@@ -25,6 +25,8 @@ import {
   normalizeReservationStatus,
   PAYMENT_STATUS,
   RES_STATUS,
+  shouldAutoCompleteReservation,
+  toReservationUpdateData,
 } from '../utils/reservationUtils'
 
 const reservationsRef = collection(db, 'reservations')
@@ -114,9 +116,39 @@ const loadReservationsWithRetry = async () => {
   }
 }
 
+async function syncAutoCompletedReservations(reservations) {
+  const pending = reservations.filter((reservation) => shouldAutoCompleteReservation(reservation))
+  if (pending.length === 0) return reservations
+
+  const completedIds = new Set()
+
+  await Promise.all(
+    pending.map(async (reservation) => {
+      try {
+        await updateReservation(reservation.id, {
+          ...toReservationUpdateData(reservation),
+          reservationStatus: RES_STATUS.COMPLETED,
+        })
+        completedIds.add(reservation.id)
+      } catch (error) {
+        console.error('Otomatik tamamlandı yazılamadı', reservation.id, error)
+      }
+    }),
+  )
+
+  if (completedIds.size === 0) return reservations
+
+  return reservations.map((reservation) =>
+    completedIds.has(reservation.id)
+      ? { ...reservation, reservationStatus: RES_STATUS.COMPLETED }
+      : reservation,
+  )
+}
+
 export async function getReservations() {
   try {
-    return await loadReservationsWithRetry()
+    const list = await loadReservationsWithRetry()
+    return syncAutoCompletedReservations(list)
   } catch (error) {
     const wrapped = new Error(getFirestoreErrorMessage(error))
     wrapped.code = error?.code
