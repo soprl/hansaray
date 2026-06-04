@@ -19,6 +19,34 @@ export const RES_STATUS = {
   CANCELLED: 'İptal',
 }
 
+const RES_STATUS_ALIASES = {
+  aktif: RES_STATUS.ACTIVE,
+  active: RES_STATUS.ACTIVE,
+  tamamlandı: RES_STATUS.COMPLETED,
+  tamamlandi: RES_STATUS.COMPLETED,
+  completed: RES_STATUS.COMPLETED,
+  complete: RES_STATUS.COMPLETED,
+  iptal: RES_STATUS.CANCELLED,
+  cancelled: RES_STATUS.CANCELLED,
+  canceled: RES_STATUS.CANCELLED,
+}
+
+/** Firestore / eski kayıtlardaki farklı yazımları tek forma getirir */
+export const normalizeReservationStatus = (value) => {
+  const raw = (value ?? '').toString().trim()
+  if (!raw) return RES_STATUS.ACTIVE
+  if (Object.values(RES_STATUS).includes(raw)) return raw
+  const key = raw.toLocaleLowerCase('tr-TR')
+  return RES_STATUS_ALIASES[key] ?? RES_STATUS.ACTIVE
+}
+
+export const getStoredReservationStatus = (reservation) =>
+  normalizeReservationStatus(reservation?.reservationStatus)
+
+/** Manuel «Tamamlandı» — yalnızca kayıtta hâlâ Aktif olanlar */
+export const canMarkReservationComplete = (reservation) =>
+  getStoredReservationStatus(reservation) === RES_STATUS.ACTIVE
+
 export const PAYMENT_STATUS = {
   UNPAID: 'Ödenmedi',
   DEPOSIT: 'Kapora Alındı',
@@ -49,11 +77,12 @@ export const isFullyPaidReservation = (reservation) => {
   return totalPrice > 0 && deposit >= totalPrice
 }
 
-export const isCancelledReservation = (reservation) => reservation.reservationStatus === RES_STATUS.CANCELLED
+export const isCancelledReservation = (reservation) =>
+  getStoredReservationStatus(reservation) === RES_STATUS.CANCELLED
 
 /** Yeni rezervasyon / tarih değişikliğinde yalnızca aktif kayıtlar odayı bloklar. */
 export const blocksRoomAvailability = (reservation) =>
-  reservation.reservationStatus === RES_STATUS.ACTIVE
+  getStoredReservationStatus(reservation) === RES_STATUS.ACTIVE
 
 export const hasReservationDateConflict = (incoming, existing) =>
   incoming.checkInDate < existing.checkOutDate && incoming.checkOutDate > existing.checkInDate
@@ -100,19 +129,16 @@ export const getRoomAvailabilityList = (
 }
 
 export const getEffectiveReservationStatus = (reservation, referenceDate = new Date()) => {
-  if (reservation.reservationStatus === RES_STATUS.CANCELLED) return RES_STATUS.CANCELLED
+  const storedStatus = getStoredReservationStatus(reservation)
+  if (storedStatus === RES_STATUS.CANCELLED) return RES_STATUS.CANCELLED
 
   const checkOutDate = parseISODateSafe(reservation.checkOutDate)
   const today = startOfDay(referenceDate)
-  if (
-    reservation.reservationStatus === RES_STATUS.ACTIVE &&
-    checkOutDate &&
-    isBefore(checkOutDate, today)
-  ) {
+  if (storedStatus === RES_STATUS.ACTIVE && checkOutDate && isBefore(checkOutDate, today)) {
     return RES_STATUS.COMPLETED
   }
 
-  return reservation.reservationStatus
+  return storedStatus
 }
 
 export const withEffectiveReservationStatus = (reservation, referenceDate = new Date()) => ({

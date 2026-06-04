@@ -22,7 +22,9 @@ import {
 import {
   blocksRoomAvailability,
   hasReservationDateConflict,
+  normalizeReservationStatus,
   PAYMENT_STATUS,
+  RES_STATUS,
 } from '../utils/reservationUtils'
 
 const reservationsRef = collection(db, 'reservations')
@@ -47,7 +49,7 @@ const normalizeReservationPayload = (data) => {
     deposit,
     remainingPayment: isPaid ? 0 : Math.max(totalPrice - deposit, 0),
     paymentStatus: data.paymentStatus,
-    reservationStatus: data.reservationStatus,
+    reservationStatus: normalizeReservationStatus(data.reservationStatus),
     note: data.note?.trim() ?? '',
     createdBy: data.createdBy ?? '',
   }
@@ -82,6 +84,7 @@ const mapReservationDoc = (document) => {
     ...data,
     checkInDate: normalizeFirestoreDate(data.checkInDate),
     checkOutDate: normalizeFirestoreDate(data.checkOutDate),
+    reservationStatus: normalizeReservationStatus(data.reservationStatus),
   }
 }
 
@@ -142,7 +145,7 @@ export async function addReservation(data) {
   const payload = normalizeReservationPayload(data)
 
   const hasConflict = await checkReservationConflict(payload)
-  if (hasConflict && payload.reservationStatus === 'Aktif') {
+  if (hasConflict && payload.reservationStatus === RES_STATUS.ACTIVE) {
     throw new Error('CONFLICT')
   }
 
@@ -159,7 +162,7 @@ export async function updateReservation(id, data) {
   const payload = normalizeReservationPayload(data)
 
   const hasConflict = await checkReservationConflict({ ...payload, excludeId: id })
-  if (hasConflict && payload.reservationStatus === 'Aktif') {
+  if (hasConflict && payload.reservationStatus === RES_STATUS.ACTIVE) {
     throw new Error('CONFLICT')
   }
 

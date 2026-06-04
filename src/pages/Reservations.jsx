@@ -12,8 +12,10 @@ import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomOptions, normalizeRoomName } from '../config/rooms'
 import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import {
+  canMarkReservationComplete,
   getEffectiveReservationStatus,
   getOutstandingPayment,
+  getStoredReservationStatus,
   isFullyPaidReservation,
   PAYMENT_STATUS,
   RES_STATUS,
@@ -149,24 +151,50 @@ function Reservations() {
     }
   }
 
+  const buildReservationUpdatePayload = (reservation, overrides = {}) => ({
+    customerName: reservation.customerName,
+    customerPhone: reservation.customerPhone,
+    roomName: reservation.roomName,
+    checkInDate: reservation.checkInDate,
+    checkOutDate: reservation.checkOutDate,
+    totalPrice: reservation.totalPrice,
+    deposit: reservation.deposit,
+    paymentStatus: reservation.paymentStatus,
+    reservationStatus: reservation.reservationStatus,
+    note: reservation.note,
+    createdBy: reservation.createdBy,
+    ...overrides,
+  })
+
   const handleCompleteReservation = async (reservation) => {
+    if (!canMarkReservationComplete(reservation)) return
+
     const confirmed = window.confirm('Rezervasyon tamamlandı olarak işaretlensin mi?')
     if (!confirmed) return
 
     setError('')
     try {
-      await updateReservation(reservation.id, {
-        ...reservation,
-        reservationStatus: RES_STATUS.COMPLETED,
-      })
+      await updateReservation(
+        reservation.id,
+        buildReservationUpdatePayload(reservation, { reservationStatus: RES_STATUS.COMPLETED }),
+      )
+      setReservations((prev) =>
+        prev.map((item) =>
+          item.id === reservation.id
+            ? { ...item, reservationStatus: RES_STATUS.COMPLETED }
+            : item,
+        ),
+      )
       if (editingReservation?.id === reservation.id) {
         setEditingReservation(null)
       }
       setListTab(LIST_TABS.COMPLETED)
-      await loadReservations()
     } catch (completeError) {
-      setError('Rezervasyon tamamlanırken bir hata oluştu.')
+      setError(
+        getFirestoreErrorMessage(completeError, 'Rezervasyon tamamlanırken bir hata oluştu.'),
+      )
       console.error(completeError)
+      await loadReservations()
     }
   }
 
@@ -175,11 +203,13 @@ function Reservations() {
 
     setError('')
     try {
-      await updateReservation(reservation.id, {
-        ...reservation,
-        paymentStatus: PAYMENT_STATUS.PAID,
-        deposit: totalPrice,
-      })
+      await updateReservation(
+        reservation.id,
+        buildReservationUpdatePayload(reservation, {
+          paymentStatus: PAYMENT_STATUS.PAID,
+          deposit: totalPrice,
+        }),
+      )
       if (editingReservation?.id === reservation.id) {
         setEditingReservation(null)
       }
@@ -196,10 +226,10 @@ function Reservations() {
 
     setError('')
     try {
-      await updateReservation(reservation.id, {
-        ...reservation,
-        reservationStatus: RES_STATUS.CANCELLED,
-      })
+      await updateReservation(
+        reservation.id,
+        buildReservationUpdatePayload(reservation, { reservationStatus: RES_STATUS.CANCELLED }),
+      )
       if (editingReservation?.id === reservation.id) {
         setEditingReservation(null)
       }
@@ -318,6 +348,10 @@ function Reservations() {
                     <div className='flex flex-wrap gap-2 pt-1'>
                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass[effectiveStatus] ?? 'bg-slate-100 text-slate-700'}`}>
                         {effectiveStatus}
+                        {canMarkReservationComplete(reservation) &&
+                        effectiveStatus === RES_STATUS.COMPLETED ? (
+                          <span className='ml-1 font-normal text-amber-700'>(kayıt: Aktif)</span>
+                        ) : null}
                       </span>
                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${paymentBadgeClass[reservation.paymentStatus] ?? 'bg-slate-100 text-slate-700'}`}>
                         {reservation.paymentStatus || '-'}
@@ -352,28 +386,24 @@ function Reservations() {
                       Tamamı Ödendi
                     </button>
                   ) : null}
-                  {listTab === LIST_TABS.ACTIVE ? (
-                    <>
-                      <button
-                        type='button'
-                        className='btn-success'
-                        onClick={() => handleCompleteReservation(reservation)}
-                        disabled={
-                          reservation.reservationStatus === RES_STATUS.COMPLETED ||
-                          reservation.reservationStatus === RES_STATUS.CANCELLED
-                        }
-                      >
-                        Tamamlandı
-                      </button>
-                      <button
-                        type='button'
-                        className='btn-danger'
-                        onClick={() => handleCancelReservation(reservation)}
-                        disabled={effectiveStatus === RES_STATUS.CANCELLED}
-                      >
-                        Rezervasyonu İptal Et
-                      </button>
-                    </>
+                  {canMarkReservationComplete(reservation) ? (
+                    <button
+                      type='button'
+                      className='btn-success'
+                      onClick={() => handleCompleteReservation(reservation)}
+                    >
+                      Tamamlandı
+                    </button>
+                  ) : null}
+                  {getStoredReservationStatus(reservation) !== RES_STATUS.CANCELLED ? (
+                    <button
+                      type='button'
+                      className='btn-danger'
+                      onClick={() => handleCancelReservation(reservation)}
+                      disabled={effectiveStatus === RES_STATUS.CANCELLED}
+                    >
+                      Rezervasyonu İptal Et
+                    </button>
                   ) : null}
                   <button
                     type='button'

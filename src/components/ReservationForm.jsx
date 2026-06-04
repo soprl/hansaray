@@ -9,7 +9,9 @@ import {
   derivePaymentStatus,
   findConflictingReservation,
   getRoomAvailabilityList,
+  normalizeReservationStatus,
   PAYMENT_STATUS,
+  RES_STATUS,
 } from '../utils/reservationUtils'
 
 const DEFAULT_FORM = {
@@ -21,7 +23,7 @@ const DEFAULT_FORM = {
   totalPrice: '',
   deposit: '',
   paymentStatus: 'Ödenmedi',
-  reservationStatus: 'Aktif',
+  reservationStatus: RES_STATUS.ACTIVE,
   note: '',
 }
 
@@ -55,6 +57,7 @@ function ReservationForm({
     }
     return {
       ...merged,
+      reservationStatus: normalizeReservationStatus(merged.reservationStatus),
       paymentStatus: derivePaymentStatus(merged.totalPrice, merged.deposit),
     }
   })
@@ -512,9 +515,9 @@ function ReservationForm({
                 onChange={handleChange}
                 className='input'
               >
-                <option>Aktif</option>
-                <option>Tamamlandı</option>
-                <option>İptal</option>
+                <option value={RES_STATUS.ACTIVE}>{RES_STATUS.ACTIVE}</option>
+                <option value={RES_STATUS.COMPLETED}>{RES_STATUS.COMPLETED}</option>
+                <option value={RES_STATUS.CANCELLED}>{RES_STATUS.CANCELLED}</option>
               </select>
             </div>
           </div>
