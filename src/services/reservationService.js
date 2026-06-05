@@ -97,11 +97,11 @@ const fetchAllReservations = async () => {
     .sort((a, b) => (a.checkInDate || '').localeCompare(b.checkInDate || ''))
 }
 
-const loadReservationsWithRetry = async () => {
+const runWithAuthRetry = async (operation) => {
   await ensureAuthReady()
 
   try {
-    return await fetchAllReservations()
+    return await operation()
   } catch (error) {
     if (!isPermissionDenied(error)) {
       throw error
@@ -112,9 +112,11 @@ const loadReservationsWithRetry = async () => {
       throw error
     }
 
-    return fetchAllReservations()
+    return operation()
   }
 }
+
+const loadReservationsWithRetry = async () => runWithAuthRetry(fetchAllReservations)
 
 async function syncAutoCompletedReservations(reservations) {
   const pending = reservations.filter((reservation) => shouldAutoCompleteReservation(reservation))
@@ -176,34 +178,38 @@ export async function getReservationById(id) {
 export async function addReservation(data) {
   const payload = normalizeReservationPayload(data)
 
-  const hasConflict = await checkReservationConflict(payload)
-  if (hasConflict && payload.reservationStatus === RES_STATUS.ACTIVE) {
-    throw new Error('CONFLICT')
-  }
+  return runWithAuthRetry(async () => {
+    const hasConflict = await checkReservationConflict(payload)
+    if (hasConflict && payload.reservationStatus === RES_STATUS.ACTIVE) {
+      throw new Error('CONFLICT')
+    }
 
-  const created = await addDoc(reservationsRef, {
-    ...payload,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    const created = await addDoc(reservationsRef, {
+      ...payload,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+
+    return created.id
   })
-
-  return created.id
 }
 
 export async function updateReservation(id, data) {
   const payload = normalizeReservationPayload(data)
 
-  const hasConflict = await checkReservationConflict({ ...payload, excludeId: id })
-  if (hasConflict && payload.reservationStatus === RES_STATUS.ACTIVE) {
-    throw new Error('CONFLICT')
-  }
+  return runWithAuthRetry(async () => {
+    const hasConflict = await checkReservationConflict({ ...payload, excludeId: id })
+    if (hasConflict && payload.reservationStatus === RES_STATUS.ACTIVE) {
+      throw new Error('CONFLICT')
+    }
 
-  await updateDoc(doc(db, 'reservations', id), {
-    ...payload,
-    updatedAt: serverTimestamp(),
+    await updateDoc(doc(db, 'reservations', id), {
+      ...payload,
+      updatedAt: serverTimestamp(),
+    })
   })
 }
 
 export async function deleteReservation(id) {
-  await deleteDoc(doc(db, 'reservations', id))
+  return runWithAuthRetry(() => deleteDoc(doc(db, 'reservations', id)))
 }

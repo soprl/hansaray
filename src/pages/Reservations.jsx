@@ -44,11 +44,13 @@ function Reservations() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
   const [editingReservation, setEditingReservation] = useState(null)
   const [newReservationFormKey, setNewReservationFormKey] = useState(0)
 
   const [listTab, setListTab] = useState(LIST_TABS.ACTIVE)
   const formAnchorRef = useRef(null)
+  const listAnchorRef = useRef(null)
   const [filters, setFilters] = useState({
     search: '',
     roomName: '',
@@ -125,6 +127,7 @@ function Reservations() {
   const handleSubmitReservation = async (formData) => {
     setSubmitting(true)
     setError('')
+    setSuccessMessage('')
 
     try {
       const createdBy = user?.email ?? editingReservation?.createdBy ?? 'unknown'
@@ -134,18 +137,36 @@ function Reservations() {
           editingReservation.id,
           buildReservationUpdatePayload(editingReservation, { ...formData, createdBy }),
         )
+        setSuccessMessage('Rezervasyon güncellendi.')
       } else {
-        await addReservation({ ...formData, createdBy })
+        const newId = await addReservation({ ...formData, createdBy })
         setNewReservationFormKey((key) => key + 1)
+        setListTab(LIST_TABS.ACTIVE)
+        setFilters((prev) => ({ ...prev, search: '', roomName: '' }))
+        setSuccessMessage('Rezervasyon eklendi.')
+        setReservations((prev) => {
+          const nextReservation = {
+            id: newId,
+            ...formData,
+            createdBy,
+            reservationStatus: formData.reservationStatus ?? RES_STATUS.ACTIVE,
+          }
+          return [...prev, nextReservation].sort((a, b) =>
+            (a.checkInDate || '').localeCompare(b.checkInDate || ''),
+          )
+        })
       }
 
       setEditingReservation(null)
       await loadReservations()
+      listAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } catch (submitError) {
       if (submitError?.message === 'CONFLICT') {
-        alert('Bu oda seçilen tarihlerde dolu')
+        setError('Bu oda seçilen tarihlerde dolu. Başka oda veya tarih seçin.')
       } else {
-        alert('Rezervasyon kaydedilemedi. Lütfen tekrar deneyin.')
+        setError(
+          getFirestoreErrorMessage(submitError, 'Rezervasyon kaydedilemedi. Lütfen tekrar deneyin.'),
+        )
       }
       console.error(submitError)
     } finally {
@@ -250,6 +271,16 @@ function Reservations() {
   return (
     <section className='space-y-4'>
       <div ref={formAnchorRef} className='scroll-mt-4'>
+        {successMessage ? (
+          <p className='mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800'>
+            {successMessage}
+          </p>
+        ) : null}
+        {error ? (
+          <p className='mb-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+            {error}
+          </p>
+        ) : null}
         <ReservationForm
           key={editingReservation?.id ?? `new-${newReservationFormKey}`}
           initialValues={editingReservation}
@@ -257,12 +288,13 @@ function Reservations() {
           onCancel={() => setEditingReservation(null)}
           submitting={submitting}
           reservations={reservations}
+          reservationsLoading={loading}
           excludeId={editingReservation?.id}
           relaxedEdit={listTab === LIST_TABS.COMPLETED}
         />
       </div>
 
-      <div className='card space-y-4'>
+      <div ref={listAnchorRef} className='card scroll-mt-4 space-y-4'>
         <div className='flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1'>
           <button
             type='button'
@@ -310,8 +342,6 @@ function Reservations() {
             ))}
           </select>
         </div>
-
-        {error ? <p className='text-sm text-rose-600'>{error}</p> : null}
 
         {loading ? (
           <p className='text-sm text-slate-500'>Rezervasyonlar yükleniyor...</p>

@@ -35,6 +35,7 @@ function ReservationForm({
   onCancel,
   submitting,
   reservations = [],
+  reservationsLoading = false,
   excludeId,
   relaxedEdit = false,
 }) {
@@ -62,6 +63,7 @@ function ReservationForm({
     }
   })
   const [errors, setErrors] = useState({})
+  const formRef = useRef(null)
   const [vipManuallySelected, setVipManuallySelected] = useState(
     () => Boolean(initialValues && isVipRoom(initialValues.roomName)),
   )
@@ -251,6 +253,49 @@ function ReservationForm({
   const canMarkFullyPaid =
     form.paymentStatus !== PAYMENT_STATUS.PAID && parseMoneyInput(form.totalPrice) > 0
 
+  const submitBlockedReason = useMemo(() => {
+    if (submitting) return null
+    if (reservationsLoading) return 'Oda müsaitliği yükleniyor, lütfen bekleyin.'
+    if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
+    if (!relaxedEdit && allRoomsFull) return 'Bu tarihlerde tüm odalar dolu. Başka tarih seçin.'
+    if (!form.roomName) {
+      if (!relaxedEdit && availableRooms.some((room) => isVipRoom(room.roomName))) {
+        return 'Standart odalar dolu. V.I.P müsaitse odalar bölümünden elle seçin.'
+      }
+      return 'Müsait bir oda seçin.'
+    }
+    if (!relaxedEdit && isVipRoom(form.roomName) && !vipManuallySelected) {
+      return 'V.I.P odasını odalar bölümünden elle seçin.'
+    }
+    if (!relaxedEdit && selectedRoomConflict) {
+      return `${form.roomName} bu tarihlerde dolu. Başka oda veya tarih seçin.`
+    }
+    return null
+  }, [
+    submitting,
+    reservationsLoading,
+    datesValid,
+    relaxedEdit,
+    allRoomsFull,
+    form.roomName,
+    availableRooms,
+    vipManuallySelected,
+    selectedRoomConflict,
+  ])
+
+  const isSubmitDisabled = Boolean(submitBlockedReason)
+
+  const scrollToFirstError = (nextErrors) => {
+    const firstKey = Object.keys(nextErrors)[0]
+    if (!firstKey || !formRef.current) return
+
+    const target =
+      formRef.current.querySelector(`[data-field="${firstKey}"]`) ??
+      formRef.current.querySelector(`[name="${firstKey}"]`)
+
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   const validate = () => {
     const nextErrors = {}
     const totalPrice = parseMoneyInput(form.totalPrice)
@@ -287,11 +332,15 @@ function ReservationForm({
     }
 
     setErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) {
+      scrollToFirstError(nextErrors)
+    }
     return Object.keys(nextErrors).length === 0
   }
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (isSubmitDisabled) return
     if (!validate()) return
 
     await onSubmit({
@@ -308,30 +357,34 @@ function ReservationForm({
       <h2 className='text-lg font-semibold text-blue-950'>
         {isEditing ? 'Rezervasyon Düzenle' : 'Yeni Rezervasyon'}
       </h2>
-      <form onSubmit={handleSubmit} className='mt-4 space-y-6'>
+      <form ref={formRef} onSubmit={handleSubmit} className='mt-4 space-y-6'>
         <fieldset className='space-y-3'>
           <legend className='text-sm font-semibold text-slate-800'>1. Tarihler</legend>
           <div className='grid gap-4 sm:grid-cols-2'>
-            <DatePickerField
-              label='Giriş'
-              value={form.checkInDate}
-              onChange={setCheckIn}
-              error={errors.checkInDate}
-              placeholder='Giriş tarihi seçin'
-            />
-            <DatePickerField
-              label='Çıkış'
-              value={form.checkOutDate}
-              onChange={(checkOutDate) => setForm((prev) => ({ ...prev, checkOutDate }))}
+            <div data-field='checkInDate'>
+              <DatePickerField
+                label='Giriş'
+                value={form.checkInDate}
+                onChange={setCheckIn}
+                error={errors.checkInDate}
+                placeholder='Giriş tarihi seçin'
+              />
+            </div>
+            <div data-field='checkOutDate'>
+              <DatePickerField
+                label='Çıkış'
+                value={form.checkOutDate}
+                onChange={(checkOutDate) => setForm((prev) => ({ ...prev, checkOutDate }))}
               minDate={
                 form.checkInDate
                   ? format(addDays(parseISO(form.checkInDate), 1), 'yyyy-MM-dd')
                   : undefined
               }
               disabled={!form.checkInDate}
-              error={errors.checkOutDate}
-              placeholder='Çıkış tarihi seçin'
-            />
+                error={errors.checkOutDate}
+                placeholder='Çıkış tarihi seçin'
+              />
+            </div>
           </div>
 
           {form.checkInDate ? (
@@ -360,7 +413,7 @@ function ReservationForm({
           )}
         </fieldset>
 
-        <fieldset className='space-y-3' disabled={!datesValid}>
+        <fieldset className='space-y-3' disabled={!datesValid} data-field='roomName'>
           <legend className='text-sm font-semibold text-slate-800'>2. Oda seç</legend>
           {!datesValid ? (
             <p className='text-sm text-slate-500'>Oda müsaitliği için tarihleri seçin.</p>
@@ -442,14 +495,14 @@ function ReservationForm({
         <fieldset className='space-y-3'>
           <legend className='text-sm font-semibold text-slate-800'>3. Müşteri</legend>
           <div className='grid gap-4 sm:grid-cols-2'>
-            <div>
+            <div data-field='customerName'>
               <label className='mb-1 block text-sm font-medium'>Ad Soyad</label>
               <input name='customerName' value={form.customerName} onChange={handleChange} className='input' />
               {errors.customerName ? (
                 <p className='mt-1 text-xs text-rose-600'>{errors.customerName}</p>
               ) : null}
             </div>
-            <div>
+            <div data-field='customerPhone'>
               <label className='mb-1 block text-sm font-medium'>Telefon</label>
               <input
                 name='customerPhone'
@@ -468,12 +521,12 @@ function ReservationForm({
         <fieldset className='space-y-3'>
           <legend className='text-sm font-semibold text-slate-800'>4. Ödeme</legend>
           <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-            <div>
+            <div data-field='totalPrice'>
               <label className='mb-1 block text-sm font-medium'>Toplam (TL)</label>
               <MoneyInput name='totalPrice' value={form.totalPrice} onChange={handleMoneyChange} />
               {errors.totalPrice ? <p className='mt-1 text-xs text-rose-600'>{errors.totalPrice}</p> : null}
             </div>
-            <div>
+            <div data-field='deposit'>
               <label className='mb-1 block text-sm font-medium'>Kapora (TL)</label>
               <MoneyInput name='deposit' value={form.deposit} onChange={handleMoneyChange} />
               {errors.deposit ? <p className='mt-1 text-xs text-rose-600'>{errors.deposit}</p> : null}
@@ -529,20 +582,14 @@ function ReservationForm({
         </div>
 
         <div className='flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4'>
-          <button
-            type='submit'
-            className='btn-success'
-            disabled={
-              submitting ||
-              !datesValid ||
-              (!relaxedEdit && allRoomsFull) ||
-              !form.roomName ||
-              (!relaxedEdit && isVipRoom(form.roomName) && !vipManuallySelected) ||
-              (!relaxedEdit && Boolean(selectedRoomConflict))
-            }
-          >
+          <button type='submit' className='btn-success' disabled={submitting || isSubmitDisabled}>
             {submitting ? 'Kaydediliyor...' : isEditing ? 'Güncelle' : 'Rezervasyon Ekle'}
           </button>
+          {submitBlockedReason ? (
+            <p className='w-full text-sm text-amber-800' role='status'>
+              {submitBlockedReason}
+            </p>
+          ) : null}
           {isEditing ? (
             <button type='button' className='btn border border-slate-300 bg-white' onClick={onCancel}>
               Vazgeç
