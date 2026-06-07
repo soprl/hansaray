@@ -4,7 +4,6 @@ import {
   isBefore,
   startOfDay,
   startOfMonth,
-  startOfYear,
 } from 'date-fns'
 import { canonicalRoomName, ROOMS } from '../config/rooms'
 import {
@@ -14,7 +13,11 @@ import {
   SEASON_LENGTH_DAYS,
 } from '../config/season'
 import { parseISODateSafe } from './formatters'
-import { getMonthlyReservationIncome, isCancelledReservation } from './reservationUtils'
+import {
+  getMonthlyReservationIncome,
+  getSeasonLodgingIncome,
+  isCancelledReservation,
+} from './reservationUtils'
 
 export const ROOM_COUNT = ROOMS.length
 export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ROOM_COUNT
@@ -84,21 +87,6 @@ const occupancyPercent = (occupied, available) => {
   return Math.min(100, Math.round((occupied / available) * 100))
 }
 
-export const getYearToDateReservationIncome = (reservations, referenceDate = new Date()) => {
-  const yearStart = startOfYear(referenceDate)
-  const today = startOfDay(referenceDate)
-  let total = 0
-
-  reservations.forEach((reservation) => {
-    if (isCancelled(reservation)) return
-    const checkIn = parseISODateSafe(reservation.checkInDate)
-    if (!checkIn || checkIn < yearStart || checkIn > today) return
-    total += Number(reservation.totalPrice) || 0
-  })
-
-  return total
-}
-
 export const getOccupancySnapshot = (reservations, referenceDate = new Date()) => {
   const today = startOfDay(new Date())
   const monthStart = startOfMonth(referenceDate)
@@ -121,7 +109,7 @@ export const getOccupancySnapshot = (reservations, referenceDate = new Date()) =
   const monthAvailable = getAvailableRoomNights(monthStart, monthEnd)
   const yearAvailable = getAvailableRoomNights(yearRange.start, yearRange.end)
   const monthLodgingIncome = getMonthlyReservationIncome(reservations, referenceDate)
-  const yearLodgingIncome = getYearToDateReservationIncome(reservations, today)
+  const yearLodgingIncome = getSeasonLodgingIncome(reservations, today)
 
   return {
     monthOccupiedNights: monthOccupied,

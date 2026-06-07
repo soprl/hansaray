@@ -1,4 +1,4 @@
-import { endOfMonth, startOfDay, startOfMonth, startOfYear } from 'date-fns'
+import { endOfMonth, startOfDay, startOfMonth } from 'date-fns'
 import { canonicalRoomName } from '../config/rooms'
 import { EV_UNITS } from '../config/units'
 import {
@@ -6,34 +6,15 @@ import {
   getSeasonYearToDateRange,
   SEASON_LENGTH_DAYS,
 } from '../config/season'
-import { parseISODateSafe } from './formatters'
 import {
   countReservationNightsInRange,
   getGoalProgress,
 } from './occupancyUtils'
-import { isCancelledReservation } from './reservationUtils'
-
-const isCancelled = (reservation) => isCancelledReservation(reservation)
+import { getSeasonLodgingIncome } from './reservationUtils'
 
 const occupancyPercent = (occupied, available) => {
   if (!available) return 0
   return Math.min(100, Math.round((occupied / available) * 100))
-}
-
-const getUnitYearLodgingIncome = (reservations, roomId, referenceDate = new Date()) => {
-  const yearStart = startOfYear(referenceDate)
-  const today = startOfDay(referenceDate)
-  let total = 0
-
-  reservations.forEach((reservation) => {
-    if (isCancelled(reservation)) return
-    if (canonicalRoomName(reservation.roomName) !== roomId) return
-    const checkIn = parseISODateSafe(reservation.checkInDate)
-    if (!checkIn || checkIn < yearStart || checkIn > today) return
-    total += Number(reservation.totalPrice) || 0
-  })
-
-  return total
 }
 
 export function getUnitOccupancySnapshots(reservations, referenceDate = new Date()) {
@@ -73,7 +54,7 @@ export function getUnitOccupancySnapshots(reservations, referenceDate = new Date
       yearAvailableNights: yearAvailable,
       yearEmptyNights: Math.max(yearAvailable - yearOccupied, 0),
       yearOccupancyPercent: occupancyPercent(yearOccupied, yearAvailable),
-      yearLodgingIncome: getUnitYearLodgingIncome(reservations, roomId, today),
+      yearLodgingIncome: getSeasonLodgingIncome(reservations, today, { roomId }),
       maxNightsPerSeason: SEASON_LENGTH_DAYS,
       yearRevenueGoal: null,
       yearOccupancyGoal: null,

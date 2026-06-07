@@ -54,7 +54,7 @@ function UnitEvCard({ unit, compact = false }) {
 
       {yearRevenueGoal?.hasTarget ? (
         <GoalProgress
-          label='Yıllık gelir hedefi'
+          label='Sezon gelir hedefi'
           currentLabel={formatCurrencyTRY(unit.yearLodgingIncome)}
           targetLabel={formatCurrencyTRY(yearRevenueGoal.target)}
           percent={yearRevenueGoal.percent}
@@ -64,7 +64,7 @@ function UnitEvCard({ unit, compact = false }) {
         />
       ) : (
         <div>
-          <p className='text-xs text-slate-500'>Yıllık gelir</p>
+          <p className='text-xs text-slate-500'>Sezon geliri</p>
           <p className='text-xl font-semibold text-indigo-700'>
             {formatCurrencyTRY(unit.yearLodgingIncome)}
           </p>

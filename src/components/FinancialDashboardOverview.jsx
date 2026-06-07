@@ -99,7 +99,7 @@ function FinancialDashboardOverview({ reservations, targets, loading }) {
         </div>
         <div className='mt-3 grid gap-3 sm:grid-cols-2'>
           <GoalProgress
-            label='Yıllık gelir hedefi (yıl başından bugüne)'
+            label='Sezon gelir hedefi (tüm rezervasyonlar)'
             currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.yearLodgingIncome)}
             targetLabel={formatCurrencyTRY(yearlyRevenueGoal.target)}
             percent={yearlyRevenueGoal.percent}

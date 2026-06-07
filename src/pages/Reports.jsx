@@ -274,7 +274,7 @@ function Reports() {
       parts.push(`Aylık gelir ${formatCurrencyTRY(targets.monthlyLodgingTarget)}`)
     }
     if (Number(targets.yearlyLodgingTarget) > 0) {
-      parts.push(`Yıllık gelir ${formatCurrencyTRY(targets.yearlyLodgingTarget)}`)
+      parts.push(`Sezon gelir hedefi ${formatCurrencyTRY(targets.yearlyLodgingTarget)}`)
     }
     if (Number(targets.monthlyOccupancyTargetPercent) > 0) {
       parts.push(`Aylık doluluk %${targets.monthlyOccupancyTargetPercent}`)
@@ -540,9 +540,12 @@ function Reports() {
             kind='percent'
           />
         </div>
-        <div className='mt-3 grid gap-3 sm:grid-cols-2'>
+        <p className='mt-3 text-xs text-slate-400'>
+          Sezon geliri: sezon içinde girişi olan tüm rezervasyonların toplam ücreti (gelecek rezervasyonlar dahil).
+        </p>
+        <div className='mt-2 grid gap-3 sm:grid-cols-2'>
           <GoalProgress
-            label='Yıllık gelir hedefi'
+            label='Sezon gelir hedefi'
             currentLabel={loading ? '...' : formatCurrencyTRY(occupancy.yearLodgingIncome)}
             targetLabel={formatCurrencyTRY(yearlyRevenueGoal.target)}
             percent={yearlyRevenueGoal.percent}

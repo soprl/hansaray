@@ -11,7 +11,8 @@ import {
   subDays,
 } from 'date-fns'
 import { CHECKOUT_COMPLETE_HOUR, getHotelDateTime } from '../config/hotelTime'
-import { normalizeRoomName } from '../config/rooms'
+import { canonicalRoomName, normalizeRoomName } from '../config/rooms'
+import { getSeasonBoundsForYear } from '../config/season'
 import { parseISODateSafe } from './formatters'
 
 export const RES_STATUS = {
@@ -319,6 +320,26 @@ export const getCalendarPaymentDisplay = (reservation) => {
     primaryTone: 'deposit',
     showUnpaid: true,
   }
+}
+
+/** Sezon boyunca girişi olan tüm rezervasyonlar (gelecek dahil) — yıllık gelir hedefi için */
+export const getSeasonLodgingIncome = (
+  reservations,
+  referenceDate = new Date(),
+  { roomId } = {},
+) => {
+  const year = startOfDay(referenceDate).getFullYear()
+  const { start, end } = getSeasonBoundsForYear(year)
+
+  return reservations.reduce((total, reservation) => {
+    if (!isRevenueEligibleReservation(reservation)) return total
+    if (roomId && canonicalRoomName(reservation.roomName) !== roomId) return total
+
+    const checkIn = parseISODateSafe(reservation.checkInDate)
+    if (!checkIn || checkIn < start || checkIn > end) return total
+
+    return total + (Number(reservation.totalPrice) || 0)
+  }, 0)
 }
 
 export const getMonthlyReservationIncome = (reservations, referenceDate = new Date()) => {
