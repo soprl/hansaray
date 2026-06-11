@@ -38,6 +38,11 @@ const LIST_TABS = {
   COMPLETED: 'completed',
 }
 
+const isReservationCreatedByUser = (reservation, email) => {
+  if (!email) return false
+  return (reservation.createdBy ?? '').toLowerCase() === email.toLowerCase()
+}
+
 function Reservations() {
   const { user } = useAuth()
   const [reservations, setReservations] = useState([])
@@ -49,6 +54,7 @@ function Reservations() {
   const [newReservationFormKey, setNewReservationFormKey] = useState(0)
 
   const [listTab, setListTab] = useState(LIST_TABS.ACTIVE)
+  const [showOnlyMine, setShowOnlyMine] = useState(false)
   const formAnchorRef = useRef(null)
   const listAnchorRef = useRef(null)
   const [filters, setFilters] = useState({
@@ -95,6 +101,12 @@ function Reservations() {
     )
   }, [reservations])
 
+  const myReservationCount = useMemo(() => {
+    if (!user?.email) return 0
+    return reservations.filter((reservation) => isReservationCreatedByUser(reservation, user.email))
+      .length
+  }, [reservations, user?.email])
+
   const filteredReservations = useMemo(() => {
     const searchTerm = filters.search.trim().toLowerCase('tr')
     const targetStatus =
@@ -113,16 +125,21 @@ function Reservations() {
           reservation.customerPhone?.toLowerCase('tr').includes(searchTerm)
         const matchRoom =
           !filters.roomName || normalizeRoomName(reservation.roomName) === filters.roomName
+        const matchMine =
+          !showOnlyMine || isReservationCreatedByUser(reservation, user?.email)
 
-        return matchTab && matchSearch && matchRoom
+        return matchTab && matchSearch && matchRoom && matchMine
       })
       .sort((a, b) => {
+        if (showOnlyMine) {
+          return (b.checkInDate || '').localeCompare(a.checkInDate || '')
+        }
         if (targetStatus === RES_STATUS.COMPLETED) {
           return b.checkOutDate.localeCompare(a.checkOutDate)
         }
         return a.checkInDate.localeCompare(b.checkInDate)
       })
-  }, [reservations, filters, listTab])
+  }, [reservations, filters, listTab, showOnlyMine, user?.email])
 
   const handleSubmitReservation = async (formData) => {
     setSubmitting(true)
@@ -322,7 +339,7 @@ function Reservations() {
           </button>
         </div>
 
-        <div className='flex flex-col gap-3 sm:flex-row'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
           <input
             className='input'
             placeholder='Müşteri adı veya telefon ara...'
@@ -341,15 +358,31 @@ function Reservations() {
               </option>
             ))}
           </select>
+          <button
+            type='button'
+            onClick={() => setShowOnlyMine((prev) => !prev)}
+            className={`shrink-0 rounded-lg border px-4 py-2 text-sm font-medium transition ${
+              showOnlyMine
+                ? 'border-blue-900 bg-blue-900 text-white'
+                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Benim rezervasyonlarım
+            <span className={`ml-1.5 text-xs ${showOnlyMine ? 'text-blue-100' : 'text-slate-500'}`}>
+              ({myReservationCount})
+            </span>
+          </button>
         </div>
 
         {loading ? (
           <p className='text-sm text-slate-500'>Rezervasyonlar yükleniyor...</p>
         ) : filteredReservations.length === 0 ? (
           <p className='text-sm text-slate-500'>
-            {listTab === LIST_TABS.COMPLETED
-              ? 'Tamamlanan rezervasyon yok.'
-              : 'Aktif veya yaklaşan rezervasyon yok.'}
+            {showOnlyMine
+              ? 'Sizin oluşturduğunuz rezervasyon bulunamadı.'
+              : listTab === LIST_TABS.COMPLETED
+                ? 'Tamamlanan rezervasyon yok.'
+                : 'Aktif veya yaklaşan rezervasyon yok.'}
           </p>
         ) : (
           <div className='grid gap-3'>
