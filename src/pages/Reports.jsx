@@ -31,6 +31,7 @@ import GoalProgress from '../components/GoalProgress'
 import SensitivePinGate from '../components/SensitivePinGate'
 import UnitEvCard from '../components/UnitEvCard'
 import { EV_COUNT, EV_UNITS, formatEvSeasonCapacity } from '../config/units'
+import { getRoomDisplayName } from '../config/rooms'
 import { getGoalProgress, getOccupancySnapshot } from '../utils/occupancyUtils'
 import { attachUnitGoals, getUnitOccupancySnapshots } from '../utils/unitOccupancyUtils'
 import {
@@ -684,7 +685,7 @@ function Reports() {
                   <div>
                     <p className='font-semibold text-blue-950'>{reservation.customerName}</p>
                     <p className='text-sm text-slate-600'>
-                      {reservation.roomName} · Giriş {formatDateTR(reservation.checkInDate)}
+                      {getRoomDisplayName(reservation.roomName)} · Giriş {formatDateTR(reservation.checkInDate)}
                     </p>
                     <p className='text-sm text-slate-600'>Tel: {reservation.customerPhone || '-'}</p>
                     <ReservationNote note={reservation.note} className='mt-1' />

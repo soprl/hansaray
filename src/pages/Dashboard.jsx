@@ -1,3 +1,4 @@
+import { getRoomDisplayName } from '../config/rooms'
 import { useEffect, useMemo, useState } from 'react'
 import ReservationNote from '../components/ReservationNote'
 import { useAuth } from '../context/useAuth'
@@ -32,7 +33,7 @@ function ReservationDayList({ title, reservations, loading, emptyText, showCheck
               <li key={reservation.id} className='rounded-lg border border-slate-200 p-2.5'>
                 <p className='text-sm font-medium text-blue-950'>{reservation.customerName}</p>
                 <p className='text-xs text-slate-600'>
-                  {reservation.roomName}
+                  {getRoomDisplayName(reservation.roomName)}
                   {showCheckInDate ? ` · Giriş ${formatDateTR(reservation.checkInDate)}` : null}
                   {nights ? ` · ${nights} gece` : ''}
                 </p>

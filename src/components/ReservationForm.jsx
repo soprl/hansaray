@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
-import { getRoomOptions, isVipRoom, normalizeRoomName } from '../config/rooms'
+import { getRoomDisplayName, getRoomOptions, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { formatDateTR } from '../utils/formatters'
 import {
   derivePaymentStatus,
@@ -268,7 +268,7 @@ function ReservationForm({
       return 'V.I.P odasını odalar bölümünden elle seçin.'
     }
     if (!relaxedEdit && selectedRoomConflict) {
-      return `${form.roomName} bu tarihlerde dolu. Başka oda veya tarih seçin.`
+      return `${getRoomDisplayName(form.roomName)} bu tarihlerde dolu. Başka oda veya tarih seçin.`
     }
     return null
   }, [
@@ -436,7 +436,7 @@ function ReservationForm({
                 </p>
               ) : null}
 
-              <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5'>
+              <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
                 {roomAvailabilityList.map(({ roomName, available, conflict }) => {
                   const isSelected = isRoomSelected(roomName)
                   const vip = isVipRoom(roomName)
@@ -459,7 +459,7 @@ function ReservationForm({
                       }`}
                     >
                       <p className={`text-base font-bold sm:text-lg ${vip ? 'text-amber-900' : 'text-blue-950'}`}>
-                        {roomName}
+                        {getRoomDisplayName(roomName)}
                       </p>
                       {vip && available && !isSelected ? (
                         <p className='mt-0.5 text-[10px] font-medium text-amber-700'>Manuel seçim</p>
@@ -483,7 +483,7 @@ function ReservationForm({
               {errors.roomName ? <p className='text-xs text-rose-600'>{errors.roomName}</p> : null}
               {form.roomName && selectedRoomConflict ? (
                 <p className='text-xs font-medium text-rose-600'>
-                  {form.roomName} dolu: {selectedRoomConflict.customerName} (
+                  {getRoomDisplayName(form.roomName)} dolu: {selectedRoomConflict.customerName} (
                   {formatDateTR(selectedRoomConflict.checkInDate)} –{' '}
                   {formatDateTR(selectedRoomConflict.checkOutDate)})
                 </p>

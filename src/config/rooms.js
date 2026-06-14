@@ -1,6 +1,13 @@
 export const VIP_ROOM = 'V.I.P'
+/** Firestore'da sabit kalacak oda kimliği; görünen adı ROOM_DISPLAY_NAMES ile değiştirilebilir */
+export const ODA_6_ROOM = 'ODA/6'
 
-export const ROOMS = ['C/1', 'C/2', 'D/1', 'D/2', VIP_ROOM]
+export const ROOMS = ['C/1', 'C/2', 'D/1', 'D/2', VIP_ROOM, ODA_6_ROOM]
+
+/** Görünen oda adları — yalnızca arayüzde kullanılır; veritabanı roomName alanı sabit kalır */
+export const ROOM_DISPLAY_NAMES = {
+  [ODA_6_ROOM]: 'Oda 6',
+}
 
 const ROOM_ALIASES = {
   C: 'C/1',
@@ -20,6 +27,14 @@ const ROOM_ALIASES = {
   'V.I.P': VIP_ROOM,
   'v.i.p': VIP_ROOM,
   'V.İ.P': VIP_ROOM,
+  ODA6: ODA_6_ROOM,
+  'ODA/6': ODA_6_ROOM,
+  'oda/6': ODA_6_ROOM,
+}
+
+export const getRoomDisplayName = (roomName) => {
+  const canonical = normalizeRoomName(roomName)
+  return ROOM_DISPLAY_NAMES[canonical] ?? canonical
 }
 
 export const isVipRoom = (roomName) => {

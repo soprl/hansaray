@@ -9,7 +9,7 @@ import {
   updateReservation,
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
-import { getRoomOptions, normalizeRoomName } from '../config/rooms'
+import { getRoomDisplayName, getRoomOptions, normalizeRoomName } from '../config/rooms'
 import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import {
   canMarkReservationComplete,
@@ -354,7 +354,7 @@ function Reservations() {
             <option value=''>Tüm Odalar</option>
             {roomOptions.map((room) => (
               <option key={room} value={room}>
-                {room}
+                {getRoomDisplayName(room)}
               </option>
             ))}
           </select>
@@ -395,7 +395,7 @@ function Reservations() {
                   <div className='space-y-1'>
                     <p className='text-lg font-semibold text-blue-950'>{reservation.customerName}</p>
                     <p className='text-sm text-slate-600'>
-                      {normalizeRoomName(reservation.roomName)} - {formatDateTR(reservation.checkInDate)} /{' '}
+                      {getRoomDisplayName(normalizeRoomName(reservation.roomName))} - {formatDateTR(reservation.checkInDate)} /{' '}
                       {formatDateTR(reservation.checkOutDate)}
                     </p>
                     <p className='text-sm text-slate-600'>Telefon: {reservation.customerPhone || '-'}</p>

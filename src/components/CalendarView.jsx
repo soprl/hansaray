@@ -24,6 +24,7 @@ import {
   getReservationNightCount,
   isFullyPaidReservation,
 } from '../utils/reservationUtils'
+import { getRoomDisplayName } from '../config/rooms'
 import { getOccupancyLevel, getOvernightStayStats, ROOM_COUNT } from '../utils/occupancyUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
@@ -92,7 +93,7 @@ function CalendarGuestCard({
           {reservation.customerName || 'İsimsiz'}
         </p>
         <p className='mt-0.5 text-sm text-slate-700'>
-          {reservation.roomName || 'Oda?'}
+          {getRoomDisplayName(reservation.roomName) || 'Oda?'}
           {totalNights ? ` · ${totalNights} gece konaklama` : ''}
           {remainingLabel ? ` · ${remainingLabel}` : ''}
         </p>
@@ -199,6 +200,7 @@ function CalendarView({
 }) {
   const [dayFilter, setDayFilter] = useState('all')
   const [viewMode, setViewMode] = useState('week')
+  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(selectedDate))
   const weekTodayButtonRef = useRef(null)
   const isSearching = searchQuery.trim().length > 0
 
@@ -228,6 +230,10 @@ function CalendarView({
   useEffect(() => {
     setDayFilter('all')
   }, [selectedDate, viewMode])
+
+  useEffect(() => {
+    setVisibleMonth(startOfMonth(selectedDate))
+  }, [selectedDate])
 
   const shiftWeek = (delta) => {
     onDateChange(clampCalendarDate(addWeeks(selectedDate, delta)))
@@ -356,12 +362,16 @@ function CalendarView({
             <p className='mb-2 text-xs text-slate-500'>2026 – 2030</p>
             <div className='calendar-shell'>
               <TurkishCalendar
-                key={format(selectedDate, 'yyyy-MM')}
                 value={selectedDate}
                 onChange={onDateChange}
                 minDate={CALENDAR_MIN_DATE}
                 maxDate={CALENDAR_MAX_DATE}
-                activeStartDate={startOfMonth(selectedDate)}
+                activeStartDate={visibleMonth}
+                onActiveStartDateChange={({ activeStartDate }) => {
+                  if (activeStartDate instanceof Date && !Number.isNaN(activeStartDate.getTime())) {
+                    setVisibleMonth(activeStartDate)
+                  }
+                }}
                 tileClassName={tileClassName}
                 tileContent={tileContent}
               />

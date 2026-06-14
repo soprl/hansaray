@@ -48,6 +48,9 @@ const ROOM_ALIASES = {
   'D/2': 'D/2',
   VIP: 'V.I.P',
   'V.I.P': 'V.I.P',
+  ODA6: 'ODA/6',
+  'ODA/6': 'ODA/6',
+  'oda/6': 'ODA/6',
 }
 
 const todayIso = () => formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd')

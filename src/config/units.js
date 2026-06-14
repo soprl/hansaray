@@ -1,4 +1,4 @@
-import { ROOMS } from './rooms'
+import { getRoomDisplayName, ROOMS } from './rooms'
 import { SEASON_LENGTH_DAYS } from './season'
 
 /** Her fiziksel oda = bir ev; sezonda en fazla SEASON_LENGTH_DAYS gece */
@@ -7,7 +7,7 @@ export const EV_UNITS = ROOMS.map((roomId, index) => ({
   evNumber: index + 1,
   evLabel: `Ev ${index + 1}`,
   shortLabel: `Ev ${index + 1}`,
-  caption: `${roomId}`,
+  caption: getRoomDisplayName(roomId),
 }))
 
 export const EV_COUNT = EV_UNITS.length
