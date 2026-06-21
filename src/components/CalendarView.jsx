@@ -25,6 +25,7 @@ import {
   isFullyPaidReservation,
 } from '../utils/reservationUtils'
 import { getRoomDisplayName } from '../config/rooms'
+import { HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import { getOccupancyLevel, getOvernightStayStats, ROOM_COUNT } from '../utils/occupancyUtils'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
@@ -308,6 +309,7 @@ function CalendarView({
               {viewMode === 'week'
                 ? 'Haftayı seçin, güne tıklayın — o günün konukları altta görünür.'
                 : 'Güne tıklayın — konuklar ve giriş/çıkışlar altta listelenir.'}
+              <span className='mt-1 block text-xs text-slate-400'>{HOTEL_TIME_POLICY_LABEL}</span>
             </p>
           </div>
           <div className='flex w-full flex-col gap-2 sm:max-w-lg'>

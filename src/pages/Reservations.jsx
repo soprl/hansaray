@@ -10,6 +10,7 @@ import {
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomDisplayName, getRoomOptions, normalizeRoomName } from '../config/rooms'
+import { HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME } from '../config/hotelTime'
 import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import {
   canMarkReservationComplete,
@@ -395,8 +396,8 @@ function Reservations() {
                   <div className='space-y-1'>
                     <p className='text-lg font-semibold text-blue-950'>{reservation.customerName}</p>
                     <p className='text-sm text-slate-600'>
-                      {getRoomDisplayName(normalizeRoomName(reservation.roomName))} - {formatDateTR(reservation.checkInDate)} /{' '}
-                      {formatDateTR(reservation.checkOutDate)}
+                      {getRoomDisplayName(normalizeRoomName(reservation.roomName))} - {formatDateTR(reservation.checkInDate)} {HOTEL_CHECK_IN_TIME} /{' '}
+                      {formatDateTR(reservation.checkOutDate)} {HOTEL_CHECK_OUT_TIME}
                     </p>
                     <p className='text-sm text-slate-600'>Telefon: {reservation.customerPhone || '-'}</p>
                     <ReservationNote note={reservation.note} className='mt-1' />

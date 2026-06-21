@@ -10,10 +10,16 @@ import {
   startOfMonth,
   subDays,
 } from 'date-fns'
-import { CHECKOUT_COMPLETE_HOUR, getHotelDateTime } from '../config/hotelTime'
+import {
+  getHotelDateTime,
+  HOTEL_CHECK_IN_TIME,
+  HOTEL_CHECK_OUT_TIME,
+  isOnOrAfterCheckInTime,
+  isOnOrAfterCheckOutTime,
+} from '../config/hotelTime'
 import { canonicalRoomName, normalizeRoomName } from '../config/rooms'
 import { getSeasonBoundsForYear } from '../config/season'
-import { parseISODateSafe } from './formatters'
+import { parseISODateSafe, normalizeFirestoreDate } from './formatters'
 
 export const RES_STATUS = {
   ACTIVE: 'Aktif',
@@ -52,7 +58,7 @@ export const canMarkReservationComplete = (reservation) =>
 /**
  * Çıkış tamamlandı mı? (İstanbul)
  * — Çıkış gününden sonraki günler: evet
- * — Çıkış günü saat 12:00 ve sonrası: evet
+ * — Çıkış günü 11:30 ve sonrası: evet
  */
 export const isReservationCheckoutEnded = (reservation, referenceDate = new Date()) => {
   const checkOutDate = parseISODateSafe(reservation.checkOutDate)
@@ -63,7 +69,24 @@ export const isReservationCheckoutEnded = (reservation, referenceDate = new Date
 
   if (hotel.dateIso > checkoutIso) return true
   if (hotel.dateIso < checkoutIso) return false
-  return hotel.hour >= CHECKOUT_COMPLETE_HOUR
+  return isOnOrAfterCheckOutTime(hotel)
+}
+
+/**
+ * Giriş başladı mı? (İstanbul)
+ * — Giriş gününden önceki günler: hayır
+ * — Giriş günü 14:00 ve sonrası: evet
+ */
+export const isReservationCheckInStarted = (reservation, referenceDate = new Date()) => {
+  const checkInDate = parseISODateSafe(reservation.checkInDate)
+  if (!checkInDate) return false
+
+  const checkInIso = format(startOfDay(checkInDate), 'yyyy-MM-dd')
+  const hotel = getHotelDateTime(referenceDate)
+
+  if (hotel.dateIso > checkInIso) return true
+  if (hotel.dateIso < checkInIso) return false
+  return isOnOrAfterCheckInTime(hotel)
 }
 
 export const shouldAutoCompleteReservation = (reservation, referenceDate = new Date()) =>
@@ -118,14 +141,28 @@ export const isFullyPaidReservation = (reservation) => {
 export const isCancelledReservation = (reservation) =>
   getStoredReservationStatus(reservation) === RES_STATUS.CANCELLED
 
-/** Yeni rezervasyon / tarih değişikliğinde odayı bloklayan aktif konaklamalar (çıkış öğlen sonrası bloklamaz). */
+/** Yeni rezervasyon / tarih değişikliğinde odayı bloklayan aktif konaklamalar (çıkış 11:30 sonrası bloklamaz). */
 export const blocksRoomAvailability = (reservation, referenceDate = new Date()) => {
   if (getStoredReservationStatus(reservation) !== RES_STATUS.ACTIVE) return false
   return !isReservationCheckoutEnded(reservation, referenceDate)
 }
 
-export const hasReservationDateConflict = (incoming, existing) =>
-  incoming.checkInDate < existing.checkOutDate && incoming.checkOutDate > existing.checkInDate
+const normalizeReservationDate = (value) => normalizeFirestoreDate(value)
+
+/**
+ * Tarih aralığı çakışması — aynı gün devir (çıkış = giriş) izinli.
+ * Örn. A çıkış 18 Haz, B giriş 18 Haz → çakışma yok (11:30 / 14:00 arası temizlik).
+ */
+export const hasReservationDateConflict = (incoming, existing) => {
+  const inCheckIn = normalizeReservationDate(incoming.checkInDate)
+  const inCheckOut = normalizeReservationDate(incoming.checkOutDate)
+  const exCheckIn = normalizeReservationDate(existing.checkInDate)
+  const exCheckOut = normalizeReservationDate(existing.checkOutDate)
+
+  if (!inCheckIn || !inCheckOut || !exCheckIn || !exCheckOut) return false
+
+  return inCheckIn < exCheckOut && inCheckOut > exCheckIn
+}
 
 export const findConflictingReservation = (
   reservations,
@@ -213,6 +250,51 @@ export const isReservationStayOnDate = (reservation, date) => {
   return isWithinInterval(day, { start: startOfDay(checkIn), end: startOfDay(subDays(checkOut, 1)) })
 }
 
+const isReservationScheduledOnDay = (reservation, day) => {
+  const checkIn = parseISODateSafe(reservation.checkInDate)
+  const checkOut = parseISODateSafe(reservation.checkOutDate)
+  if (!checkIn || !checkOut) return false
+
+  return (
+    isSameDay(checkIn, day) ||
+    isSameDay(checkOut, day) ||
+    isReservationStayOnDate(reservation, day)
+  )
+}
+
+/**
+ * Takvim / doluluk: o gün oda sayılsın mı?
+ * — Gece konaklaması: giriş günü dahil, çıkış günü hariç
+ * — Çıkış günü doluluk sayılmaz (yalnızca «çıkış» listesinde görünür)
+ * — Bugün giriş: 14:00'ten önce sayılmaz
+ */
+export const isReservationCountedForOccupancyOnDate = (reservation, date, now = new Date()) => {
+  if (isCancelledReservation(reservation)) return false
+  if (getStoredReservationStatus(reservation) !== RES_STATUS.ACTIVE) return false
+  if (isReservationCheckoutEnded(reservation, now)) return false
+
+  const checkIn = parseISODateSafe(reservation.checkInDate)
+  const checkOut = parseISODateSafe(reservation.checkOutDate)
+  if (!checkIn || !checkOut || checkOut <= checkIn) return false
+
+  const day = startOfDay(date)
+  const dayIso = format(day, 'yyyy-MM-dd')
+  const checkInIso = format(startOfDay(checkIn), 'yyyy-MM-dd')
+  const checkOutIso = format(startOfDay(checkOut), 'yyyy-MM-dd')
+
+  if (dayIso < checkInIso || dayIso > checkOutIso) return false
+
+  // Çıkış günü: listede görünür ama kırmızı/turuncu doluluk hesabına girmez
+  if (dayIso === checkOutIso) return false
+
+  const isLiveToday = isSameDay(day, startOfDay(now))
+  if (isLiveToday && dayIso === checkInIso && !isOnOrAfterCheckInTime(getHotelDateTime(now))) {
+    return false
+  }
+
+  return isReservationStayOnDate(reservation, day) || dayIso === checkInIso
+}
+
 export const getReservationNightCount = (reservation) => {
   const checkIn = parseISODateSafe(reservation.checkInDate)
   const checkOut = parseISODateSafe(reservation.checkOutDate)
@@ -229,11 +311,20 @@ export const getRemainingStayLabel = (reservation, referenceDate = new Date()) =
   if (!checkIn || !checkOut) return null
 
   const day = startOfDay(referenceDate)
+  const now = new Date()
   const totalNights = differenceInCalendarDays(checkOut, checkIn)
   if (totalNights <= 0) return null
 
-  if (isSameDay(checkOut, day)) return 'Bugün çıkış'
+  if (isSameDay(checkOut, day)) {
+    if (isSameDay(day, startOfDay(now)) && !isReservationCheckoutEnded(reservation, now)) {
+      return `Bugün çıkış · ${HOTEL_CHECK_OUT_TIME}'a kadar`
+    }
+    return 'Bugün çıkış'
+  }
   if (checkIn && isSameDay(checkIn, day)) {
+    if (isSameDay(day, startOfDay(now)) && !isReservationCheckInStarted(reservation, now)) {
+      return `${totalNights} gece · giriş ${HOTEL_CHECK_IN_TIME}`
+    }
     return `${totalNights} gece kalacak`
   }
 
@@ -245,22 +336,31 @@ export const getRemainingStayLabel = (reservation, referenceDate = new Date()) =
 /** Seçilen gün için giriş, çıkış ve konaklama listeleri (Dashboard ile aynı mantık). */
 export const getCalendarDayReservations = (reservations, referenceDate = new Date()) => {
   const day = startOfDay(referenceDate)
+  const now = new Date()
+  const timeReference = isSameDay(day, startOfDay(now)) ? now : referenceDate
+
   const mappedReservations = reservations.map((reservation) =>
-    withEffectiveReservationStatus(reservation, referenceDate),
-  )
-  const activeReservations = mappedReservations.filter(
-    (reservation) => reservation.effectiveStatus === RES_STATUS.ACTIVE,
+    withEffectiveReservationStatus(reservation, timeReference),
   )
 
-  const checkIns = activeReservations.filter((reservation) => {
+  const visibleReservations = mappedReservations.filter(
+    (reservation) => getStoredReservationStatus(reservation) !== RES_STATUS.CANCELLED,
+  )
+
+  const checkIns = visibleReservations.filter((reservation) => {
     const checkInDate = parseISODateSafe(reservation.checkInDate)
     return checkInDate ? isSameDay(checkInDate, day) : false
   })
-  const checkOuts = activeReservations.filter((reservation) => {
+
+  const checkOuts = visibleReservations.filter((reservation) => {
     const checkOutDate = parseISODateSafe(reservation.checkOutDate)
     return checkOutDate ? isSameDay(checkOutDate, day) : false
   })
-  const stays = activeReservations.filter((reservation) => isReservationStayOnDate(reservation, day))
+
+  const stays = visibleReservations.filter((reservation) =>
+    isReservationCountedForOccupancyOnDate(reservation, day, timeReference),
+  )
+
   const stayingOnly = stays.filter((reservation) => {
     const checkInDate = parseISODateSafe(reservation.checkInDate)
     const checkOutDate = parseISODateSafe(reservation.checkOutDate)
@@ -273,6 +373,7 @@ export const getCalendarDayReservations = (reservations, referenceDate = new Dat
   const seen = new Set(stays.map((reservation) => reservation.id))
   ;[...checkIns, ...checkOuts].forEach((reservation) => {
     if (seen.has(reservation.id)) return
+    if (!isReservationScheduledOnDay(reservation, day)) return
     seen.add(reservation.id)
     allForDay.push(reservation)
   })

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { eachDayOfInterval, format, startOfDay, subDays } from 'date-fns'
+import { eachDayOfInterval, format, startOfDay } from 'date-fns'
 import CalendarView from '../components/CalendarView'
 import { clampCalendarDate } from '../config/calendarBounds'
 import { useAuth } from '../context/useAuth'
@@ -10,6 +10,7 @@ import {
   getCalendarDayReservations,
   getEffectiveReservationStatus,
   isCancelledReservation,
+  isReservationCountedForOccupancyOnDate,
   PAYMENT_STATUS,
   RES_STATUS,
 } from '../utils/reservationUtils'
@@ -67,9 +68,10 @@ function Calendar() {
     fetchReservations()
   }, [user])
 
-  /** O gece yatakta kalanlar (giriş günü dahil, çıkış günü hariç) — doluluk / kırmızı gün */
+  /** O gün odada konaklayanlar — doluluk rengi (çıkış günü hariç; giriş 14:00 sonrası) */
   const overnightStaysMap = useMemo(() => {
     const map = new Map()
+    const now = new Date()
 
     reservations.forEach((reservation) => {
       if (isCancelledReservation(reservation)) return
@@ -79,13 +81,8 @@ function Calendar() {
       if (!checkIn || !checkOut || checkOut <= checkIn) return
 
       try {
-        const rangeDays = eachDayOfInterval({
-          start: checkIn,
-          end: subDays(checkOut, 1),
-        })
-
-        rangeDays.forEach((date) => {
-          if (getEffectiveReservationStatus(reservation, date) !== RES_STATUS.ACTIVE) return
+        eachDayOfInterval({ start: checkIn, end: checkOut }).forEach((date) => {
+          if (!isReservationCountedForOccupancyOnDate(reservation, date, now)) return
           addReservationToMap(map, date, reservation)
         })
       } catch {

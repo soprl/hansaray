@@ -66,15 +66,15 @@ const checkReservationConflict = async ({ roomName, checkInDate, checkOutDate, e
     if (document.id === excludeId) return false
 
     const data = document.data()
-    if (!blocksRoomAvailability(data)) return false
+    const existing = {
+      checkInDate: normalizeFirestoreDate(data.checkInDate),
+      checkOutDate: normalizeFirestoreDate(data.checkOutDate),
+      reservationStatus: data.reservationStatus,
+    }
 
-    return hasReservationDateConflict(
-      { checkInDate, checkOutDate },
-      {
-        checkInDate: data.checkInDate,
-        checkOutDate: data.checkOutDate,
-      },
-    )
+    if (!blocksRoomAvailability(existing)) return false
+
+    return hasReservationDateConflict({ checkInDate, checkOutDate }, existing)
   })
 }
 

@@ -13,6 +13,7 @@
     "cap:ios": "npx @capacitor/cli open ios",
     "cap:add:ios": "npx @capacitor/cli add ios",
     "icons": "node scripts/generate-icons.mjs",
+    "verify:hotel-time": "node scripts/verify-hotel-time.mjs",
     "mobile:firebase": "firebase deploy --only firestore:rules,functions",
     "firebase:rules": "firebase deploy --only firestore:rules",
     "mobile:ios-prep": "npm run icons && npm run build && npm run cap:sync:ios"

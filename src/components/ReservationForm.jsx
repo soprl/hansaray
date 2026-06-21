@@ -4,6 +4,7 @@ import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
 import { getRoomDisplayName, getRoomOptions, isVipRoom, normalizeRoomName } from '../config/rooms'
+import { HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import { formatDateTR } from '../utils/formatters'
 import {
   derivePaymentStatus,
@@ -360,6 +361,7 @@ function ReservationForm({
       <form ref={formRef} onSubmit={handleSubmit} className='mt-4 space-y-6'>
         <fieldset className='space-y-3'>
           <legend className='text-sm font-semibold text-slate-800'>1. Tarihler</legend>
+          <p className='text-xs text-slate-500'>{HOTEL_TIME_POLICY_LABEL} (TR saati)</p>
           <div className='grid gap-4 sm:grid-cols-2'>
             <div data-field='checkInDate'>
               <DatePickerField

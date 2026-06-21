@@ -63,7 +63,15 @@ const normalizeRoomName = (name) => {
 }
 
 const RES_ACTIVE = 'Aktif'
-const CHECKOUT_COMPLETE_HOUR = 12
+const CHECK_OUT_HOUR = 11
+const CHECK_OUT_MINUTE = 30
+
+const isBeforeCheckOutTime = (timeValue) => {
+  const [hourPart, minutePart] = timeValue.split(':')
+  const hour = Number(hourPart) || 0
+  const minute = Number(minutePart) || 0
+  return hour * 60 + minute < CHECK_OUT_HOUR * 60 + CHECK_OUT_MINUTE
+}
 
 const isActiveReservation = (reservation) => {
   const status = (reservation?.reservationStatus ?? '').toString().trim()
@@ -81,7 +89,7 @@ const isActiveReservation = (reservation) => {
   const now = currentTime()
   if (today > checkOut) return false
   if (today < checkOut) return true
-  return now < `${String(CHECKOUT_COMPLETE_HOUR).padStart(2, '0')}:00`
+  return isBeforeCheckOutTime(now)
 }
 
 const hasPendingPayment = (reservation) => {
