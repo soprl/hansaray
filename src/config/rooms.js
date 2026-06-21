@@ -4,6 +4,9 @@ export const ODA_6_ROOM = 'ODA/6'
 
 export const ROOMS = ['C/1', 'C/2', 'D/1', 'D/2', VIP_ROOM, ODA_6_ROOM]
 
+/** Rezervasyona kapalı odalar — Set'ten çıkarınca tekrar açılır */
+export const INACTIVE_ROOMS = new Set([ODA_6_ROOM])
+
 /** Görünen oda adları — yalnızca arayüzde kullanılır; veritabanı roomName alanı sabit kalır */
 export const ROOM_DISPLAY_NAMES = {
   [ODA_6_ROOM]: 'Oda 6',
@@ -53,6 +56,12 @@ export const normalizeRoomName = (name) => {
   const trimmed = name?.trim() ?? ''
   return ROOM_ALIASES[trimmed] ?? trimmed
 }
+
+export const isRoomBookable = (roomName) => !INACTIVE_ROOMS.has(normalizeRoomName(roomName))
+
+/** Doluluk / tam dolu eşiği için aktif oda sayısı */
+export const ACTIVE_ROOMS = ROOMS.filter((roomId) => isRoomBookable(roomId))
+export const ACTIVE_ROOM_COUNT = ACTIVE_ROOMS.length
 
 export const getRoomOptions = (reservations = []) => {
   const extras = new Set()

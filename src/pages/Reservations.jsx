@@ -9,7 +9,7 @@ import {
   updateReservation,
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
-import { getRoomDisplayName, getRoomOptions, normalizeRoomName } from '../config/rooms'
+import { getRoomDisplayName, getRoomOptions, isRoomBookable, normalizeRoomName } from '../config/rooms'
 import { HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME } from '../config/hotelTime'
 import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import {
@@ -354,8 +354,9 @@ function Reservations() {
           >
             <option value=''>Tüm Odalar</option>
             {roomOptions.map((room) => (
-              <option key={room} value={room}>
+              <option key={room} value={room} disabled={!isRoomBookable(room)}>
                 {getRoomDisplayName(room)}
+                {!isRoomBookable(room) ? ' (Pasif)' : ''}
               </option>
             ))}
           </select>

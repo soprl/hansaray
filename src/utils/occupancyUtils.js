@@ -5,7 +5,7 @@ import {
   startOfDay,
   startOfMonth,
 } from 'date-fns'
-import { canonicalRoomName, ROOMS } from '../config/rooms'
+import { canonicalRoomName, ACTIVE_ROOM_COUNT, isRoomBookable } from '../config/rooms'
 import {
   countSeasonDaysInRange,
   getSeasonYearToDateRange,
@@ -19,8 +19,8 @@ import {
   isCancelledReservation,
 } from './reservationUtils'
 
-export const ROOM_COUNT = ROOMS.length
-export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ROOM_COUNT
+export const ROOM_COUNT = ACTIVE_ROOM_COUNT
+export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ACTIVE_ROOM_COUNT
 
 /** O gece konaklayanlar: kişi sayısı + dolu oda sayısı (5 oda = tam dolu) */
 export const getOvernightStayStats = (stayList = []) => {
@@ -28,7 +28,7 @@ export const getOvernightStayStats = (stayList = []) => {
 
   stayList.forEach((reservation) => {
     const room = canonicalRoomName(reservation.roomName)
-    if (room) occupiedRooms.add(room)
+    if (room && isRoomBookable(room)) occupiedRooms.add(room)
   })
 
   const guestCount = stayList.length

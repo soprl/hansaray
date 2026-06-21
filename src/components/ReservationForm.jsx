@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
-import { getRoomDisplayName, getRoomOptions, isVipRoom, normalizeRoomName } from '../config/rooms'
+import { getRoomDisplayName, getRoomOptions, isRoomBookable, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import { formatDateTR } from '../utils/formatters'
 import {
@@ -91,12 +91,20 @@ function ReservationForm({
 
   const roomAvailabilityList = useMemo(() => {
     if (!datesValid) return []
-    return getRoomAvailabilityList(reservations, {
+
+    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+    const bookable = getRoomAvailabilityList(reservations, {
       checkInDate: form.checkInDate,
       checkOutDate: form.checkOutDate,
       excludeId,
-      roomNames: roomOptions,
+      roomNames: bookableNames,
     })
+
+    const inactive = roomOptions
+      .filter((roomName) => !isRoomBookable(roomName))
+      .map((roomName) => ({ roomName, available: false, conflict: null, inactive: true }))
+
+    return [...bookable, ...inactive]
   }, [reservations, roomOptions, form.checkInDate, form.checkOutDate, excludeId, datesValid])
 
   const selectedRoomConflict = useMemo(() => {
@@ -110,7 +118,12 @@ function ReservationForm({
   }, [reservations, form.roomName, form.checkInDate, form.checkOutDate, excludeId, datesValid])
 
   const availableRooms = useMemo(
-    () => roomAvailabilityList.filter((room) => room.available),
+    () => roomAvailabilityList.filter((room) => room.available && isRoomBookable(room.roomName)),
+    [roomAvailabilityList],
+  )
+
+  const bookableRoomCount = useMemo(
+    () => roomAvailabilityList.filter((room) => isRoomBookable(room.roomName)).length,
     [roomAvailabilityList],
   )
 
@@ -119,11 +132,22 @@ function ReservationForm({
     [availableRooms],
   )
 
-  const allRoomsFull = datesValid && roomAvailabilityList.length > 0 && availableRooms.length === 0
+  const allRoomsFull = datesValid && bookableRoomCount > 0 && availableRooms.length === 0
 
   useEffect(() => {
     if (relaxedEdit) return
     if (!datesValid || roomAvailabilityList.length === 0) return
+
+    const keepingInactiveEdit =
+      isEditing &&
+      initialValues?.roomName &&
+      !isRoomBookable(form.roomName) &&
+      normalizeRoomName(initialValues.roomName) === normalizeRoomName(form.roomName)
+
+    if (form.roomName && !isRoomBookable(form.roomName) && !keepingInactiveEdit) {
+      setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
+      return
+    }
 
     if (availableRooms.length === 0) {
       setVipManuallySelected(false)
@@ -186,7 +210,8 @@ function ReservationForm({
     vipManuallySelected,
   ])
 
-  const getRoomStatusLabel = (roomName, available) => {
+  const getRoomStatusLabel = (roomName, available, inactive = false) => {
+    if (inactive || !isRoomBookable(roomName)) return 'Pasif · şu an kapalı'
     if (isVipRoom(roomName)) {
       return available ? 'Müsait · VIP boş' : 'Dolu · Bu tarihlerde VIP dolu'
     }
@@ -226,6 +251,7 @@ function ReservationForm({
   }
 
   const selectRoom = (roomName) => {
+    if (!isRoomBookable(roomName)) return
     if (isVipRoom(roomName)) {
       setVipManuallySelected(true)
     } else {
@@ -268,6 +294,13 @@ function ReservationForm({
     if (!relaxedEdit && isVipRoom(form.roomName) && !vipManuallySelected) {
       return 'V.I.P odasını odalar bölümünden elle seçin.'
     }
+    if (
+      form.roomName &&
+      !isRoomBookable(form.roomName) &&
+      !(isEditing && normalizeRoomName(initialValues?.roomName) === normalizeRoomName(form.roomName))
+    ) {
+      return 'Seçilen oda şu an rezervasyona kapalı.'
+    }
     if (!relaxedEdit && selectedRoomConflict) {
       return `${getRoomDisplayName(form.roomName)} bu tarihlerde dolu. Başka oda veya tarih seçin.`
     }
@@ -308,6 +341,8 @@ function ReservationForm({
       nextErrors.roomName = 'Bu tarihlerde tüm odalar dolu.'
     } else if (!form.roomName) {
       nextErrors.roomName = 'Oda seçin.'
+    } else if (!isRoomBookable(form.roomName) && !(isEditing && normalizeRoomName(initialValues?.roomName) === normalizeRoomName(form.roomName))) {
+      nextErrors.roomName = 'Bu oda şu an rezervasyona kapalı.'
     }
     if (!form.customerName.trim()) nextErrors.customerName = 'Müşteri adı zorunludur.'
     if (!form.customerPhone.trim()) nextErrors.customerPhone = 'Telefon zorunludur.'
@@ -439,41 +474,53 @@ function ReservationForm({
               ) : null}
 
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
-                {roomAvailabilityList.map(({ roomName, available, conflict }) => {
+                {roomAvailabilityList.map(({ roomName, available, conflict, inactive }) => {
                   const isSelected = isRoomSelected(roomName)
                   const vip = isVipRoom(roomName)
+                  const isInactive = inactive || !isRoomBookable(roomName)
+                  const canSelect = available && !isInactive
                   return (
                     <button
                       key={roomName}
                       type='button'
-                      onClick={() => available && selectRoom(roomName)}
-                      disabled={!available}
+                      onClick={() => canSelect && selectRoom(roomName)}
+                      disabled={!canSelect}
                       className={`rounded-xl border-2 p-3 text-left transition sm:p-4 ${
-                        isSelected
-                          ? vip
-                            ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-200'
-                            : 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                          : available
+                        isInactive
+                          ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-70'
+                          : isSelected
                             ? vip
-                              ? 'border-dashed border-amber-400 bg-white hover:border-amber-500 hover:bg-amber-50/40'
-                              : 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50'
-                            : 'cursor-not-allowed border-rose-200 bg-rose-50/80'
+                              ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-200'
+                              : 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                            : available
+                              ? vip
+                                ? 'border-dashed border-amber-400 bg-white hover:border-amber-500 hover:bg-amber-50/40'
+                                : 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50'
+                              : 'cursor-not-allowed border-rose-200 bg-rose-50/80'
                       }`}
                     >
-                      <p className={`text-base font-bold sm:text-lg ${vip ? 'text-amber-900' : 'text-blue-950'}`}>
+                      <p
+                        className={`text-base font-bold sm:text-lg ${
+                          isInactive ? 'text-slate-400' : vip ? 'text-amber-900' : 'text-blue-950'
+                        }`}
+                      >
                         {getRoomDisplayName(roomName)}
                       </p>
-                      {vip && available && !isSelected ? (
+                      {vip && canSelect && !isSelected ? (
                         <p className='mt-0.5 text-[10px] font-medium text-amber-700'>Manuel seçim</p>
                       ) : null}
                       <p
                         className={`mt-1 text-[11px] font-semibold leading-snug sm:text-xs ${
-                          available ? 'text-emerald-700' : 'text-rose-700'
+                          isInactive
+                            ? 'text-slate-500'
+                            : available
+                              ? 'text-emerald-700'
+                              : 'text-rose-700'
                         }`}
                       >
-                        {getRoomStatusLabel(roomName, available)}
+                        {getRoomStatusLabel(roomName, available, isInactive)}
                       </p>
-                      {!available && conflict ? (
+                      {!isInactive && !available && conflict ? (
                         <p className='mt-1 truncate text-xs text-slate-500' title={conflict.customerName}>
                           {conflict.customerName}
                         </p>
