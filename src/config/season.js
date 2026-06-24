@@ -1,6 +1,6 @@
 import { addDays, differenceInCalendarDays, max as maxDate, min as minDate, startOfDay } from 'date-fns'
 
-/** Yılda açık gün sayısı (5 oda × bu gün = yıllık kapasite gece) */
+/** Yılda açık gün sayısı (6 oda × bu gün = yıllık kapasite gece) */
 export const SEASON_LENGTH_DAYS = 180
 
 /** Her yıl tekrarlayan sezon başlangıcı */
