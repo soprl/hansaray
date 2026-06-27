@@ -309,7 +309,9 @@ function CalendarView({
               {viewMode === 'week'
                 ? 'Haftayı seçin, güne tıklayın — o günün konukları altta görünür.'
                 : 'Güne tıklayın — konuklar ve giriş/çıkışlar altta listelenir.'}
-              <span className='mt-1 block text-xs text-slate-400'>{HOTEL_TIME_POLICY_LABEL}</span>
+              <span className='mt-1 block text-xs text-slate-400'>
+                {HOTEL_TIME_POLICY_LABEL} · Doluluk rengi rezervasyon müsaitliği ile uyumludur
+              </span>
             </p>
           </div>
           <div className='flex w-full flex-col gap-2 sm:max-w-lg'>

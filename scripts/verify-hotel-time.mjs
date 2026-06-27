@@ -67,4 +67,19 @@ assert.equal(
   'Gerçek örtüşme çakışma',
 )
 
+// Takvim doluluk = «bu güne 1 gece giriş» çakışması (form ile aynı)
+const guest = { checkInDate: turnoverDay, checkOutDate: '2026-06-20' }
+
+assert.equal(
+  hasDateConflict({ checkInDate: turnoverDay, checkOutDate: '2026-06-19' }, guest),
+  true,
+  'Giriş günü takvimde dolu sayılmalı (saatten bağımsız)',
+)
+assert.equal(
+  hasDateConflict({ checkInDate: '2026-06-20', checkOutDate: '2026-06-21' }, guest),
+  false,
+  'Çıkış günü takvimde boş (devir)',
+)
+
 console.log('✓ Otel saati kuralları doğrulandı (11:30 çıkış, 14:00 giriş, aynı gün devir).')
+console.log('✓ Takvim doluluk = rezervasyon çakışma kuralı uyumlu.')

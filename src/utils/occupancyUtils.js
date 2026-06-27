@@ -22,7 +22,7 @@ import {
 export const ROOM_COUNT = ACTIVE_ROOM_COUNT
 export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ACTIVE_ROOM_COUNT
 
-/** O gece konaklayanlar: kişi sayısı + dolu oda sayısı (6 oda = tam dolu) */
+/** O gece konaklayanlar: kişi sayısı + dolu oda sayısı (takvim rengi = rezervasyon çakışması) */
 export const getOvernightStayStats = (stayList = []) => {
   const occupiedRooms = new Set()
 

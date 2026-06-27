@@ -68,7 +68,7 @@ function Calendar() {
     fetchReservations()
   }, [user])
 
-  /** O gün odada konaklayanlar — doluluk rengi (çıkış günü hariç; giriş 14:00 sonrası) */
+  /** O gün dolu odalar — rezervasyon formu ile aynı çakışma kuralı */
   const overnightStaysMap = useMemo(() => {
     const map = new Map()
     const now = new Date()

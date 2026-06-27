@@ -1,4 +1,5 @@
 import {
+  addDays,
   addMonths,
   differenceInCalendarDays,
   endOfMonth,
@@ -263,36 +264,34 @@ const isReservationScheduledOnDay = (reservation, day) => {
 }
 
 /**
- * Takvim / doluluk: o gün oda sayılsın mı?
- * — Gece konaklaması: giriş günü dahil, çıkış günü hariç
- * — Çıkış günü doluluk sayılmaz (yalnızca «çıkış» listesinde görünür)
- * — Bugün giriş: 14:00'ten önce sayılmaz
+ * Takvim doluluk rengi — rezervasyon formu ile aynı çakışma kuralı.
+ * «Bu güne giriş yapılsa (1 gece)» oda dolu mu? (çıkış günü devir hariç)
  */
 export const isReservationCountedForOccupancyOnDate = (reservation, date, now = new Date()) => {
   if (isCancelledReservation(reservation)) return false
-  if (getStoredReservationStatus(reservation) !== RES_STATUS.ACTIVE) return false
-  if (isReservationCheckoutEnded(reservation, now)) return false
-
-  const checkIn = parseISODateSafe(reservation.checkInDate)
-  const checkOut = parseISODateSafe(reservation.checkOutDate)
-  if (!checkIn || !checkOut || checkOut <= checkIn) return false
+  if (!blocksRoomAvailability(reservation, now)) return false
 
   const day = startOfDay(date)
   const dayIso = format(day, 'yyyy-MM-dd')
-  const checkInIso = format(startOfDay(checkIn), 'yyyy-MM-dd')
-  const checkOutIso = format(startOfDay(checkOut), 'yyyy-MM-dd')
+  const nextDayIso = format(addDays(day, 1), 'yyyy-MM-dd')
 
-  if (dayIso < checkInIso || dayIso > checkOutIso) return false
+  return hasReservationDateConflict(
+    { checkInDate: dayIso, checkOutDate: nextDayIso },
+    reservation,
+  )
+}
 
-  // Çıkış günü: listede görünür ama kırmızı/turuncu doluluk hesabına girmez
-  if (dayIso === checkOutIso) return false
+/** Seçili günde dolu oda sayısı (takvim rengi ile rezervasyon formu uyumlu) */
+export const getOccupiedRoomsOnDate = (reservations, date, now = new Date()) => {
+  const occupied = new Set()
 
-  const isLiveToday = isSameDay(day, startOfDay(now))
-  if (isLiveToday && dayIso === checkInIso && !isOnOrAfterCheckInTime(getHotelDateTime(now))) {
-    return false
-  }
+  reservations.forEach((reservation) => {
+    if (!isReservationCountedForOccupancyOnDate(reservation, date, now)) return
+    const room = canonicalRoomName(reservation.roomName)
+    if (room) occupied.add(room)
+  })
 
-  return isReservationStayOnDate(reservation, day) || dayIso === checkInIso
+  return occupied.size
 }
 
 export const getReservationNightCount = (reservation) => {
