@@ -115,6 +115,8 @@ export const findBookingPlan = (
   }
 }
 
+const MAX_SHUFFLE_DEPTH = 12
+
 const findBookingPlanUnsafe = (
   reservations,
   { checkInDate, checkOutDate, excludeId, roomNames },
@@ -172,7 +174,9 @@ const findBookingPlanUnsafe = (
   for (const targetRoom of standardRooms) {
     const assignment = new Map()
 
-    const search = (index) => {
+    const search = (index, depth = 0) => {
+      if (depth > MAX_SHUFFLE_DEPTH) return null
+
       if (index === sortedMovable.length) {
         if (
           targetRoomBlocksIncoming(
@@ -213,7 +217,7 @@ const findBookingPlanUnsafe = (
         if (!canPlaceOnRoom(reservation, room, assignment, reservationsById, fixedVip)) continue
 
         assignment.set(reservation.id, room)
-        const result = search(index + 1)
+        const result = search(index + 1, depth + 1)
         if (result) return result
         assignment.delete(reservation.id)
       }

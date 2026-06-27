@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format } from 'date-fns'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
@@ -154,9 +154,14 @@ function ReservationForm({
 
   const fullyBookedNights = useMemo(() => {
     if (!canSearchRooms) return []
-    return getFullyBookedNightsInRange(reservations, form.checkInDate, form.checkOutDate, {
-      excludeId,
-    })
+    try {
+      return getFullyBookedNightsInRange(reservations, form.checkInDate, form.checkOutDate, {
+        excludeId,
+      })
+    } catch (error) {
+      console.error('Dolu gece hesaplanamadı:', error)
+      return []
+    }
   }, [canSearchRooms, reservations, form.checkInDate, form.checkOutDate, excludeId])
 
   const hasFullyBookedNight = fullyBookedNights.length > 0
@@ -292,105 +297,159 @@ function ReservationForm({
     return roomAvailabilityList
   }, [roomAvailabilityList, isEditingVipReservation])
 
-  const availableRoomCount = availableRooms.length
-  const autoPickableRoomCount = autoPickableRooms.length
-  const bookingTargetRoom = bookingPlan?.targetRoom ?? null
+  const vipManuallySelectedRef = useRef(vipManuallySelected)
+  vipManuallySelectedRef.current = vipManuallySelected
 
-  useEffect(() => {
-    if (relaxedEdit || !datesValid) return
+  const syncRoomAfterDateChange = useCallback(
+    (checkInDate, checkOutDate, prevRoomName) => {
+      const checkIn = parseISODateSafe(checkInDate)
+      const checkOut = parseISODateSafe(checkOutDate)
+      const valid = Boolean(checkIn && checkOut && checkOut > checkIn)
 
-    if (!dateValidation.valid || hasFullyBookedNight) {
-      setVipManuallySelected((current) => (current ? false : current))
-      setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
-      return
-    }
-
-    if (roomAvailabilityList.length === 0) return
-
-    if (isEditingVipReservation) {
-      const vipRoom = normalizeRoomName(initialValues.roomName)
-      setVipManuallySelected(true)
-      setForm((prev) => (prev.roomName !== vipRoom ? { ...prev, roomName: vipRoom } : prev))
-      return
-    }
-
-    const keepingInactiveEdit =
-      isEditing &&
-      initialValues?.roomName &&
-      !isRoomBookable(form.roomName) &&
-      normalizeRoomName(initialValues.roomName) === normalizeRoomName(form.roomName)
-
-    if (form.roomName && !isRoomBookable(form.roomName) && !keepingInactiveEdit) {
-      setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
-      return
-    }
-
-    if (availableRoomCount === 0) {
-      setVipManuallySelected((current) => (current ? false : current))
-      setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
-      return
-    }
-
-    const datesChanged =
-      form.checkInDate !== lastAutoPickDatesRef.current.checkIn ||
-      form.checkOutDate !== lastAutoPickDatesRef.current.checkOut
-
-    const currentStillAvailable = availableRooms.some((room) => room.roomName === form.roomName)
-    const vipHeldByUser =
-      vipManuallySelected && form.roomName && isVipRoom(form.roomName) && currentStillAvailable
-
-    if (vipHeldByUser && !datesChanged) return
-
-    if (!datesChanged && form.roomName && currentStillAvailable) return
-
-    const needsAutoPick =
-      datesChanged ||
-      !form.roomName ||
-      !currentStillAvailable ||
-      (form.roomName && isVipRoom(form.roomName) && !vipManuallySelected)
-
-    if (!needsAutoPick) return
-
-    setVipManuallySelected((current) => (current ? false : current))
-
-    if (autoPickableRoomCount === 0) {
-      setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
-      lastAutoPickDatesRef.current = {
-        checkIn: form.checkInDate,
-        checkOut: form.checkOutDate,
+      if (relaxedEdit || !valid) {
+        return { roomName: prevRoomName, vipManual: vipManuallySelectedRef.current }
       }
-      return
-    }
 
-    const picked =
-      (bookingTargetRoom &&
-        autoPickableRooms.find((room) => room.roomName === bookingTargetRoom)?.roomName) ||
-      pickFirstAvailableStandardRoom(autoPickableRooms.map((room) => room.roomName))
+      const activeDateValidation = validateActiveReservationDates({
+        checkInDate,
+        checkOutDate,
+        reservationStatus: form.reservationStatus,
+        originalCheckInDate: initialValues?.checkInDate,
+      })
 
-    if (!picked || isVipRoom(picked)) return
+      if (!activeDateValidation.valid) {
+        lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
+        return { roomName: '', vipManual: false }
+      }
 
-    lastAutoPickDatesRef.current = {
-      checkIn: form.checkInDate,
-      checkOut: form.checkOutDate,
-    }
-    setForm((prev) => (prev.roomName === picked ? prev : { ...prev, roomName: picked }))
-  }, [
-    relaxedEdit,
-    datesValid,
-    dateValidation.valid,
-    hasFullyBookedNight,
-    form.checkInDate,
-    form.checkOutDate,
-    form.roomName,
-    roomAvailabilityList.length,
-    availableRoomCount,
-    autoPickableRoomCount,
-    bookingTargetRoom,
-    vipManuallySelected,
-    isEditing,
-    isEditingVipReservation,
-    initialValues?.roomName,
-  ])
+      let fullNights = []
+      try {
+        fullNights = getFullyBookedNightsInRange(reservations, checkInDate, checkOutDate, {
+          excludeId,
+        })
+      } catch (error) {
+        console.error('Dolu gece kontrolü başarısız:', error)
+      }
+
+      if (fullNights.length > 0) {
+        lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
+        return { roomName: '', vipManual: false }
+      }
+
+      if (isEditingVipReservation) {
+        const vipRoom = normalizeRoomName(initialValues.roomName)
+        lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
+        return { roomName: vipRoom, vipManual: true }
+      }
+
+      const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+      const availability = getRoomAvailabilityList(reservations, {
+        checkInDate,
+        checkOutDate,
+        excludeId,
+        roomNames: bookableNames,
+      })
+
+      let plan = null
+      try {
+        plan = findBookingPlan(reservations, {
+          checkInDate,
+          checkOutDate,
+          excludeId,
+          roomNames: bookableNames,
+        })
+      } catch (error) {
+        console.error('Oda yerleştirme planı hesaplanamadı:', error)
+      }
+
+      const availableForRange = availability
+        .map((room) => {
+          if (
+            plan?.targetRoom &&
+            normalizeRoomName(room.roomName) === normalizeRoomName(plan.targetRoom)
+          ) {
+            return { ...room, available: true, conflict: null }
+          }
+          return room
+        })
+        .filter((room) => room.available && isRoomBookable(room.roomName))
+
+      const autoPickable = availableForRange.filter((room) => !isVipRoom(room.roomName))
+
+      if (availableForRange.length === 0) {
+        lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
+        return { roomName: '', vipManual: false }
+      }
+
+      const datesChanged =
+        checkInDate !== lastAutoPickDatesRef.current.checkIn ||
+        checkOutDate !== lastAutoPickDatesRef.current.checkOut
+
+      const wasVipManual = vipManuallySelectedRef.current
+      const currentStillAvailable = availableForRange.some((room) => room.roomName === prevRoomName)
+      const vipHeldByUser =
+        wasVipManual && prevRoomName && isVipRoom(prevRoomName) && currentStillAvailable
+
+      if (vipHeldByUser && !datesChanged) {
+        return { roomName: prevRoomName, vipManual: true }
+      }
+
+      if (!datesChanged && prevRoomName && currentStillAvailable) {
+        return { roomName: prevRoomName, vipManual: wasVipManual }
+      }
+
+      if (autoPickable.length === 0) {
+        lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
+        return { roomName: '', vipManual: false }
+      }
+
+      const picked =
+        (plan?.targetRoom &&
+          autoPickable.find((room) => room.roomName === plan.targetRoom)?.roomName) ||
+        pickFirstAvailableStandardRoom(autoPickable.map((room) => room.roomName))
+
+      if (!picked || isVipRoom(picked)) {
+        return { roomName: prevRoomName, vipManual: wasVipManual }
+      }
+
+      lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
+      return { roomName: picked, vipManual: false }
+    },
+    [
+      relaxedEdit,
+      form.reservationStatus,
+      initialValues?.checkInDate,
+      initialValues?.roomName,
+      isEditingVipReservation,
+      reservations,
+      excludeId,
+      roomOptions,
+    ],
+  )
+
+  const applyDateChange = useCallback(
+    (partial) => {
+      let nextVipManual = vipManuallySelectedRef.current
+
+      setForm((prev) => {
+        const next = { ...prev, ...partial }
+        if (next.checkOutDate && next.checkInDate && next.checkOutDate <= next.checkInDate) {
+          next.checkOutDate = ''
+        }
+
+        const sync = syncRoomAfterDateChange(
+          next.checkInDate,
+          next.checkOutDate,
+          prev.roomName,
+        )
+        nextVipManual = sync.vipManual
+        return { ...next, roomName: sync.roomName }
+      })
+
+      setVipManuallySelected(nextVipManual)
+    },
+    [syncRoomAfterDateChange],
+  )
 
   const getRoomStatusLabel = (roomName, available, inactive = false, viaShuffle = false) => {
     if (inactive || !isRoomBookable(roomName)) return 'Pasif · şu an kapalı'
@@ -418,20 +477,14 @@ function ReservationForm({
   }
 
   const setCheckIn = (checkInDate) => {
-    setForm((prev) => {
-      const next = { ...prev, checkInDate }
-      if (prev.checkOutDate && checkInDate && prev.checkOutDate <= checkInDate) {
-        next.checkOutDate = ''
-      }
-      return next
-    })
+    applyDateChange({ checkInDate })
   }
 
   const applyNightPreset = (nights) => {
     if (!form.checkInDate) return
     const checkOutDate = addDaysIso(form.checkInDate, nights)
     if (!checkOutDate) return
-    setForm((prev) => ({ ...prev, checkOutDate }))
+    applyDateChange({ checkOutDate })
   }
 
   const selectRoom = (roomName) => {
@@ -617,7 +670,7 @@ function ReservationForm({
               <DatePickerField
                 label='Çıkış'
                 value={form.checkOutDate}
-                onChange={(checkOutDate) => setForm((prev) => ({ ...prev, checkOutDate }))}
+                onChange={(checkOutDate) => applyDateChange({ checkOutDate })}
                 minDate={
                   form.checkInDate
                     ? addDaysIso(form.checkInDate, 1)
@@ -688,7 +741,7 @@ function ReservationForm({
                     </p>
                   ) : null}
                 </div>
-              ) : bookingPlan?.shuffled && bookingPlan.reassignments.length > 0 ? (
+              ) : bookingPlan?.shuffled && (bookingPlan.reassignments?.length ?? 0) > 0 ? (
                 <div className='rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-950'>
                   <p className='font-semibold'>Otomatik oda düzenlemesi gerekli</p>
                   <p className='mt-1 text-xs leading-relaxed text-blue-900/90'>
@@ -696,9 +749,9 @@ function ReservationForm({
                     taşınacak; {getRoomDisplayName(bookingPlan.targetRoom)} sizin için ayrılacak.
                   </p>
                   <ul className='mt-2 space-y-1 text-xs text-blue-900'>
-                    {bookingPlan.reassignments.map((move) => (
-                      <li key={move.reservation.id}>
-                        {move.reservation.customerName}: {getRoomDisplayName(move.fromRoom)} →{' '}
+                    {bookingPlan.reassignments?.map((move) => (
+                      <li key={move.reservation?.id ?? `${move.fromRoom}-${move.toRoom}`}>
+                        {move.reservation?.customerName ?? 'Misafir'}: {getRoomDisplayName(move.fromRoom)} →{' '}
                         {getRoomDisplayName(move.toRoom)}
                       </li>
                     ))}
