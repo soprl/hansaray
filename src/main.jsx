@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
+import { resetClientStorageIfVersionChanged } from './utils/clientStorageReset'
 import { isNativeApp } from './utils/nativePush'
 
 if (isNativeApp()) {
@@ -18,8 +19,10 @@ if (isNativeApp()) {
   )
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+resetClientStorageIfVersionChanged().finally(() => {
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+})

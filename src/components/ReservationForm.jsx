@@ -109,8 +109,13 @@ function ReservationForm({
   const checkInMinDate = useMemo(() => {
     if (relaxedEdit) return undefined
 
-    const existingCheckIn = initialValues?.checkInDate
-    if (isEditing && existingCheckIn && existingCheckIn < hotelTodayIso) {
+    const existingCheckIn = normalizeFirestoreDate(initialValues?.checkInDate)
+    if (
+      isEditing &&
+      existingCheckIn &&
+      parseISODateSafe(existingCheckIn) &&
+      existingCheckIn < hotelTodayIso
+    ) {
       return existingCheckIn
     }
 
@@ -135,6 +140,8 @@ function ReservationForm({
     initialValues?.checkInDate,
   ])
 
+  const canSearchRooms = datesValid && (relaxedEdit || dateValidation.valid)
+
   const roomOptions = useMemo(() => getRoomOptions(reservations), [reservations])
 
   const nightCount = useMemo(() => {
@@ -146,28 +153,31 @@ function ReservationForm({
   }, [form.checkInDate, form.checkOutDate, datesValid])
 
   const fullyBookedNights = useMemo(() => {
-    if (!datesValid || relaxedEdit) return []
+    if (!canSearchRooms) return []
     return getFullyBookedNightsInRange(reservations, form.checkInDate, form.checkOutDate, {
       excludeId,
     })
-  }, [datesValid, relaxedEdit, reservations, form.checkInDate, form.checkOutDate, excludeId])
+  }, [canSearchRooms, reservations, form.checkInDate, form.checkOutDate, excludeId])
 
   const hasFullyBookedNight = fullyBookedNights.length > 0
 
   const bookingPlan = useMemo(() => {
-    if (!datesValid || relaxedEdit || isEditingVipReservation || hasFullyBookedNight || !dateValidation.valid)
-      return null
+    if (!canSearchRooms || isEditingVipReservation || hasFullyBookedNight) return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
-    return findBookingPlan(reservations, {
-      checkInDate: form.checkInDate,
-      checkOutDate: form.checkOutDate,
-      excludeId,
-      roomNames: bookableNames,
-    })
+    try {
+      return findBookingPlan(reservations, {
+        checkInDate: form.checkInDate,
+        checkOutDate: form.checkOutDate,
+        excludeId,
+        roomNames: bookableNames,
+      })
+    } catch (error) {
+      console.error('Oda yerleştirme planı hesaplanamadı:', error)
+      return null
+    }
   }, [
-    datesValid,
-    relaxedEdit,
+    canSearchRooms,
     isEditingVipReservation,
     reservations,
     roomOptions,
@@ -175,11 +185,20 @@ function ReservationForm({
     form.checkOutDate,
     excludeId,
     hasFullyBookedNight,
-    dateValidation.valid,
   ])
 
   const roomAvailabilityList = useMemo(() => {
     if (!datesValid) return []
+
+    if (!canSearchRooms) {
+      const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+      return bookableNames.map((roomName) => ({
+        roomName,
+        available: false,
+        conflict: null,
+        inactive: false,
+      }))
+    }
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     const bookable = getRoomAvailabilityList(reservations, {
@@ -214,6 +233,7 @@ function ReservationForm({
     form.checkOutDate,
     excludeId,
     datesValid,
+    canSearchRooms,
     bookingPlan,
   ])
 
@@ -257,6 +277,7 @@ function ReservationForm({
   )
 
   const allRoomsFull =
+    canSearchRooms &&
     datesValid &&
     (hasFullyBookedNight ||
       (!bookingPlan?.targetRoom &&
@@ -271,9 +292,20 @@ function ReservationForm({
     return roomAvailabilityList
   }, [roomAvailabilityList, isEditingVipReservation])
 
+  const availableRoomCount = availableRooms.length
+  const autoPickableRoomCount = autoPickableRooms.length
+  const bookingTargetRoom = bookingPlan?.targetRoom ?? null
+
   useEffect(() => {
-    if (relaxedEdit) return
-    if (!datesValid || roomAvailabilityList.length === 0) return
+    if (relaxedEdit || !datesValid) return
+
+    if (!dateValidation.valid || hasFullyBookedNight) {
+      setVipManuallySelected((current) => (current ? false : current))
+      setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
+      return
+    }
+
+    if (roomAvailabilityList.length === 0) return
 
     if (isEditingVipReservation) {
       const vipRoom = normalizeRoomName(initialValues.roomName)
@@ -293,8 +325,8 @@ function ReservationForm({
       return
     }
 
-    if (availableRooms.length === 0) {
-      setVipManuallySelected(false)
+    if (availableRoomCount === 0) {
+      setVipManuallySelected((current) => (current ? false : current))
       setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
       return
     }
@@ -307,13 +339,9 @@ function ReservationForm({
     const vipHeldByUser =
       vipManuallySelected && form.roomName && isVipRoom(form.roomName) && currentStillAvailable
 
-    if (vipHeldByUser && !datesChanged) {
-      lastAutoPickDatesRef.current = {
-        checkIn: form.checkInDate,
-        checkOut: form.checkOutDate,
-      }
-      return
-    }
+    if (vipHeldByUser && !datesChanged) return
+
+    if (!datesChanged && form.roomName && currentStillAvailable) return
 
     const needsAutoPick =
       datesChanged ||
@@ -323,9 +351,9 @@ function ReservationForm({
 
     if (!needsAutoPick) return
 
-    setVipManuallySelected(false)
+    setVipManuallySelected((current) => (current ? false : current))
 
-    if (autoPickableRooms.length === 0) {
+    if (autoPickableRoomCount === 0) {
       setForm((prev) => (prev.roomName ? { ...prev, roomName: '' } : prev))
       lastAutoPickDatesRef.current = {
         checkIn: form.checkInDate,
@@ -334,11 +362,10 @@ function ReservationForm({
       return
     }
 
-    const plannedRoom = bookingPlan?.targetRoom
-    const picked = plannedRoom
-      ? autoPickableRooms.find((room) => room.roomName === plannedRoom)?.roomName ??
-        pickFirstAvailableStandardRoom(autoPickableRooms.map((room) => room.roomName))
-      : autoPickableRooms[Math.floor(Math.random() * autoPickableRooms.length)]?.roomName
+    const picked =
+      (bookingTargetRoom &&
+        autoPickableRooms.find((room) => room.roomName === bookingTargetRoom)?.roomName) ||
+      pickFirstAvailableStandardRoom(autoPickableRooms.map((room) => room.roomName))
 
     if (!picked || isVipRoom(picked)) return
 
@@ -346,21 +373,23 @@ function ReservationForm({
       checkIn: form.checkInDate,
       checkOut: form.checkOutDate,
     }
-    setForm((prev) => ({ ...prev, roomName: picked }))
+    setForm((prev) => (prev.roomName === picked ? prev : { ...prev, roomName: picked }))
   }, [
     relaxedEdit,
     datesValid,
+    dateValidation.valid,
+    hasFullyBookedNight,
     form.checkInDate,
     form.checkOutDate,
     form.roomName,
-    roomAvailabilityList,
-    availableRooms,
-    autoPickableRooms,
+    roomAvailabilityList.length,
+    availableRoomCount,
+    autoPickableRoomCount,
+    bookingTargetRoom,
     vipManuallySelected,
     isEditing,
     isEditingVipReservation,
     initialValues?.roomName,
-    bookingPlan,
   ])
 
   const getRoomStatusLabel = (roomName, available, inactive = false, viaShuffle = false) => {

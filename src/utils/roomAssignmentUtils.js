@@ -29,6 +29,7 @@ const incomingOverlaps = (checkInDate, checkOutDate, reservation) =>
 
 const getMovableReservations = (reservations, excludeId, referenceDate = new Date()) =>
   reservations.filter((reservation) => {
+    if (!reservation?.id) return false
     if (excludeId && reservation.id === excludeId) return false
     if (isCancelledReservation(reservation)) return false
     if (isVipRoom(reservation.roomName)) return false
@@ -102,6 +103,19 @@ const buildReassignments = (movable, assignment) =>
  * @returns {{ targetRoom: string, reassignments: Array, shuffled: boolean } | null}
  */
 export const findBookingPlan = (
+  reservations,
+  { checkInDate, checkOutDate, excludeId, roomNames },
+  referenceDate = new Date(),
+) => {
+  try {
+    return findBookingPlanUnsafe(reservations, { checkInDate, checkOutDate, excludeId, roomNames }, referenceDate)
+  } catch (error) {
+    console.error('findBookingPlan failed:', error)
+    return null
+  }
+}
+
+const findBookingPlanUnsafe = (
   reservations,
   { checkInDate, checkOutDate, excludeId, roomNames },
   referenceDate = new Date(),
