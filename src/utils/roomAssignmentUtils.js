@@ -37,6 +37,17 @@ const getMovableReservations = (reservations, excludeId, referenceDate = new Dat
     return blocksRoomAvailability(reservation, referenceDate)
   })
 
+const getMovableReservationsInRange = (
+  reservations,
+  checkInDate,
+  checkOutDate,
+  excludeId,
+  referenceDate = new Date(),
+) =>
+  getMovableReservations(reservations, excludeId, referenceDate).filter((reservation) =>
+    incomingOverlaps(checkInDate, checkOutDate, reservation),
+  )
+
 const getFixedVipReservations = (reservations, excludeId, referenceDate = new Date()) =>
   reservations.filter((reservation) => {
     if (excludeId && reservation.id === excludeId) return false
@@ -94,7 +105,7 @@ const buildReassignments = (movable, assignment) =>
   movable.flatMap((reservation) => {
     const toRoom = assignment.get(reservation.id)
     const fromRoom = normalizeRoomName(reservation.roomName)
-    if (!toRoom || fromRoom === toRoom) return []
+    if (!toRoom || fromRoom === toRoom || isVipRoom(toRoom)) return []
     return [{ reservation, fromRoom, toRoom }]
   })
 
@@ -155,7 +166,13 @@ const findBookingPlanUnsafe = (
     }
   }
 
-  const movable = getMovableReservations(reservations, excludeId, referenceDate)
+  const movable = getMovableReservationsInRange(
+    reservations,
+    checkInDate,
+    checkOutDate,
+    excludeId,
+    referenceDate,
+  )
   const fixedVip = getFixedVipReservations(reservations, excludeId, referenceDate)
   const reservationsById = new Map(reservations.map((reservation) => [reservation.id, reservation]))
 

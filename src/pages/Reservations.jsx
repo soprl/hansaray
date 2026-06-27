@@ -10,7 +10,7 @@ import {
   updateReservation,
 } from '../services/reservationService'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
-import { getRoomDisplayName, getRoomOptions, isRoomBookable, normalizeRoomName } from '../config/rooms'
+import { getRoomDisplayName, getRoomOptions, isRoomBookable, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME } from '../config/hotelTime'
 import { getFirestoreErrorMessage } from '../utils/firestoreAuth'
 import {
@@ -153,6 +153,7 @@ function Reservations() {
       const { pendingReassignments = [], ...reservationInput } = formData
 
       for (const move of pendingReassignments) {
+        if (isVipRoom(move.toRoom)) continue
         await updateReservation(
           move.reservation.id,
           buildReservationUpdatePayload(move.reservation, {
