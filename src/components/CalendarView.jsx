@@ -5,6 +5,7 @@ import {
   endOfWeek,
   format,
   isSameDay,
+  isSameMonth,
   startOfDay,
   startOfMonth,
   startOfWeek,
@@ -270,8 +271,11 @@ function CalendarView({
     })
   }
 
+  const isVisibleMonthDay = (date) => isSameMonth(date, visibleMonth)
+
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return ''
+    if (!isVisibleMonthDay(date)) return 'calendar-tile tile-outside-month'
     const classes = ['calendar-tile']
     const dayStats = getDayStayStats(date)
     const { guestCount } = dayStats
@@ -285,7 +289,7 @@ function CalendarView({
   }
 
   const tileContent = ({ date, view }) => {
-    if (view !== 'month') return null
+    if (view !== 'month' || !isVisibleMonthDay(date)) return null
     const { guestCount } = getDayStayStats(date)
     const label = formatOvernightGuestCount(guestCount)
     if (!label) return null
@@ -376,6 +380,7 @@ function CalendarView({
                     setVisibleMonth(activeStartDate)
                   }
                 }}
+                showNeighboringMonth={false}
                 tileClassName={tileClassName}
                 tileContent={tileContent}
               />

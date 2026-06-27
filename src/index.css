@@ -190,6 +190,17 @@ html.native-app .min-h-screen.bg-slate-100 {
   @apply text-xs uppercase text-slate-500;
 }
 
+/* Aylık görünüm: komşu ay günleri gösterilmez */
+.calendar-shell .react-calendar__month-view__days__day--neighboringMonth {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.calendar-shell .react-calendar__tile.tile-outside-month {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .calendar-shell .react-calendar__tile {
   @apply relative flex min-h-[4.75rem] flex-col items-center justify-start rounded-lg border border-transparent px-0.5 pb-1 pt-1.5 text-sm font-medium text-slate-700;
 }
