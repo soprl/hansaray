@@ -458,10 +458,16 @@ function ReservationForm({
             <>
               {allRoomsFull ? (
                 <div
-                  className='rounded-xl border-2 border-rose-500 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700'
+                  className='rounded-xl border-2 border-rose-500 bg-rose-50 px-4 py-3 text-sm text-rose-800'
                   role='alert'
                 >
-                  Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.
+                  <p className='font-semibold text-rose-700'>
+                    Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.
+                  </p>
+                  <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
+                    {nightCount} gece için aynı evin tüm geceleri boş olmalı. Takvim gün gün doluluk
+                    gösterir; bir günde boş ev, seçtiğiniz aralığın tamamında boş olmayabilir.
+                  </p>
                 </div>
               ) : autoPickableRooms.length > 0 && form.roomName && !vipManuallySelected ? (
                 <p className='text-xs text-emerald-700'>
@@ -521,9 +527,14 @@ function ReservationForm({
                         {getRoomStatusLabel(roomName, available, isInactive)}
                       </p>
                       {!isInactive && !available && conflict ? (
-                        <p className='mt-1 truncate text-xs text-slate-500' title={conflict.customerName}>
-                          {conflict.customerName}
-                        </p>
+                        <>
+                          <p className='mt-1 truncate text-xs font-medium text-slate-600' title={conflict.customerName}>
+                            {conflict.customerName}
+                          </p>
+                          <p className='mt-0.5 text-[10px] leading-snug text-slate-500'>
+                            {formatDateTR(conflict.checkInDate)} – {formatDateTR(conflict.checkOutDate)}
+                          </p>
+                        </>
                       ) : null}
                     </button>
                   )
