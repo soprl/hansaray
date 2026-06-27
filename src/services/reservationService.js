@@ -27,6 +27,7 @@ import {
   RES_STATUS,
   shouldAutoCompleteReservation,
   toReservationUpdateData,
+  validateActiveReservationDates,
 } from '../utils/reservationUtils'
 
 const reservationsRef = collection(db, 'reservations')
@@ -175,8 +176,22 @@ export async function getReservationById(id) {
   }
 }
 
+const assertReservationDatesAllowed = (payload, { originalCheckInDate } = {}) => {
+  const result = validateActiveReservationDates({
+    checkInDate: payload.checkInDate,
+    checkOutDate: payload.checkOutDate,
+    reservationStatus: payload.reservationStatus,
+    originalCheckInDate,
+  })
+
+  if (!result.valid) {
+    throw new Error('PAST_DATE')
+  }
+}
+
 export async function addReservation(data) {
   const payload = normalizeReservationPayload(data)
+  assertReservationDatesAllowed(payload)
 
   return runWithAuthRetry(async () => {
     const hasConflict = await checkReservationConflict(payload)
@@ -196,6 +211,7 @@ export async function addReservation(data) {
 
 export async function updateReservation(id, data) {
   const payload = normalizeReservationPayload(data)
+  assertReservationDatesAllowed(payload, { originalCheckInDate: data.originalCheckInDate })
 
   return runWithAuthRetry(async () => {
     const hasConflict = await checkReservationConflict({ ...payload, excludeId: id })

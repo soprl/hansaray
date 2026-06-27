@@ -154,14 +154,21 @@ function Reservations() {
       for (const move of pendingReassignments) {
         await updateReservation(
           move.reservation.id,
-          buildReservationUpdatePayload(move.reservation, { roomName: move.toRoom }),
+          buildReservationUpdatePayload(move.reservation, {
+            roomName: move.toRoom,
+            originalCheckInDate: move.reservation.checkInDate,
+          }),
         )
       }
 
       if (editingReservation?.id) {
         await updateReservation(
           editingReservation.id,
-          buildReservationUpdatePayload(editingReservation, { ...reservationInput, createdBy }),
+          buildReservationUpdatePayload(editingReservation, {
+            ...reservationInput,
+            createdBy,
+            originalCheckInDate: editingReservation.checkInDate,
+          }),
         )
         setSuccessMessage(
           pendingReassignments.length > 0
@@ -197,6 +204,8 @@ function Reservations() {
     } catch (submitError) {
       if (submitError?.message === 'CONFLICT') {
         setError('Bu oda seçilen tarihlerde dolu. Başka oda veya tarih seçin.')
+      } else if (submitError?.message === 'PAST_DATE') {
+        setError('Geçmiş tarihe rezervasyon yapılamaz. Giriş bugün veya sonrası olmalıdır.')
       } else {
         setError(
           getFirestoreErrorMessage(submitError, 'Rezervasyon kaydedilemedi. Lütfen tekrar deneyin.'),

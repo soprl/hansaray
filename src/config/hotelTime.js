@@ -67,6 +67,16 @@ export function isOnOrAfterCheckOutTime(hotelDateTime) {
 
 export const HOTEL_TIME_POLICY_LABEL = `Giriş ${HOTEL_CHECK_IN_TIME} · Çıkış ${HOTEL_CHECK_OUT_TIME}`
 
+/** Bugünün tarihi (yyyy-MM-dd) — İstanbul takvim günü */
+export function getHotelTodayIso(referenceDate = new Date()) {
+  return getHotelDateTime(referenceDate).dateIso
+}
+
+export function isDateBeforeHotelToday(dateIso, referenceDate = new Date()) {
+  if (!dateIso) return false
+  return dateIso < getHotelTodayIso(referenceDate)
+}
+
 const checkInMinutes = hotelTimeToMinutes(CHECK_IN_HOUR, CHECK_IN_MINUTE)
 const checkOutMinutes = hotelTimeToMinutes(CHECK_OUT_HOUR, CHECK_OUT_MINUTE)
 

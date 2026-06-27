@@ -11,7 +11,7 @@ import {
   normalizeRoomName,
   pickFirstAvailableStandardRoom,
 } from '../config/rooms'
-import { HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
+import { getHotelTodayIso, HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import { formatDateTR } from '../utils/formatters'
 import { findBookingPlan } from '../utils/roomAssignmentUtils'
 import {
@@ -22,6 +22,7 @@ import {
   normalizeReservationStatus,
   PAYMENT_STATUS,
   RES_STATUS,
+  validateActiveReservationDates,
 } from '../utils/reservationUtils'
 
 const DEFAULT_FORM = {
@@ -92,6 +93,37 @@ function ReservationForm({
   const datesValid =
     form.checkInDate && form.checkOutDate && form.checkOutDate > form.checkInDate
 
+  const hotelTodayIso = getHotelTodayIso()
+
+  const checkInMinDate = useMemo(() => {
+    if (relaxedEdit) return undefined
+
+    const existingCheckIn = initialValues?.checkInDate
+    if (isEditing && existingCheckIn && existingCheckIn < hotelTodayIso) {
+      return existingCheckIn
+    }
+
+    return hotelTodayIso
+  }, [relaxedEdit, isEditing, initialValues?.checkInDate, hotelTodayIso])
+
+  const dateValidation = useMemo(() => {
+    if (!datesValid || relaxedEdit) return { valid: true }
+
+    return validateActiveReservationDates({
+      checkInDate: form.checkInDate,
+      checkOutDate: form.checkOutDate,
+      reservationStatus: form.reservationStatus,
+      originalCheckInDate: initialValues?.checkInDate,
+    })
+  }, [
+    datesValid,
+    relaxedEdit,
+    form.checkInDate,
+    form.checkOutDate,
+    form.reservationStatus,
+    initialValues?.checkInDate,
+  ])
+
   const roomOptions = useMemo(() => getRoomOptions(reservations), [reservations])
 
   const nightCount = useMemo(() => {
@@ -109,7 +141,8 @@ function ReservationForm({
   const hasFullyBookedNight = fullyBookedNights.length > 0
 
   const bookingPlan = useMemo(() => {
-    if (!datesValid || relaxedEdit || isEditingVipReservation || hasFullyBookedNight) return null
+    if (!datesValid || relaxedEdit || isEditingVipReservation || hasFullyBookedNight || !dateValidation.valid)
+      return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     return findBookingPlan(reservations, {
@@ -128,6 +161,7 @@ function ReservationForm({
     form.checkOutDate,
     excludeId,
     hasFullyBookedNight,
+    dateValidation.valid,
   ])
 
   const roomAvailabilityList = useMemo(() => {
@@ -391,6 +425,7 @@ function ReservationForm({
     if (submitting) return null
     if (reservationsLoading) return 'Oda müsaitliği yükleniyor, lütfen bekleyin.'
     if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
+    if (!relaxedEdit && !dateValidation.valid) return dateValidation.message
     if (!relaxedEdit && hasFullyBookedNight) {
       return `Seçilen tarihlerde tüm evler dolu gece var: ${fullyBookedNights.map(formatDateTR).join(', ')}`
     }
@@ -420,6 +455,7 @@ function ReservationForm({
     reservationsLoading,
     datesValid,
     relaxedEdit,
+    dateValidation,
     allRoomsFull,
     hasFullyBookedNight,
     fullyBookedNights,
@@ -449,7 +485,9 @@ function ReservationForm({
 
     if (!form.checkInDate) nextErrors.checkInDate = 'Giriş tarihi zorunludur.'
     if (!form.checkOutDate) nextErrors.checkOutDate = 'Çıkış tarihi zorunludur.'
-    if (!relaxedEdit && hasFullyBookedNight) {
+    if (!relaxedEdit && datesValid && !dateValidation.valid) {
+      nextErrors.checkInDate = dateValidation.message
+    } else if (!relaxedEdit && hasFullyBookedNight) {
       nextErrors.checkOutDate = `Bu gece(ler)de tüm evler dolu: ${fullyBookedNights.map(formatDateTR).join(', ')}`
     } else if (!relaxedEdit && allRoomsFull) {
       nextErrors.roomName = 'Bu tarihlerde tüm odalar dolu.'
@@ -511,13 +549,22 @@ function ReservationForm({
       <form ref={formRef} onSubmit={handleSubmit} className='mt-4 space-y-6'>
         <fieldset className='space-y-3'>
           <legend className='text-sm font-semibold text-slate-800'>1. Tarihler</legend>
-          <p className='text-xs text-slate-500'>{HOTEL_TIME_POLICY_LABEL} (TR saati)</p>
+          <p className='text-xs text-slate-500'>
+            {HOTEL_TIME_POLICY_LABEL} (TR saati)
+            {!relaxedEdit ? ' · Giriş bugün veya sonrası' : null}
+          </p>
+          {!relaxedEdit && !dateValidation.valid && datesValid ? (
+            <p className='text-xs font-medium text-rose-600' role='alert'>
+              {dateValidation.message}
+            </p>
+          ) : null}
           <div className='grid gap-4 sm:grid-cols-2'>
             <div data-field='checkInDate'>
               <DatePickerField
                 label='Giriş'
                 value={form.checkInDate}
                 onChange={setCheckIn}
+                minDate={checkInMinDate}
                 error={errors.checkInDate}
                 placeholder='Giriş tarihi seçin'
               />
@@ -527,12 +574,14 @@ function ReservationForm({
                 label='Çıkış'
                 value={form.checkOutDate}
                 onChange={(checkOutDate) => setForm((prev) => ({ ...prev, checkOutDate }))}
-              minDate={
-                form.checkInDate
-                  ? format(addDays(parseISO(form.checkInDate), 1), 'yyyy-MM-dd')
-                  : undefined
-              }
-              disabled={!form.checkInDate}
+                minDate={
+                  form.checkInDate
+                    ? format(addDays(parseISO(form.checkInDate), 1), 'yyyy-MM-dd')
+                    : checkInMinDate
+                      ? format(addDays(parseISO(checkInMinDate), 1), 'yyyy-MM-dd')
+                      : undefined
+                }
+                disabled={!form.checkInDate}
                 error={errors.checkOutDate}
                 placeholder='Çıkış tarihi seçin'
               />

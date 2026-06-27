@@ -14,6 +14,7 @@ import {
 } from 'date-fns'
 import {
   getHotelDateTime,
+  getHotelTodayIso,
   HOTEL_CHECK_IN_TIME,
   HOTEL_CHECK_OUT_TIME,
   isOnOrAfterCheckInTime,
@@ -321,6 +322,41 @@ export const getFullyBookedNightsInRange = (
   }
 
   return fullNights
+}
+
+/** Aktif rezervasyonlarda geçmiş giriş tarihini engeller (devam eden konaklama hariç) */
+export const validateActiveReservationDates = (
+  { checkInDate, checkOutDate, reservationStatus, originalCheckInDate },
+  referenceDate = new Date(),
+) => {
+  const checkIn = normalizeFirestoreDate(checkInDate)
+  const checkOut = normalizeFirestoreDate(checkOutDate)
+
+  if (!checkIn || !checkOut) {
+    return { valid: false, message: 'Giriş ve çıkış tarihi zorunludur.' }
+  }
+
+  if (checkOut <= checkIn) {
+    return { valid: false, message: 'Çıkış tarihi giriş tarihinden sonra olmalıdır.' }
+  }
+
+  if (normalizeReservationStatus(reservationStatus) !== RES_STATUS.ACTIVE) {
+    return { valid: true }
+  }
+
+  const todayIso = getHotelTodayIso(referenceDate)
+  const originalCheckIn = normalizeFirestoreDate(originalCheckInDate)
+  const unchangedPastStay =
+    originalCheckIn && checkIn === originalCheckIn && checkIn < todayIso
+
+  if (checkIn < todayIso && !unchangedPastStay) {
+    return {
+      valid: false,
+      message: 'Geçmiş tarihe rezervasyon yapılamaz. Giriş bugün veya sonrası olmalıdır.',
+    }
+  }
+
+  return { valid: true }
 }
 
 export const getReservationNightCount = (reservation) => {
