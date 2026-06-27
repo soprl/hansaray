@@ -3,9 +3,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
-import { getRoomDisplayName, getRoomOptions, isRoomBookable, isVipRoom, normalizeRoomName } from '../config/rooms'
+import {
+  getRoomDisplayName,
+  getRoomOptions,
+  isRoomBookable,
+  isVipRoom,
+  normalizeRoomName,
+  pickFirstAvailableStandardRoom,
+} from '../config/rooms'
 import { HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import { formatDateTR } from '../utils/formatters'
+import { findBookingPlan } from '../utils/roomAssignmentUtils'
 import {
   derivePaymentStatus,
   findConflictingReservation,
@@ -41,6 +49,7 @@ function ReservationForm({
   relaxedEdit = false,
 }) {
   const isEditing = Boolean(initialValues)
+  const isEditingVipReservation = isEditing && isVipRoom(initialValues?.roomName)
 
   const [form, setForm] = useState(() => {
     if (!initialValues) return DEFAULT_FORM
@@ -89,6 +98,27 @@ function ReservationForm({
     return differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
   }, [form.checkInDate, form.checkOutDate, datesValid])
 
+  const bookingPlan = useMemo(() => {
+    if (!datesValid || relaxedEdit || isEditingVipReservation) return null
+
+    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+    return findBookingPlan(reservations, {
+      checkInDate: form.checkInDate,
+      checkOutDate: form.checkOutDate,
+      excludeId,
+      roomNames: bookableNames,
+    })
+  }, [
+    datesValid,
+    relaxedEdit,
+    isEditingVipReservation,
+    reservations,
+    roomOptions,
+    form.checkInDate,
+    form.checkOutDate,
+    excludeId,
+  ])
+
   const roomAvailabilityList = useMemo(() => {
     if (!datesValid) return []
 
@@ -98,6 +128,19 @@ function ReservationForm({
       checkOutDate: form.checkOutDate,
       excludeId,
       roomNames: bookableNames,
+    }).map((room) => {
+      if (
+        bookingPlan?.targetRoom &&
+        normalizeRoomName(room.roomName) === normalizeRoomName(bookingPlan.targetRoom)
+      ) {
+        return {
+          ...room,
+          available: true,
+          conflict: null,
+          viaShuffle: bookingPlan.shuffled,
+        }
+      }
+      return room
     })
 
     const inactive = roomOptions
@@ -105,17 +148,39 @@ function ReservationForm({
       .map((roomName) => ({ roomName, available: false, conflict: null, inactive: true }))
 
     return [...bookable, ...inactive]
-  }, [reservations, roomOptions, form.checkInDate, form.checkOutDate, excludeId, datesValid])
+  }, [
+    reservations,
+    roomOptions,
+    form.checkInDate,
+    form.checkOutDate,
+    excludeId,
+    datesValid,
+    bookingPlan,
+  ])
 
   const selectedRoomConflict = useMemo(() => {
     if (!datesValid || !form.roomName) return null
+    if (
+      bookingPlan?.targetRoom &&
+      normalizeRoomName(form.roomName) === normalizeRoomName(bookingPlan.targetRoom)
+    ) {
+      return null
+    }
     return findConflictingReservation(reservations, {
       roomName: form.roomName,
       checkInDate: form.checkInDate,
       checkOutDate: form.checkOutDate,
       excludeId,
     })
-  }, [reservations, form.roomName, form.checkInDate, form.checkOutDate, excludeId, datesValid])
+  }, [
+    reservations,
+    form.roomName,
+    form.checkInDate,
+    form.checkOutDate,
+    excludeId,
+    datesValid,
+    bookingPlan,
+  ])
 
   const availableRooms = useMemo(
     () => roomAvailabilityList.filter((room) => room.available && isRoomBookable(room.roomName)),
@@ -132,11 +197,30 @@ function ReservationForm({
     [availableRooms],
   )
 
-  const allRoomsFull = datesValid && bookableRoomCount > 0 && availableRooms.length === 0
+  const allRoomsFull =
+    datesValid &&
+    !bookingPlan?.targetRoom &&
+    (isEditingVipReservation
+      ? !roomAvailabilityList.some((room) => isVipRoom(room.roomName) && room.available)
+      : bookableRoomCount > 0 && availableRooms.length === 0)
+
+  const displayedRoomAvailabilityList = useMemo(() => {
+    if (isEditingVipReservation) {
+      return roomAvailabilityList.filter((room) => isVipRoom(room.roomName))
+    }
+    return roomAvailabilityList
+  }, [roomAvailabilityList, isEditingVipReservation])
 
   useEffect(() => {
     if (relaxedEdit) return
     if (!datesValid || roomAvailabilityList.length === 0) return
+
+    if (isEditingVipReservation) {
+      const vipRoom = normalizeRoomName(initialValues.roomName)
+      setVipManuallySelected(true)
+      setForm((prev) => (prev.roomName !== vipRoom ? { ...prev, roomName: vipRoom } : prev))
+      return
+    }
 
     const keepingInactiveEdit =
       isEditing &&
@@ -190,14 +274,19 @@ function ReservationForm({
       return
     }
 
-    const picked = autoPickableRooms[Math.floor(Math.random() * autoPickableRooms.length)]
-    if (isVipRoom(picked.roomName)) return
+    const plannedRoom = bookingPlan?.targetRoom
+    const picked = plannedRoom
+      ? autoPickableRooms.find((room) => room.roomName === plannedRoom)?.roomName ??
+        pickFirstAvailableStandardRoom(autoPickableRooms.map((room) => room.roomName))
+      : autoPickableRooms[Math.floor(Math.random() * autoPickableRooms.length)]?.roomName
+
+    if (!picked || isVipRoom(picked)) return
 
     lastAutoPickDatesRef.current = {
       checkIn: form.checkInDate,
       checkOut: form.checkOutDate,
     }
-    setForm((prev) => ({ ...prev, roomName: picked.roomName }))
+    setForm((prev) => ({ ...prev, roomName: picked }))
   }, [
     relaxedEdit,
     datesValid,
@@ -208,10 +297,15 @@ function ReservationForm({
     availableRooms,
     autoPickableRooms,
     vipManuallySelected,
+    isEditing,
+    isEditingVipReservation,
+    initialValues?.roomName,
+    bookingPlan,
   ])
 
-  const getRoomStatusLabel = (roomName, available, inactive = false) => {
+  const getRoomStatusLabel = (roomName, available, inactive = false, viaShuffle = false) => {
     if (inactive || !isRoomBookable(roomName)) return 'Pasif · şu an kapalı'
+    if (viaShuffle) return 'Müsait · taşıma ile'
     if (isVipRoom(roomName)) {
       return available ? 'Müsait · VIP boş' : 'Dolu · Bu tarihlerde VIP dolu'
     }
@@ -252,6 +346,7 @@ function ReservationForm({
 
   const selectRoom = (roomName) => {
     if (!isRoomBookable(roomName)) return
+    if (isEditingVipReservation) return
     if (isVipRoom(roomName)) {
       setVipManuallySelected(true)
     } else {
@@ -385,6 +480,7 @@ function ReservationForm({
       totalPrice: parseMoneyInput(form.totalPrice),
       deposit: parseMoneyInput(form.deposit),
       remainingPayment,
+      pendingReassignments: bookingPlan?.reassignments ?? [],
     })
   }
 
@@ -462,13 +558,37 @@ function ReservationForm({
                   role='alert'
                 >
                   <p className='font-semibold text-rose-700'>
-                    Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.
+                    {isEditingVipReservation
+                      ? 'Bu tarihlerde V.I.P dolu. Tarih değiştirin veya başka çözüm uygulayın.'
+                      : 'Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.'}
                   </p>
-                  <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
-                    {nightCount} gece için aynı evin tüm geceleri boş olmalı. Takvim gün gün doluluk
-                    gösterir; bir günde boş ev, seçtiğiniz aralığın tamamında boş olmayabilir.
-                  </p>
+                  {!isEditingVipReservation ? (
+                    <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
+                      Standart odalar yeniden düzenlense bile uygun yerleşim bulunamadı. V.I.P
+                      misafirler taşınmaz.
+                    </p>
+                  ) : null}
                 </div>
+              ) : bookingPlan?.shuffled && bookingPlan.reassignments.length > 0 ? (
+                <div className='rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-950'>
+                  <p className='font-semibold'>Otomatik oda düzenlemesi gerekli</p>
+                  <p className='mt-1 text-xs leading-relaxed text-blue-900/90'>
+                    Kayıt sırasında V.I.P hariç {bookingPlan.reassignments.length} misafir başka odaya
+                    taşınacak; {getRoomDisplayName(bookingPlan.targetRoom)} sizin için ayrılacak.
+                  </p>
+                  <ul className='mt-2 space-y-1 text-xs text-blue-900'>
+                    {bookingPlan.reassignments.map((move) => (
+                      <li key={move.reservation.id}>
+                        {move.reservation.customerName}: {getRoomDisplayName(move.fromRoom)} →{' '}
+                        {getRoomDisplayName(move.toRoom)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : isEditingVipReservation ? (
+                <p className='text-xs text-amber-800'>
+                  V.I.P rezervasyonunda oda değiştirilemez. Misafir bu tarihlerde V.I.P&apos;de kalır.
+                </p>
               ) : autoPickableRooms.length > 0 && form.roomName && !vipManuallySelected ? (
                 <p className='text-xs text-emerald-700'>
                   Boş standart odalardan biri otomatik seçildi. V.I.P yalnızca elle seçilir.
@@ -480,11 +600,12 @@ function ReservationForm({
               ) : null}
 
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
-                {roomAvailabilityList.map(({ roomName, available, conflict, inactive }) => {
+                {displayedRoomAvailabilityList.map(({ roomName, available, conflict, inactive, viaShuffle }) => {
                   const isSelected = isRoomSelected(roomName)
                   const vip = isVipRoom(roomName)
                   const isInactive = inactive || !isRoomBookable(roomName)
-                  const canSelect = available && !isInactive
+                  const canSelect =
+                    available && !isInactive && !isEditingVipReservation
                   return (
                     <button
                       key={roomName}
@@ -524,7 +645,7 @@ function ReservationForm({
                               : 'text-rose-700'
                         }`}
                       >
-                        {getRoomStatusLabel(roomName, available, isInactive)}
+                        {getRoomStatusLabel(roomName, available, isInactive, viaShuffle)}
                       </p>
                       {!isInactive && !available && conflict ? (
                         <>

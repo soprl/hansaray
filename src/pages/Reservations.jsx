@@ -149,25 +149,41 @@ function Reservations() {
 
     try {
       const createdBy = user?.email ?? editingReservation?.createdBy ?? 'unknown'
+      const { pendingReassignments = [], ...reservationInput } = formData
+
+      for (const move of pendingReassignments) {
+        await updateReservation(
+          move.reservation.id,
+          buildReservationUpdatePayload(move.reservation, { roomName: move.toRoom }),
+        )
+      }
 
       if (editingReservation?.id) {
         await updateReservation(
           editingReservation.id,
-          buildReservationUpdatePayload(editingReservation, { ...formData, createdBy }),
+          buildReservationUpdatePayload(editingReservation, { ...reservationInput, createdBy }),
         )
-        setSuccessMessage('Rezervasyon güncellendi.')
+        setSuccessMessage(
+          pendingReassignments.length > 0
+            ? `Rezervasyon güncellendi. ${pendingReassignments.length} misafir başka odaya taşındı.`
+            : 'Rezervasyon güncellendi.',
+        )
       } else {
-        const newId = await addReservation({ ...formData, createdBy })
+        const newId = await addReservation({ ...reservationInput, createdBy })
         setNewReservationFormKey((key) => key + 1)
         setListTab(LIST_TABS.ACTIVE)
         setFilters((prev) => ({ ...prev, search: '', roomName: '' }))
-        setSuccessMessage('Rezervasyon eklendi.')
+        setSuccessMessage(
+          pendingReassignments.length > 0
+            ? `Rezervasyon eklendi. ${pendingReassignments.length} misafir başka odaya taşındı.`
+            : 'Rezervasyon eklendi.',
+        )
         setReservations((prev) => {
           const nextReservation = {
             id: newId,
-            ...formData,
+            ...reservationInput,
             createdBy,
-            reservationStatus: formData.reservationStatus ?? RES_STATUS.ACTIVE,
+            reservationStatus: reservationInput.reservationStatus ?? RES_STATUS.ACTIVE,
           }
           return [...prev, nextReservation].sort((a, b) =>
             (a.checkInDate || '').localeCompare(b.checkInDate || ''),

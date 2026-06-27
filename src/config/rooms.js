@@ -86,3 +86,9 @@ export const getRoomNameVariants = (canonicalName) => {
 
   return [...variants]
 }
+
+/** VIP hariç, sırayla ilk müsait standart oda (taşıma / otomatik atama) */
+export const pickFirstAvailableStandardRoom = (availableRoomNames = []) => {
+  const available = new Set(availableRoomNames.map((name) => normalizeRoomName(name)))
+  return ACTIVE_ROOMS.find((room) => !isVipRoom(room) && available.has(room)) ?? null
+}
