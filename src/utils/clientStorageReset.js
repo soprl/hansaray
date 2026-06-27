@@ -1,5 +1,5 @@
 /** Deploy sonrası bir kez çalışır — eski önbellek / oturum kalıntılarını temizler */
-export const CLIENT_VERSION = '2026.06.27.5'
+export const CLIENT_VERSION = '2026.06.27.6'
 
 const CLIENT_VERSION_KEY = 'hansaray_client_version'
 

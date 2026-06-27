@@ -67,6 +67,7 @@ export const getRoomOptions = (reservations = []) => {
   const extras = new Set()
 
   reservations.forEach((reservation) => {
+    if (!reservation?.roomName) return
     const normalized = canonicalRoomName(reservation.roomName)
     if (normalized && !ROOMS.includes(normalized)) {
       extras.add(normalized)

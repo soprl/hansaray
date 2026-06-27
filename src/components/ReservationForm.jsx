@@ -19,6 +19,7 @@ import {
   findConflictingReservation,
   getFullyBookedNightsInRange,
   getRoomAvailabilityList,
+  sanitizeReservations,
   normalizeReservationStatus,
   PAYMENT_STATUS,
   RES_STATUS,
@@ -158,7 +159,9 @@ function ReservationForm({
         originalCheckInDate: initialValues?.checkInDate,
       }).valid)
 
-  const roomOptions = useMemo(() => getRoomOptions(reservations), [reservations])
+  const safeReservations = useMemo(() => sanitizeReservations(reservations), [reservations])
+
+  const roomOptions = useMemo(() => getRoomOptions(safeReservations), [safeReservations])
 
   const nightCount = useMemo(() => {
     if (!datesValid) return 0
@@ -171,14 +174,14 @@ function ReservationForm({
   const fullyBookedNights = useMemo(() => {
     if (!canSearchRooms) return []
     try {
-      return getFullyBookedNightsInRange(reservations, form.checkInDate, form.checkOutDate, {
+      return getFullyBookedNightsInRange(safeReservations, form.checkInDate, form.checkOutDate, {
         excludeId,
       })
     } catch (error) {
       console.error('Dolu gece hesaplanamadı:', error)
       return []
     }
-  }, [canSearchRooms, reservations, form.checkInDate, form.checkOutDate, excludeId])
+  }, [canSearchRooms, safeReservations, form.checkInDate, form.checkOutDate, excludeId])
 
   const hasFullyBookedNight = fullyBookedNights.length > 0
 
@@ -187,7 +190,7 @@ function ReservationForm({
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     try {
-      return findBookingPlan(reservations, {
+      return findBookingPlan(safeReservations, {
         checkInDate: deferredCheckIn,
         checkOutDate: deferredCheckOut,
         excludeId,
@@ -200,7 +203,7 @@ function ReservationForm({
   }, [
     deferredCanSearch,
     isEditingVipReservation,
-    reservations,
+    safeReservations,
     roomOptions,
     deferredCheckIn,
     deferredCheckOut,
@@ -223,7 +226,7 @@ function ReservationForm({
     }
 
     try {
-      const bookable = getRoomAvailabilityList(reservations, {
+      const bookable = getRoomAvailabilityList(safeReservations, {
         checkInDate: form.checkInDate,
         checkOutDate: form.checkOutDate,
         excludeId,
@@ -258,7 +261,7 @@ function ReservationForm({
       }))
     }
   }, [
-    reservations,
+    safeReservations,
     roomOptions,
     form.checkInDate,
     form.checkOutDate,
@@ -352,14 +355,14 @@ function ReservationForm({
     ) {
       return null
     }
-    return findConflictingReservation(reservations, {
+    return findConflictingReservation(safeReservations, {
       roomName: resolvedRoomName,
       checkInDate: form.checkInDate,
       checkOutDate: form.checkOutDate,
       excludeId,
     })
   }, [
-    reservations,
+    safeReservations,
     resolvedRoomName,
     form.checkInDate,
     form.checkOutDate,
@@ -402,7 +405,7 @@ function ReservationForm({
 
       let fullNights = []
       try {
-        fullNights = getFullyBookedNightsInRange(reservations, checkInDate, checkOutDate, {
+        fullNights = getFullyBookedNightsInRange(safeReservations, checkInDate, checkOutDate, {
           excludeId,
         })
       } catch (error) {
@@ -421,7 +424,7 @@ function ReservationForm({
       }
 
       const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
-      const availability = getRoomAvailabilityList(reservations, {
+      const availability = getRoomAvailabilityList(safeReservations, {
         checkInDate,
         checkOutDate,
         excludeId,
@@ -472,7 +475,7 @@ function ReservationForm({
       initialValues?.checkInDate,
       initialValues?.roomName,
       isEditingVipReservation,
-      reservations,
+      safeReservations,
       excludeId,
       roomOptions,
     ],

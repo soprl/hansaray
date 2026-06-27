@@ -13,6 +13,7 @@ import {
   hasReservationDateConflict,
   hasValidReservationDates,
   isCancelledReservation,
+  sanitizeReservations,
 } from './reservationUtils'
 
 const reservationsOverlap = (a, b) =>
@@ -127,6 +128,7 @@ export const findBookingPlan = (
 }
 
 const MAX_SHUFFLE_DEPTH = 12
+const MAX_SHUFFLE_STEPS = 8000
 
 const findBookingPlanUnsafe = (
   reservations,
@@ -135,8 +137,10 @@ const findBookingPlanUnsafe = (
 ) => {
   if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) return null
 
+  const scopedReservations = sanitizeReservations(reservations)
+
   if (
-    getFullyBookedNightsInRange(reservations, checkInDate, checkOutDate, {
+    getFullyBookedNightsInRange(scopedReservations, checkInDate, checkOutDate, {
       excludeId,
       now: referenceDate,
     }).length > 0
@@ -147,7 +151,7 @@ const findBookingPlanUnsafe = (
   const standardRooms = getStandardRooms()
   if (standardRooms.length === 0) return null
 
-  const simpleAvailability = getRoomAvailabilityList(reservations, {
+  const simpleAvailability = getRoomAvailabilityList(scopedReservations, {
     checkInDate,
     checkOutDate,
     excludeId,
@@ -167,15 +171,17 @@ const findBookingPlanUnsafe = (
   }
 
   const movable = getMovableReservationsInRange(
-    reservations,
+    scopedReservations,
     checkInDate,
     checkOutDate,
     excludeId,
     referenceDate,
   )
-  const fixedVip = getFixedVipReservations(reservations, excludeId, referenceDate)
-  const safeReservations = reservations.filter((reservation) => reservation?.id)
+  const fixedVip = getFixedVipReservations(scopedReservations, excludeId, referenceDate)
+  const safeReservations = scopedReservations
   const reservationsById = new Map(safeReservations.map((reservation) => [reservation.id, reservation]))
+
+  let searchSteps = 0
 
   for (let i = 0; i < fixedVip.length; i += 1) {
     for (let j = i + 1; j < fixedVip.length; j += 1) {
@@ -194,6 +200,8 @@ const findBookingPlanUnsafe = (
 
     const search = (index, depth = 0) => {
       if (depth > MAX_SHUFFLE_DEPTH) return null
+      searchSteps += 1
+      if (searchSteps > MAX_SHUFFLE_STEPS) return null
 
       if (index === sortedMovable.length) {
         if (

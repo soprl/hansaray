@@ -30,6 +30,10 @@ export const RES_STATUS = {
   CANCELLED: 'İptal',
 }
 
+/** Render / hesaplama öncesi bozuk kayıtları ayıklar */
+export const sanitizeReservations = (reservations = []) =>
+  reservations.filter((reservation) => reservation && typeof reservation === 'object' && reservation.id)
+
 const RES_STATUS_ALIASES = {
   aktif: RES_STATUS.ACTIVE,
   active: RES_STATUS.ACTIVE,
@@ -178,6 +182,7 @@ export const findConflictingReservation = (
 
   return (
     reservations.find((reservation) => {
+      if (!reservation?.id) return false
       if (excludeId && reservation.id === excludeId) return false
       if (!blocksRoomAvailability(reservation)) return false
       if (normalizeRoomName(reservation.roomName) !== normalizeRoomName(trimmedRoom)) return false
@@ -288,6 +293,7 @@ export const getOccupiedRoomsOnDate = (reservations, date, now = new Date()) => 
   const occupied = new Set()
 
   reservations.forEach((reservation) => {
+    if (!reservation?.id) return
     if (!isReservationCountedForOccupancyOnDate(reservation, date, now)) return
     const room = canonicalRoomName(reservation.roomName)
     if (room) occupied.add(room)
