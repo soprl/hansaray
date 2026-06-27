@@ -326,7 +326,11 @@ function Reservations() {
             {error}
           </p>
         ) : null}
-        <ErrorBoundary>
+        <ErrorBoundary
+          variant='roomsFull'
+          formTitle={editingReservation ? 'Rezervasyon Düzenle' : 'Yeni Rezervasyon'}
+          onRetry={() => setNewReservationFormKey((key) => key + 1)}
+        >
           <ReservationForm
             key={editingReservation?.id ?? `new-${newReservationFormKey}`}
             initialValues={editingReservation}
