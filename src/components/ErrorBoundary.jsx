@@ -1,9 +1,9 @@
-import { Component } from 'react'
+import { Component, cloneElement, isValidElement } from 'react'
 
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { error: null }
+    this.state = { error: null, retryKey: 0 }
   }
 
   static getDerivedStateFromError(error) {
@@ -12,6 +12,10 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('ErrorBoundary:', error, info)
+  }
+
+  handleRetry = () => {
+    this.setState((prev) => ({ error: null, retryKey: prev.retryKey + 1 }))
   }
 
   render() {
@@ -25,7 +29,7 @@ class ErrorBoundary extends Component {
           <button
             type='button'
             className='mt-3 rounded-lg border border-rose-400 bg-white px-3 py-1.5 text-xs font-medium text-rose-800 hover:bg-rose-100'
-            onClick={() => this.setState({ error: null })}
+            onClick={this.handleRetry}
           >
             Tekrar dene
           </button>
@@ -33,7 +37,12 @@ class ErrorBoundary extends Component {
       )
     }
 
-    return this.props.children
+    const { children } = this.props
+    if (isValidElement(children)) {
+      return cloneElement(children, { key: `retry-${this.state.retryKey}` })
+    }
+
+    return children
   }
 }
 

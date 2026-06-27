@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format } from 'date-fns'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
@@ -142,6 +142,22 @@ function ReservationForm({
 
   const canSearchRooms = datesValid && (relaxedEdit || dateValidation.valid)
 
+  const deferredCheckIn = useDeferredValue(form.checkInDate)
+  const deferredCheckOut = useDeferredValue(form.checkOutDate)
+  const deferredCanSearch =
+    Boolean(
+      parseISODateSafe(deferredCheckIn) &&
+        parseISODateSafe(deferredCheckOut) &&
+        parseISODateSafe(deferredCheckOut) > parseISODateSafe(deferredCheckIn),
+    ) &&
+    (relaxedEdit ||
+      validateActiveReservationDates({
+        checkInDate: deferredCheckIn,
+        checkOutDate: deferredCheckOut,
+        reservationStatus: form.reservationStatus,
+        originalCheckInDate: initialValues?.checkInDate,
+      }).valid)
+
   const roomOptions = useMemo(() => getRoomOptions(reservations), [reservations])
 
   const nightCount = useMemo(() => {
@@ -167,13 +183,13 @@ function ReservationForm({
   const hasFullyBookedNight = fullyBookedNights.length > 0
 
   const bookingPlan = useMemo(() => {
-    if (!canSearchRooms || isEditingVipReservation || hasFullyBookedNight) return null
+    if (!deferredCanSearch || isEditingVipReservation || hasFullyBookedNight) return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     try {
       return findBookingPlan(reservations, {
-        checkInDate: form.checkInDate,
-        checkOutDate: form.checkOutDate,
+        checkInDate: deferredCheckIn,
+        checkOutDate: deferredCheckOut,
         excludeId,
         roomNames: bookableNames,
       })
@@ -182,12 +198,12 @@ function ReservationForm({
       return null
     }
   }, [
-    canSearchRooms,
+    deferredCanSearch,
     isEditingVipReservation,
     reservations,
     roomOptions,
-    form.checkInDate,
-    form.checkOutDate,
+    deferredCheckIn,
+    deferredCheckOut,
     excludeId,
     hasFullyBookedNight,
   ])
@@ -206,31 +222,41 @@ function ReservationForm({
       }))
     }
 
-    const bookable = getRoomAvailabilityList(reservations, {
-      checkInDate: form.checkInDate,
-      checkOutDate: form.checkOutDate,
-      excludeId,
-      roomNames: bookableNames,
-    }).map((room) => {
-      if (
-        bookingPlan?.targetRoom &&
-        normalizeRoomName(room.roomName) === normalizeRoomName(bookingPlan.targetRoom)
-      ) {
-        return {
-          ...room,
-          available: true,
-          conflict: null,
-          viaShuffle: bookingPlan.shuffled,
+    try {
+      const bookable = getRoomAvailabilityList(reservations, {
+        checkInDate: form.checkInDate,
+        checkOutDate: form.checkOutDate,
+        excludeId,
+        roomNames: bookableNames,
+      }).map((room) => {
+        if (
+          bookingPlan?.targetRoom &&
+          normalizeRoomName(room.roomName) === normalizeRoomName(bookingPlan.targetRoom)
+        ) {
+          return {
+            ...room,
+            available: true,
+            conflict: null,
+            viaShuffle: Boolean(bookingPlan.shuffled),
+          }
         }
-      }
-      return room
-    })
+        return room
+      })
 
-    const inactive = roomOptions
-      .filter((roomName) => !isRoomBookable(roomName))
-      .map((roomName) => ({ roomName, available: false, conflict: null, inactive: true }))
+      const inactive = roomOptions
+        .filter((roomName) => !isRoomBookable(roomName))
+        .map((roomName) => ({ roomName, available: false, conflict: null, inactive: true }))
 
-    return [...bookable, ...inactive]
+      return [...bookable, ...inactive]
+    } catch (error) {
+      console.error('Oda müsaitliği hesaplanamadı:', error)
+      return bookableNames.map((roomName) => ({
+        roomName,
+        available: false,
+        conflict: null,
+        inactive: false,
+      }))
+    }
   }, [
     reservations,
     roomOptions,
@@ -773,7 +799,10 @@ function ReservationForm({
                     </p>
                   ) : null}
                 </div>
-              ) : bookingPlan?.shuffled && (bookingPlan.reassignments?.length ?? 0) > 0 ? (
+              ) : bookingPlan?.shuffled &&
+                Array.isArray(bookingPlan.reassignments) &&
+                bookingPlan.reassignments.length > 0 &&
+                bookingPlan.targetRoom ? (
                 <div className='rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-950'>
                   <p className='font-semibold'>Otomatik oda düzenlemesi gerekli</p>
                   <p className='mt-1 text-xs leading-relaxed text-blue-900/90'>
@@ -853,7 +882,7 @@ function ReservationForm({
                       >
                         {getRoomStatusLabel(roomName, available, isInactive, viaShuffle)}
                       </p>
-                      {!isInactive && !available && conflict ? (
+                      {!isInactive && !available && conflict?.customerName ? (
                         <>
                           <p className='mt-1 truncate text-xs font-medium text-slate-600' title={conflict.customerName}>
                             {conflict.customerName}

@@ -174,7 +174,8 @@ const findBookingPlanUnsafe = (
     referenceDate,
   )
   const fixedVip = getFixedVipReservations(reservations, excludeId, referenceDate)
-  const reservationsById = new Map(reservations.map((reservation) => [reservation.id, reservation]))
+  const safeReservations = reservations.filter((reservation) => reservation?.id)
+  const reservationsById = new Map(safeReservations.map((reservation) => [reservation.id, reservation]))
 
   for (let i = 0; i < fixedVip.length; i += 1) {
     for (let j = i + 1; j < fixedVip.length; j += 1) {
@@ -216,6 +217,7 @@ const findBookingPlanUnsafe = (
       }
 
       const reservation = sortedMovable[index]
+      if (!reservation?.id) return null
       const currentRoom = normalizeRoomName(reservation.roomName)
       const candidateRooms = [...standardRooms].sort((a, b) => {
         if (a === currentRoom) return -1
