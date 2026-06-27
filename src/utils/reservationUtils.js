@@ -5,6 +5,7 @@ import {
   endOfMonth,
   format,
   isAfter,
+  isBefore,
   isSameDay,
   isWithinInterval,
   startOfDay,
@@ -18,7 +19,7 @@ import {
   isOnOrAfterCheckInTime,
   isOnOrAfterCheckOutTime,
 } from '../config/hotelTime'
-import { canonicalRoomName, normalizeRoomName } from '../config/rooms'
+import { ACTIVE_ROOM_COUNT, canonicalRoomName, normalizeRoomName } from '../config/rooms'
 import { getSeasonBoundsForYear } from '../config/season'
 import { parseISODateSafe, normalizeFirestoreDate } from './formatters'
 
@@ -292,6 +293,34 @@ export const getOccupiedRoomsOnDate = (reservations, date, now = new Date()) => 
   })
 
   return occupied.size
+}
+
+/** Seçilen konaklama aralığında tüm evlerin dolu olduğu geceler (giriş dahil, çıkış hariç) */
+export const getFullyBookedNightsInRange = (
+  reservations,
+  checkInDate,
+  checkOutDate,
+  { excludeId, now = new Date() } = {},
+) => {
+  const checkIn = parseISODateSafe(checkInDate)
+  const checkOut = parseISODateSafe(checkOutDate)
+  if (!checkIn || !checkOut || checkOut <= checkIn) return []
+
+  const scopedReservations = excludeId
+    ? reservations.filter((reservation) => reservation.id !== excludeId)
+    : reservations
+
+  const fullNights = []
+  let night = startOfDay(checkIn)
+
+  while (isBefore(night, checkOut)) {
+    if (getOccupiedRoomsOnDate(scopedReservations, night, now) >= ACTIVE_ROOM_COUNT) {
+      fullNights.push(format(night, 'yyyy-MM-dd'))
+    }
+    night = addDays(night, 1)
+  }
+
+  return fullNights
 }
 
 export const getReservationNightCount = (reservation) => {

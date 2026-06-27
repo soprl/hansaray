@@ -17,6 +17,7 @@ import { findBookingPlan } from '../utils/roomAssignmentUtils'
 import {
   derivePaymentStatus,
   findConflictingReservation,
+  getFullyBookedNightsInRange,
   getRoomAvailabilityList,
   normalizeReservationStatus,
   PAYMENT_STATUS,
@@ -98,8 +99,17 @@ function ReservationForm({
     return differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
   }, [form.checkInDate, form.checkOutDate, datesValid])
 
+  const fullyBookedNights = useMemo(() => {
+    if (!datesValid || relaxedEdit) return []
+    return getFullyBookedNightsInRange(reservations, form.checkInDate, form.checkOutDate, {
+      excludeId,
+    })
+  }, [datesValid, relaxedEdit, reservations, form.checkInDate, form.checkOutDate, excludeId])
+
+  const hasFullyBookedNight = fullyBookedNights.length > 0
+
   const bookingPlan = useMemo(() => {
-    if (!datesValid || relaxedEdit || isEditingVipReservation) return null
+    if (!datesValid || relaxedEdit || isEditingVipReservation || hasFullyBookedNight) return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     return findBookingPlan(reservations, {
@@ -117,6 +127,7 @@ function ReservationForm({
     form.checkInDate,
     form.checkOutDate,
     excludeId,
+    hasFullyBookedNight,
   ])
 
   const roomAvailabilityList = useMemo(() => {
@@ -199,10 +210,11 @@ function ReservationForm({
 
   const allRoomsFull =
     datesValid &&
-    !bookingPlan?.targetRoom &&
-    (isEditingVipReservation
-      ? !roomAvailabilityList.some((room) => isVipRoom(room.roomName) && room.available)
-      : bookableRoomCount > 0 && availableRooms.length === 0)
+    (hasFullyBookedNight ||
+      (!bookingPlan?.targetRoom &&
+        (isEditingVipReservation
+          ? !roomAvailabilityList.some((room) => isVipRoom(room.roomName) && room.available)
+          : bookableRoomCount > 0 && availableRooms.length === 0)))
 
   const displayedRoomAvailabilityList = useMemo(() => {
     if (isEditingVipReservation) {
@@ -379,6 +391,9 @@ function ReservationForm({
     if (submitting) return null
     if (reservationsLoading) return 'Oda müsaitliği yükleniyor, lütfen bekleyin.'
     if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
+    if (!relaxedEdit && hasFullyBookedNight) {
+      return `Seçilen tarihlerde tüm evler dolu gece var: ${fullyBookedNights.map(formatDateTR).join(', ')}`
+    }
     if (!relaxedEdit && allRoomsFull) return 'Bu tarihlerde tüm odalar dolu. Başka tarih seçin.'
     if (!form.roomName) {
       if (!relaxedEdit && availableRooms.some((room) => isVipRoom(room.roomName))) {
@@ -406,6 +421,8 @@ function ReservationForm({
     datesValid,
     relaxedEdit,
     allRoomsFull,
+    hasFullyBookedNight,
+    fullyBookedNights,
     form.roomName,
     availableRooms,
     vipManuallySelected,
@@ -432,7 +449,9 @@ function ReservationForm({
 
     if (!form.checkInDate) nextErrors.checkInDate = 'Giriş tarihi zorunludur.'
     if (!form.checkOutDate) nextErrors.checkOutDate = 'Çıkış tarihi zorunludur.'
-    if (!relaxedEdit && allRoomsFull) {
+    if (!relaxedEdit && hasFullyBookedNight) {
+      nextErrors.checkOutDate = `Bu gece(ler)de tüm evler dolu: ${fullyBookedNights.map(formatDateTR).join(', ')}`
+    } else if (!relaxedEdit && allRoomsFull) {
       nextErrors.roomName = 'Bu tarihlerde tüm odalar dolu.'
     } else if (!form.roomName) {
       nextErrors.roomName = 'Oda seçin.'
@@ -558,11 +577,20 @@ function ReservationForm({
                   role='alert'
                 >
                   <p className='font-semibold text-rose-700'>
-                    {isEditingVipReservation
-                      ? 'Bu tarihlerde V.I.P dolu. Tarih değiştirin veya başka çözüm uygulayın.'
-                      : 'Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.'}
+                    {hasFullyBookedNight
+                      ? 'Seçilen tarihlerde tüm evler dolu gece var. Rezervasyon yapılamaz.'
+                      : isEditingVipReservation
+                        ? 'Bu tarihlerde V.I.P dolu. Tarih değiştirin veya başka çözüm uygulayın.'
+                        : 'Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.'}
                   </p>
-                  {!isEditingVipReservation ? (
+                  {hasFullyBookedNight ? (
+                    <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
+                      Dolu geceler:{' '}
+                      <strong>{fullyBookedNights.map(formatDateTR).join(', ')}</strong>
+                      {' '}
+                      (6/6 ev dolu — o gecelere yeni misafir sığmaz)
+                    </p>
+                  ) : !isEditingVipReservation ? (
                     <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
                       Standart odalar yeniden düzenlense bile uygun yerleşim bulunamadı. V.I.P
                       misafirler taşınmaz.

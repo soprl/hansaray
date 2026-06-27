@@ -8,6 +8,7 @@ import {
 } from '../config/rooms'
 import {
   blocksRoomAvailability,
+  getFullyBookedNightsInRange,
   getRoomAvailabilityList,
   hasReservationDateConflict,
   isCancelledReservation,
@@ -103,6 +104,15 @@ export const findBookingPlan = (
   referenceDate = new Date(),
 ) => {
   if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) return null
+
+  if (
+    getFullyBookedNightsInRange(reservations, checkInDate, checkOutDate, {
+      excludeId,
+      now: referenceDate,
+    }).length > 0
+  ) {
+    return null
+  }
 
   const standardRooms = getStandardRooms()
   if (standardRooms.length === 0) return null
