@@ -44,10 +44,27 @@ const tagClass = {
   Konaklıyor: 'bg-emerald-100 text-emerald-800',
 }
 
-/** O gece yatakta kalan misafir sayısı (giriş dahil, çıkış günü hariç) */
-function formatOvernightGuestCount(count) {
-  if (count <= 0) return null
-  return count === 1 ? '1 kişi' : `${count} kişi`
+/** Takvim kutucuğu — kısa oda özeti (4/6) */
+function formatOvernightRoomTile({ occupiedRoomCount }) {
+  if (occupiedRoomCount <= 0) return null
+  return `${occupiedRoomCount}/${ROOM_COUNT}`
+}
+
+/** Gün detayı — dolu oda + boş ev */
+function formatOvernightRoomDetail({ occupiedRoomCount, guestCount }) {
+  if (occupiedRoomCount <= 0) return null
+
+  const empty = ROOM_COUNT - occupiedRoomCount
+  const base =
+    empty > 0
+      ? `${occupiedRoomCount}/${ROOM_COUNT} oda dolu · ${empty} ev boş`
+      : `${ROOM_COUNT}/${ROOM_COUNT} oda dolu — tüm evler dolu`
+
+  if (guestCount !== occupiedRoomCount) {
+    return `${base} (${guestCount} rezervasyon, aynı odada çakışma olabilir)`
+  }
+
+  return base
 }
 
 function getWeekDayButtonClass({ selected, level }) {
@@ -261,8 +278,6 @@ function CalendarView({
 
   const selectedDayStayStats = useMemo(() => getOvernightStayStats(stays), [stays])
 
-  const uniqueRoomsToday = selectedDayStayStats.occupiedRoomCount
-
   const goToToday = () => {
     const now = getToday()
     onDateChange(now)
@@ -278,9 +293,9 @@ function CalendarView({
     if (!isVisibleMonthDay(date)) return 'calendar-tile tile-outside-month'
     const classes = ['calendar-tile']
     const dayStats = getDayStayStats(date)
-    const { guestCount } = dayStats
+    const { occupiedRoomCount } = dayStats
     const level = getOccupancyLevel(dayStats)
-    if (guestCount > 0) classes.push('tile-has-events')
+    if (occupiedRoomCount > 0) classes.push('tile-has-events')
     if (level === 'full') classes.push('tile-full')
     if (level === 'high') classes.push('tile-high')
     if (isSameDay(date, getToday())) classes.push('tile-today')
@@ -290,13 +305,13 @@ function CalendarView({
 
   const tileContent = ({ date, view }) => {
     if (view !== 'month' || !isVisibleMonthDay(date)) return null
-    const { guestCount } = getDayStayStats(date)
-    const label = formatOvernightGuestCount(guestCount)
+    const dayStats = getDayStayStats(date)
+    const label = formatOvernightRoomTile(dayStats)
     if (!label) return null
 
     return (
       <div className='tile-day-summary' aria-hidden>
-        <span className='tile-guest-label'>{label}</span>
+        <span className='tile-guest-label' title={`${label} oda dolu`}>{label}</span>
       </div>
     )
   }
@@ -389,7 +404,7 @@ function CalendarView({
             <div className='mt-3 flex flex-wrap gap-3 text-xs text-slate-600'>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400' />
-                En az 1 kişi konaklıyor
+                Boş oda var
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded bg-orange-100 ring-1 ring-orange-500' />
@@ -434,8 +449,9 @@ function CalendarView({
               {weekDaysActivity.map(({ date, details, stayStats }) => {
                 const selected = isSameDay(date, selectedDate)
                 const isToday = isSameDay(date, getToday())
-                const { guestCount } = stayStats
+                const { occupiedRoomCount } = stayStats
                 const level = getOccupancyLevel(stayStats)
+                const roomLabel = formatOvernightRoomTile(stayStats)
                 return (
                   <button
                     key={dayKey(date)}
@@ -450,11 +466,11 @@ function CalendarView({
                     <span className='text-base font-bold text-blue-950 sm:text-lg'>
                       {format(date, 'd')}
                     </span>
-                    {guestCount > 0 ? (
+                    {occupiedRoomCount > 0 ? (
                       <span
                         className={`mt-0.5 rounded px-1 py-0.5 text-[9px] font-bold text-white sm:text-[10px] ${getGuestCountBadgeClass(level)}`}
                       >
-                        {formatOvernightGuestCount(guestCount)}
+                        {roomLabel}
                       </span>
                     ) : (
                       <span className='mt-0.5 text-[10px] text-slate-400'>—</span>
@@ -507,15 +523,16 @@ function CalendarView({
               {selectedDayReservations.length > 0 ? (
                 <>
                   {' '}
-                  · <strong>{selectedDayStayStats.guestCount} kişi o gece konaklıyor</strong>
-                  {selectedDayStayStats.isAllRoomsFull
-                    ? ' · tüm evler dolu'
-                    : selectedDayStayStats.isNearlyFull
-                      ? ` · ${ROOM_COUNT - 1} ev dolu`
-                      : ''}
+                  ·{' '}
+                  <strong>{formatOvernightRoomDetail(selectedDayStayStats)}</strong>
                   {' '}
                   · {checkIns.length} giriş · {checkOuts.length} çıkış
-                  {uniqueRoomsToday > 0 ? ` · ${uniqueRoomsToday} oda/ev` : ''}
+                  {selectedDayStayStats.occupiedRoomCount > 0 ? (
+                    <>
+                      {' '}
+                      · o gece {selectedDayStayStats.guestCount} misafir
+                    </>
+                  ) : null}
                 </>
               ) : (
                 ' — bu gün için kayıt yok.'
@@ -556,9 +573,15 @@ function CalendarView({
                       : 'text-emerald-900'
                 }`}
               >
-                {selectedDayStayStats.guestCount}
+                {selectedDayStayStats.occupiedRoomCount > 0
+                  ? `${selectedDayStayStats.occupiedRoomCount}/${ROOM_COUNT}`
+                  : '—'}
               </p>
-              <p className='text-xs text-slate-600'>O gece konaklayan</p>
+              <p className='text-xs text-slate-600'>
+                {selectedDayStayStats.occupiedRoomCount > 0
+                  ? `${ROOM_COUNT - selectedDayStayStats.occupiedRoomCount} ev boş`
+                  : 'O gece dolu oda yok'}
+              </p>
             </div>
           </div>
         ) : null}
