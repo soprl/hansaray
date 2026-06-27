@@ -1,4 +1,3 @@
-import { differenceInCalendarDays, parseISO } from 'date-fns'
 import {
   ACTIVE_ROOMS,
   isRoomBookable,
@@ -9,8 +8,10 @@ import {
 import {
   blocksRoomAvailability,
   getFullyBookedNightsInRange,
+  getReservationNightCount,
   getRoomAvailabilityList,
   hasReservationDateConflict,
+  hasValidReservationDates,
   isCancelledReservation,
 } from './reservationUtils'
 
@@ -31,6 +32,7 @@ const getMovableReservations = (reservations, excludeId, referenceDate = new Dat
     if (excludeId && reservation.id === excludeId) return false
     if (isCancelledReservation(reservation)) return false
     if (isVipRoom(reservation.roomName)) return false
+    if (!hasValidReservationDates(reservation)) return false
     return blocksRoomAvailability(reservation, referenceDate)
   })
 
@@ -39,6 +41,7 @@ const getFixedVipReservations = (reservations, excludeId, referenceDate = new Da
     if (excludeId && reservation.id === excludeId) return false
     if (isCancelledReservation(reservation)) return false
     if (!isVipRoom(reservation.roomName)) return false
+    if (!hasValidReservationDates(reservation)) return false
     return blocksRoomAvailability(reservation, referenceDate)
   })
 
@@ -147,8 +150,8 @@ export const findBookingPlan = (
   }
 
   const sortedMovable = [...movable].sort((a, b) => {
-    const nightsA = differenceInCalendarDays(parseISO(a.checkOutDate), parseISO(a.checkInDate))
-    const nightsB = differenceInCalendarDays(parseISO(b.checkOutDate), parseISO(b.checkInDate))
+    const nightsA = getReservationNightCount(a) ?? 0
+    const nightsB = getReservationNightCount(b) ?? 0
     return nightsB - nightsA
   })
 

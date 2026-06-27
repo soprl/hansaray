@@ -1,7 +1,7 @@
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import { useEffect, useRef, useState } from 'react'
 import { FiCalendar } from 'react-icons/fi'
-import { formatDateTR } from '../utils/formatters'
+import { formatDateTR, parseISODateSafe } from '../utils/formatters'
 import TurkishCalendar from './TurkishCalendar'
 
 function DatePickerField({
@@ -30,9 +30,9 @@ function DatePickerField({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  const calendarValue = value ? parseISO(value) : null
-  const minValue = minDate ? parseISO(minDate) : undefined
-  const maxValue = maxDate ? parseISO(maxDate) : undefined
+  const calendarValue = parseISODateSafe(value)
+  const minValue = parseISODateSafe(minDate) ?? undefined
+  const maxValue = parseISODateSafe(maxDate) ?? undefined
 
   const handleSelect = (date) => {
     onChange(format(date, 'yyyy-MM-dd'))

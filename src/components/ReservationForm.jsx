@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
+import { addDays, differenceInCalendarDays, format } from 'date-fns'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
@@ -12,7 +12,7 @@ import {
   pickFirstAvailableStandardRoom,
 } from '../config/rooms'
 import { getHotelTodayIso, HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
-import { formatDateTR } from '../utils/formatters'
+import { formatDateTR, normalizeFirestoreDate, parseISODateSafe } from '../utils/formatters'
 import { findBookingPlan } from '../utils/roomAssignmentUtils'
 import {
   derivePaymentStatus,
@@ -40,6 +40,12 @@ const DEFAULT_FORM = {
 
 const NIGHT_PRESETS = [1, 2, 3, 7]
 
+function addDaysIso(dateIso, days) {
+  const parsed = parseISODateSafe(dateIso)
+  if (!parsed) return undefined
+  return format(addDays(parsed, days), 'yyyy-MM-dd')
+}
+
 function ReservationForm({
   initialValues,
   onSubmit,
@@ -59,6 +65,8 @@ function ReservationForm({
       ...DEFAULT_FORM,
       ...initialValues,
       roomName: normalizeRoomName(initialValues.roomName),
+      checkInDate: normalizeFirestoreDate(initialValues.checkInDate),
+      checkOutDate: normalizeFirestoreDate(initialValues.checkOutDate),
       totalPrice:
         initialValues.totalPrice !== undefined && initialValues.totalPrice !== null
           ? String(initialValues.totalPrice)
@@ -90,8 +98,11 @@ function ReservationForm({
     return totalPrice - deposit
   }, [form.totalPrice, form.deposit])
 
-  const datesValid =
-    form.checkInDate && form.checkOutDate && form.checkOutDate > form.checkInDate
+  const datesValid = useMemo(() => {
+    const checkIn = parseISODateSafe(form.checkInDate)
+    const checkOut = parseISODateSafe(form.checkOutDate)
+    return Boolean(checkIn && checkOut && checkOut > checkIn)
+  }, [form.checkInDate, form.checkOutDate])
 
   const hotelTodayIso = getHotelTodayIso()
 
@@ -128,7 +139,10 @@ function ReservationForm({
 
   const nightCount = useMemo(() => {
     if (!datesValid) return 0
-    return differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
+    const checkIn = parseISODateSafe(form.checkInDate)
+    const checkOut = parseISODateSafe(form.checkOutDate)
+    if (!checkIn || !checkOut) return 0
+    return differenceInCalendarDays(checkOut, checkIn)
   }, [form.checkInDate, form.checkOutDate, datesValid])
 
   const fullyBookedNights = useMemo(() => {
@@ -386,7 +400,8 @@ function ReservationForm({
 
   const applyNightPreset = (nights) => {
     if (!form.checkInDate) return
-    const checkOutDate = format(addDays(parseISO(form.checkInDate), nights), 'yyyy-MM-dd')
+    const checkOutDate = addDaysIso(form.checkInDate, nights)
+    if (!checkOutDate) return
     setForm((prev) => ({ ...prev, checkOutDate }))
   }
 
@@ -576,10 +591,8 @@ function ReservationForm({
                 onChange={(checkOutDate) => setForm((prev) => ({ ...prev, checkOutDate }))}
                 minDate={
                   form.checkInDate
-                    ? format(addDays(parseISO(form.checkInDate), 1), 'yyyy-MM-dd')
-                    : checkInMinDate
-                      ? format(addDays(parseISO(checkInMinDate), 1), 'yyyy-MM-dd')
-                      : undefined
+                    ? addDaysIso(form.checkInDate, 1)
+                    : addDaysIso(checkInMinDate, 1)
                 }
                 disabled={!form.checkInDate}
                 error={errors.checkOutDate}

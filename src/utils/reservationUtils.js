@@ -368,6 +368,9 @@ export const getReservationNightCount = (reservation) => {
   return nights > 0 ? nights : null
 }
 
+export const hasValidReservationDates = (reservation) =>
+  getReservationNightCount(reservation) !== null
+
 /** Seçilen günden itibaren kalan konaklama (takvim detayı) */
 export const getRemainingStayLabel = (reservation, referenceDate = new Date()) => {
   const checkIn = parseISODateSafe(reservation.checkInDate)
