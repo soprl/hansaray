@@ -9,6 +9,7 @@ import {
   getReservations,
   updateReservation,
 } from '../services/reservationService'
+import { sortReassignmentsForApply } from '../utils/roomAssignmentUtils'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomDisplayName, getRoomOptions, isRoomBookable, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME } from '../config/hotelTime'
@@ -152,8 +153,9 @@ function Reservations() {
     try {
       const createdBy = user?.email ?? editingReservation?.createdBy ?? 'unknown'
       const { pendingReassignments = [], ...reservationInput } = formData
+      const orderedMoves = sortReassignmentsForApply(pendingReassignments)
 
-      for (const move of pendingReassignments) {
+      for (const move of orderedMoves) {
         if (isVipRoom(move.toRoom)) continue
         await updateReservation(
           move.reservation.id,
@@ -174,8 +176,8 @@ function Reservations() {
           }),
         )
         setSuccessMessage(
-          pendingReassignments.length > 0
-            ? `Rezervasyon güncellendi. ${pendingReassignments.length} misafir başka odaya taşındı.`
+          orderedMoves.length > 0
+            ? `Rezervasyon güncellendi. ${orderedMoves.length} misafir başka odaya taşındı.`
             : 'Rezervasyon güncellendi.',
         )
       } else {
@@ -184,8 +186,8 @@ function Reservations() {
         setListTab(LIST_TABS.ACTIVE)
         setFilters((prev) => ({ ...prev, search: '', roomName: '' }))
         setSuccessMessage(
-          pendingReassignments.length > 0
-            ? `Rezervasyon eklendi. ${pendingReassignments.length} misafir başka odaya taşındı.`
+          orderedMoves.length > 0
+            ? `Rezervasyon eklendi. ${orderedMoves.length} misafir başka odaya taşındı.`
             : 'Rezervasyon eklendi.',
         )
         setReservations((prev) => {

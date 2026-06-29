@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format } from 'date-fns'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
@@ -165,22 +165,6 @@ function ReservationForm({
 
   const canSearchRooms = datesValid && (relaxedEdit || dateValidation.valid)
 
-  const deferredCheckIn = useDeferredValue(form.checkInDate)
-  const deferredCheckOut = useDeferredValue(form.checkOutDate)
-  const deferredCanSearch =
-    Boolean(
-      parseISODateSafe(deferredCheckIn) &&
-        parseISODateSafe(deferredCheckOut) &&
-        parseISODateSafe(deferredCheckOut) > parseISODateSafe(deferredCheckIn),
-    ) &&
-    (relaxedEdit ||
-      validateActiveReservationDates({
-        checkInDate: deferredCheckIn,
-        checkOutDate: deferredCheckOut,
-        reservationStatus: form.reservationStatus,
-        originalCheckInDate: initialValues?.checkInDate,
-      }).valid)
-
   const safeReservations = useMemo(() => sanitizeReservations(reservations), [reservations])
 
   const roomOptions = useMemo(() => getRoomOptions(safeReservations), [safeReservations])
@@ -208,15 +192,17 @@ function ReservationForm({
   const hasFullyBookedNight = fullyBookedNights.length > 0
 
   const bookingPlan = useMemo(() => {
-    if (!deferredCanSearch || isEditingVipReservation || hasFullyBookedNight) return null
+    if (!canSearchRooms || isEditingVipReservation || hasFullyBookedNight) return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     const preferredRoom =
-      isEditing && !isEditingVipReservation ? normalizeRoomName(initialValues?.roomName) : undefined
+      isEditing && !isEditingVipReservation
+        ? normalizeRoomName(form.roomName || initialValues?.roomName)
+        : undefined
     try {
       return findBookingPlan(safeReservations, {
-        checkInDate: deferredCheckIn,
-        checkOutDate: deferredCheckOut,
+        checkInDate: form.checkInDate,
+        checkOutDate: form.checkOutDate,
         excludeId,
         roomNames: bookableNames,
         preferredRoom,
@@ -226,13 +212,14 @@ function ReservationForm({
       return null
     }
   }, [
-    deferredCanSearch,
+    canSearchRooms,
     isEditingVipReservation,
     isEditing,
     safeReservations,
     roomOptions,
-    deferredCheckIn,
-    deferredCheckOut,
+    form.checkInDate,
+    form.checkOutDate,
+    form.roomName,
     excludeId,
     hasFullyBookedNight,
     initialValues?.roomName,
@@ -393,12 +380,16 @@ function ReservationForm({
 
   const selectedRoomConflict = useMemo(() => {
     if (!datesValid || !resolvedRoomName) return null
-    if (
-      bookingPlan?.targetRoom &&
-      normalizeRoomName(resolvedRoomName) === normalizeRoomName(bookingPlan.targetRoom)
-    ) {
+
+    const resolved = normalizeRoomName(resolvedRoomName)
+    const plannedTarget = bookingPlan?.targetRoom
+      ? normalizeRoomName(bookingPlan.targetRoom)
+      : null
+
+    if (plannedTarget && resolved === plannedTarget) {
       return null
     }
+
     return findConflictingReservation(safeReservations, {
       roomName: resolvedRoomName,
       checkInDate: form.checkInDate,
@@ -727,13 +718,47 @@ function ReservationForm({
     if (isSubmitDisabled) return
     if (!validate()) return
 
+    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+    const preferredRoom = normalizeRoomName(
+      resolvedRoomName || form.roomName || initialValues?.roomName,
+    )
+
+    let submitPlan = null
+    try {
+      if (canSearchRooms && !hasFullyBookedNight && !isEditingVipReservation) {
+        submitPlan = findBookingPlan(safeReservations, {
+          checkInDate: form.checkInDate,
+          checkOutDate: form.checkOutDate,
+          excludeId,
+          roomNames: bookableNames,
+          preferredRoom: preferredRoom || undefined,
+        })
+      }
+    } catch (error) {
+      console.error('Kayıt öncesi oda planı hesaplanamadı:', error)
+    }
+
+    const targetRoom = normalizeRoomName(resolvedRoomName)
+    if (
+      !relaxedEdit &&
+      submitPlan?.shuffled &&
+      submitPlan.targetRoom &&
+      targetRoom !== normalizeRoomName(submitPlan.targetRoom)
+    ) {
+      setErrors((prev) => ({
+        ...prev,
+        roomName: 'Bu oda yalnızca taşıma planıyla müsait. Planlanan odayı seçin.',
+      }))
+      return
+    }
+
     await onSubmit({
       ...form,
-      roomName: normalizeRoomName(resolvedRoomName),
+      roomName: targetRoom,
       totalPrice: parseMoneyInput(form.totalPrice),
       deposit: parseMoneyInput(form.deposit),
       remainingPayment,
-      pendingReassignments: bookingPlan?.reassignments ?? [],
+      pendingReassignments: submitPlan?.reassignments ?? [],
     })
   }
 

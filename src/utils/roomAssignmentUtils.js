@@ -110,6 +110,36 @@ const buildReassignments = (movable, assignment) =>
     return [{ reservation, fromRoom, toRoom }]
   })
 
+/** Taşımaları kayıt öncesi güvenli sıraya koyar — hedef oda hâlâ doluyken girişi engeller */
+export const sortReassignmentsForApply = (reassignments = []) => {
+  if (reassignments.length <= 1) return [...reassignments]
+
+  const pending = [...reassignments]
+  const ordered = []
+
+  while (pending.length > 0) {
+    const nextIndex = pending.findIndex((move) => {
+      const targetRoom = normalizeRoomName(move.toRoom)
+      return !pending.some(
+        (other) =>
+          other !== move &&
+          normalizeRoomName(other.fromRoom) === targetRoom &&
+          other.reservation?.id !== move.reservation?.id,
+      )
+    })
+
+    if (nextIndex === -1) {
+      ordered.push(...pending)
+      break
+    }
+
+    ordered.push(pending[nextIndex])
+    pending.splice(nextIndex, 1)
+  }
+
+  return ordered
+}
+
 /**
  * VIP hariç standart misafirleri yeniden yerleştirerek seçilen tarihler için boş oda bulur.
  * @returns {{ targetRoom: string, reassignments: Array, shuffled: boolean } | null}
