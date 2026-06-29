@@ -354,8 +354,14 @@ export const validateActiveReservationDates = (
   const originalCheckIn = normalizeFirestoreDate(originalCheckInDate)
   const unchangedPastStay =
     originalCheckIn && checkIn === originalCheckIn && checkIn < todayIso
+  const ongoingStayCheckInAdjust =
+    originalCheckIn &&
+    originalCheckIn < todayIso &&
+    checkIn >= originalCheckIn &&
+    checkIn <= todayIso &&
+    normalizeReservationStatus(reservationStatus) === RES_STATUS.ACTIVE
 
-  if (checkIn < todayIso && !unchangedPastStay) {
+  if (checkIn < todayIso && !unchangedPastStay && !ongoingStayCheckInAdjust) {
     return {
       valid: false,
       message: 'Geçmiş tarihe rezervasyon yapılamaz. Giriş bugün veya sonrası olmalıdır.',

@@ -116,11 +116,15 @@ const buildReassignments = (movable, assignment) =>
  */
 export const findBookingPlan = (
   reservations,
-  { checkInDate, checkOutDate, excludeId, roomNames },
+  { checkInDate, checkOutDate, excludeId, roomNames, preferredRoom },
   referenceDate = new Date(),
 ) => {
   try {
-    return findBookingPlanUnsafe(reservations, { checkInDate, checkOutDate, excludeId, roomNames }, referenceDate)
+    return findBookingPlanUnsafe(
+      reservations,
+      { checkInDate, checkOutDate, excludeId, roomNames, preferredRoom },
+      referenceDate,
+    )
   } catch (error) {
     console.error('findBookingPlan failed:', error)
     return null
@@ -132,7 +136,7 @@ const MAX_SHUFFLE_STEPS = 8000
 
 const findBookingPlanUnsafe = (
   reservations,
-  { checkInDate, checkOutDate, excludeId, roomNames },
+  { checkInDate, checkOutDate, excludeId, roomNames, preferredRoom },
   referenceDate = new Date(),
 ) => {
   if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) return null
@@ -162,9 +166,17 @@ const findBookingPlanUnsafe = (
     (room) => room.available && isRoomBookable(room.roomName) && !isVipRoom(room.roomName),
   )
 
+  const normalizedPreferred = preferredRoom ? normalizeRoomName(preferredRoom) : null
+
   if (directlyAvailable.length > 0) {
+    const preferredStillFree =
+      normalizedPreferred &&
+      directlyAvailable.some((room) => normalizeRoomName(room.roomName) === normalizedPreferred)
+
     return {
-      targetRoom: pickFirstAvailableStandardRoom(directlyAvailable.map((room) => room.roomName)),
+      targetRoom: preferredStillFree
+        ? normalizedPreferred
+        : pickFirstAvailableStandardRoom(directlyAvailable.map((room) => room.roomName)),
       reassignments: [],
       shuffled: false,
     }
@@ -195,7 +207,12 @@ const findBookingPlanUnsafe = (
     return nightsB - nightsA
   })
 
-  for (const targetRoom of standardRooms) {
+  const targetRoomOrder =
+    normalizedPreferred && standardRooms.includes(normalizedPreferred)
+      ? [normalizedPreferred, ...standardRooms.filter((room) => room !== normalizedPreferred)]
+      : standardRooms
+
+  for (const targetRoom of targetRoomOrder) {
     const assignment = new Map()
 
     const search = (index, depth = 0) => {

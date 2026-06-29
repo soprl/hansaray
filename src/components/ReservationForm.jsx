@@ -189,12 +189,15 @@ function ReservationForm({
     if (!deferredCanSearch || isEditingVipReservation || hasFullyBookedNight) return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+    const preferredRoom =
+      isEditing && !isEditingVipReservation ? normalizeRoomName(initialValues?.roomName) : undefined
     try {
       return findBookingPlan(safeReservations, {
         checkInDate: deferredCheckIn,
         checkOutDate: deferredCheckOut,
         excludeId,
         roomNames: bookableNames,
+        preferredRoom,
       })
     } catch (error) {
       console.error('Oda yerleştirme planı hesaplanamadı:', error)
@@ -203,12 +206,14 @@ function ReservationForm({
   }, [
     deferredCanSearch,
     isEditingVipReservation,
+    isEditing,
     safeReservations,
     roomOptions,
     deferredCheckIn,
     deferredCheckOut,
     excludeId,
     hasFullyBookedNight,
+    initialValues?.roomName,
   ])
 
   const roomAvailabilityList = useMemo(() => {
@@ -309,12 +314,28 @@ function ReservationForm({
       return form.roomName
     }
 
+    const preferredRoom = normalizeRoomName(form.roomName)
     if (
-      form.roomName &&
-      availableRooms.some((room) => room.roomName === form.roomName) &&
-      !(isVipRoom(form.roomName) && !vipManuallySelected)
+      preferredRoom &&
+      availableRooms.some((room) => normalizeRoomName(room.roomName) === preferredRoom) &&
+      !(isVipRoom(preferredRoom) && !vipManuallySelected)
     ) {
-      return form.roomName
+      return preferredRoom
+    }
+
+    if (isEditing && !isEditingVipReservation && !form.roomName && bookingPlan?.targetRoom) {
+      return bookingPlan.targetRoom
+    }
+
+    if (isEditing && !isEditingVipReservation && !form.roomName) {
+      const originalRoom = normalizeRoomName(initialValues?.roomName)
+      if (
+        originalRoom &&
+        !isVipRoom(originalRoom) &&
+        availableRooms.some((room) => normalizeRoomName(room.roomName) === originalRoom)
+      ) {
+        return originalRoom
+      }
     }
 
     if (bookingPlan?.targetRoom) return bookingPlan.targetRoom
@@ -339,6 +360,7 @@ function ReservationForm({
     datesValid,
     relaxedEdit,
     hasFullyBookedNight,
+    isEditing,
     isEditingVipReservation,
     initialValues?.roomName,
     vipManuallySelected,
@@ -436,23 +458,21 @@ function ReservationForm({
       )
       const directStandard = directlyAvailable.filter((room) => !isVipRoom(room.roomName))
 
-      const datesChanged =
-        checkInDate !== lastAutoPickDatesRef.current.checkIn ||
-        checkOutDate !== lastAutoPickDatesRef.current.checkOut
-
       const wasVipManual = vipManuallySelectedRef.current
-      const currentStillAvailable = directlyAvailable.some((room) => room.roomName === prevRoomName)
-      const vipHeldByUser =
-        wasVipManual && prevRoomName && isVipRoom(prevRoomName) && currentStillAvailable
+      const normalizedPrevRoom = normalizeRoomName(prevRoomName)
+      const currentStillAvailable = directlyAvailable.some(
+        (room) => normalizeRoomName(room.roomName) === normalizedPrevRoom,
+      )
 
       lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
 
-      if (vipHeldByUser && !datesChanged) {
-        return { roomName: prevRoomName, vipManual: true }
+      if (wasVipManual && normalizedPrevRoom && isVipRoom(normalizedPrevRoom) && currentStillAvailable) {
+        return { roomName: normalizedPrevRoom, vipManual: true }
       }
 
-      if (!datesChanged && prevRoomName && currentStillAvailable) {
-        return { roomName: prevRoomName, vipManual: wasVipManual }
+      // Düzenlemede tarih değişse bile mevcut oda müsaitse koru.
+      if (normalizedPrevRoom && currentStillAvailable && !isVipRoom(normalizedPrevRoom)) {
+        return { roomName: normalizedPrevRoom, vipManual: false }
       }
 
       if (directStandard.length > 0) {
@@ -460,10 +480,6 @@ function ReservationForm({
           roomName: pickFirstAvailableStandardRoom(directStandard.map((room) => room.roomName)),
           vipManual: false,
         }
-      }
-
-      if (vipHeldByUser) {
-        return { roomName: prevRoomName, vipManual: true }
       }
 
       // Taşıma planı render sırasında hesaplanır; burada ağır arama yapılmaz.
@@ -710,6 +726,7 @@ function ReservationForm({
           <p className='text-xs text-slate-500'>
             {HOTEL_TIME_POLICY_LABEL} (TR saati)
             {!relaxedEdit ? ' · Giriş bugün veya sonrası' : null}
+            {isEditing && !relaxedEdit ? ' · Düzenlemede mevcut oda müsaitse korunur' : null}
           </p>
           {!relaxedEdit && !dateValidation.valid && datesValid ? (
             <p className='text-xs font-medium text-rose-600' role='alert'>
