@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format } from 'date-fns'
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
@@ -47,6 +47,32 @@ function addDaysIso(dateIso, days) {
   return format(addDays(parsed, days), 'yyyy-MM-dd')
 }
 
+function formStateFromInitialValues(initialValues) {
+  if (!initialValues) return DEFAULT_FORM
+
+  const merged = {
+    ...DEFAULT_FORM,
+    ...initialValues,
+    roomName: normalizeRoomName(initialValues.roomName),
+    checkInDate: normalizeFirestoreDate(initialValues.checkInDate),
+    checkOutDate: normalizeFirestoreDate(initialValues.checkOutDate),
+    totalPrice:
+      initialValues.totalPrice !== undefined && initialValues.totalPrice !== null
+        ? String(initialValues.totalPrice)
+        : '',
+    deposit:
+      initialValues.deposit !== undefined && initialValues.deposit !== null
+        ? String(initialValues.deposit)
+        : '',
+  }
+
+  return {
+    ...merged,
+    reservationStatus: normalizeReservationStatus(merged.reservationStatus),
+    paymentStatus: derivePaymentStatus(merged.totalPrice, merged.deposit),
+  }
+}
+
 function ReservationForm({
   initialValues,
   onSubmit,
@@ -60,38 +86,34 @@ function ReservationForm({
   const isEditing = Boolean(initialValues)
   const isEditingVipReservation = isEditing && isVipRoom(initialValues?.roomName)
 
-  const [form, setForm] = useState(() => {
-    if (!initialValues) return DEFAULT_FORM
-    const merged = {
-      ...DEFAULT_FORM,
-      ...initialValues,
-      roomName: normalizeRoomName(initialValues.roomName),
-      checkInDate: normalizeFirestoreDate(initialValues.checkInDate),
-      checkOutDate: normalizeFirestoreDate(initialValues.checkOutDate),
-      totalPrice:
-        initialValues.totalPrice !== undefined && initialValues.totalPrice !== null
-          ? String(initialValues.totalPrice)
-          : '',
-      deposit:
-        initialValues.deposit !== undefined && initialValues.deposit !== null
-          ? String(initialValues.deposit)
-          : '',
-    }
-    return {
-      ...merged,
-      reservationStatus: normalizeReservationStatus(merged.reservationStatus),
-      paymentStatus: derivePaymentStatus(merged.totalPrice, merged.deposit),
-    }
-  })
+  const [form, setForm] = useState(() => formStateFromInitialValues(initialValues))
   const [errors, setErrors] = useState({})
   const formRef = useRef(null)
   const [vipManuallySelected, setVipManuallySelected] = useState(
     () => Boolean(initialValues && isVipRoom(initialValues.roomName)),
   )
   const lastAutoPickDatesRef = useRef({
-    checkIn: initialValues?.checkInDate ?? '',
-    checkOut: initialValues?.checkOutDate ?? '',
+    checkIn: normalizeFirestoreDate(initialValues?.checkInDate),
+    checkOut: normalizeFirestoreDate(initialValues?.checkOutDate),
   })
+
+  useEffect(() => {
+    if (!initialValues?.id) {
+      setForm(DEFAULT_FORM)
+      setVipManuallySelected(false)
+      lastAutoPickDatesRef.current = { checkIn: '', checkOut: '' }
+      setErrors({})
+      return
+    }
+
+    setForm(formStateFromInitialValues(initialValues))
+    setVipManuallySelected(Boolean(isVipRoom(initialValues.roomName)))
+    lastAutoPickDatesRef.current = {
+      checkIn: normalizeFirestoreDate(initialValues.checkInDate),
+      checkOut: normalizeFirestoreDate(initialValues.checkOutDate),
+    }
+    setErrors({})
+  }, [initialValues?.id])
 
   const remainingPayment = useMemo(() => {
     const totalPrice = parseMoneyInput(form.totalPrice)

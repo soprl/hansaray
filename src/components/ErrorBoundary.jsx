@@ -100,7 +100,8 @@ class ErrorBoundary extends Component {
 
     const { children } = this.props
     if (isValidElement(children)) {
-      return cloneElement(children, { key: `retry-${this.state.retryKey}` })
+      const parentKey = children.key != null ? String(children.key) : 'form'
+      return cloneElement(children, { key: `${parentKey}-eb-${this.state.retryKey}` })
     }
 
     return children

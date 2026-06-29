@@ -53,6 +53,7 @@ function Reservations() {
   const [submitting, setSubmitting] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [editingReservation, setEditingReservation] = useState(null)
+  const [editFormKey, setEditFormKey] = useState(0)
   const [newReservationFormKey, setNewReservationFormKey] = useState(0)
 
   const [listTab, setListTab] = useState(LIST_TABS.ACTIVE)
@@ -335,7 +336,11 @@ function Reservations() {
           }}
         >
           <ReservationForm
-            key={editingReservation?.id ?? `new-${newReservationFormKey}`}
+            key={
+              editingReservation?.id
+                ? `edit-${editingReservation.id}-${editFormKey}`
+                : `new-${newReservationFormKey}`
+            }
             initialValues={editingReservation}
             onSubmit={handleSubmitReservation}
             onCancel={() => setEditingReservation(null)}
@@ -462,7 +467,10 @@ function Reservations() {
                   <button
                     type='button'
                     className='btn border border-slate-300 bg-white'
-                    onClick={() => setEditingReservation(reservation)}
+                    onClick={() => {
+                      setEditingReservation(reservation)
+                      setEditFormKey((key) => key + 1)
+                    }}
                   >
                     Düzenle
                   </button>
