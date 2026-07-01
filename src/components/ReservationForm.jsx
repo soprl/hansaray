@@ -2,6 +2,7 @@ import { addDays, differenceInCalendarDays, format } from 'date-fns'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
+import { useStayAvailability } from '../hooks/useStayAvailability'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
 import {
   getRoomDisplayName,
@@ -200,13 +201,38 @@ function ReservationForm({
     initialValues?.checkInDate,
   ])
 
-  const isAvailabilityPending =
-    canSearchRooms &&
-    (deferredCheckIn !== form.checkInDate || deferredCheckOut !== form.checkOutDate)
-
   const safeReservations = useMemo(() => sanitizeReservations(reservations), [reservations])
 
   const roomOptions = useMemo(() => getRoomOptions(safeReservations), [safeReservations])
+
+  const bookableRoomNames = useMemo(
+    () => roomOptions.filter((roomName) => isRoomBookable(roomName)),
+    [roomOptions],
+  )
+
+  const stayAvailability = useStayAvailability({
+    enabled: deferredCanSearch,
+    reservations: safeReservations,
+    checkInDate: deferredCheckIn,
+    checkOutDate: deferredCheckOut,
+    excludeId,
+    roomNames: bookableRoomNames,
+    isEditingVipReservation,
+    preferredRoom:
+      isEditing && !isEditingVipReservation
+        ? normalizeRoomName(form.roomName || initialValues?.roomName)
+        : undefined,
+  })
+
+  const isAvailabilityPending =
+    canSearchRooms &&
+    (deferredCheckIn !== form.checkInDate ||
+      deferredCheckOut !== form.checkOutDate ||
+      stayAvailability.status === 'pending')
+
+  const stayBooking = stayAvailability.stayBooking
+  const bookingPlan = stayAvailability.bookingPlan
+  const availabilityError = stayAvailability.error
 
   const nightCount = useMemo(() => {
     if (!datesValid) return 0
@@ -231,99 +257,6 @@ function ReservationForm({
     return labels
   }, [datesValid, nightCount, form.checkInDate, form.checkOutDate])
 
-  const baseStayBooking = useMemo(() => {
-    if (!deferredCanSearch) return null
-
-    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
-
-    try {
-      return evaluateStayBooking(safeReservations, {
-        checkInDate: deferredCheckIn,
-        checkOutDate: deferredCheckOut,
-        excludeId,
-        roomNames: bookableNames,
-        isEditingVipReservation,
-      })
-    } catch (error) {
-      console.error('Konaklama müsaitliği hesaplanamadı:', error)
-      return null
-    }
-  }, [
-    deferredCanSearch,
-    isEditingVipReservation,
-    safeReservations,
-    roomOptions,
-    deferredCheckIn,
-    deferredCheckOut,
-    excludeId,
-  ])
-
-  const preliminaryFullyBookedNights = baseStayBooking?.fullyBookedNights ?? []
-  const preliminaryHasFullyBookedNight = preliminaryFullyBookedNights.length > 0
-
-  const bookingPlan = useMemo(() => {
-    if (!deferredCanSearch || isEditingVipReservation || preliminaryHasFullyBookedNight) return null
-
-    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
-    const preferredRoom =
-      isEditing && !isEditingVipReservation
-        ? normalizeRoomName(form.roomName || initialValues?.roomName)
-        : undefined
-
-    try {
-      return findBookingPlan(safeReservations, {
-        checkInDate: deferredCheckIn,
-        checkOutDate: deferredCheckOut,
-        excludeId,
-        roomNames: bookableNames,
-        preferredRoom,
-      })
-    } catch (error) {
-      console.error('Oda yerleştirme planı hesaplanamadı:', error)
-      return null
-    }
-  }, [
-    deferredCanSearch,
-    isEditingVipReservation,
-    preliminaryHasFullyBookedNight,
-    isEditing,
-    safeReservations,
-    roomOptions,
-    deferredCheckIn,
-    deferredCheckOut,
-    form.roomName,
-    excludeId,
-    initialValues?.roomName,
-  ])
-
-  const stayBooking = useMemo(() => {
-    if (!baseStayBooking) return null
-
-    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
-    try {
-      return evaluateStayBooking(safeReservations, {
-        checkInDate: deferredCheckIn,
-        checkOutDate: deferredCheckOut,
-        excludeId,
-        roomNames: bookableNames,
-        bookingPlan,
-        isEditingVipReservation,
-      })
-    } catch (error) {
-      console.error('Konaklama müsaitliği hesaplanamadı:', error)
-      return baseStayBooking
-    }
-  }, [
-    baseStayBooking,
-    bookingPlan,
-    isEditingVipReservation,
-    safeReservations,
-    roomOptions,
-    deferredCheckIn,
-    deferredCheckOut,
-    excludeId,
-  ])
-
   const fullyBookedNights = stayBooking?.fullyBookedNights ?? []
   const hasFullyBookedNight = stayBooking?.hasFullyBookedNight ?? false
   const stayNightOccupancy = stayBooking?.nightOccupancy ?? []
@@ -333,10 +266,8 @@ function ReservationForm({
   const roomAvailabilityList = useMemo(() => {
     if (!datesValid) return []
 
-    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
-
-    if (!canSearchRooms || !stayBooking || isAvailabilityPending) {
-      return bookableNames.map((roomName) => ({
+    if (!canSearchRooms || !stayBooking || isAvailabilityPending || availabilityError) {
+      return bookableRoomNames.map((roomName) => ({
         roomName,
         available: false,
         conflict: null,
@@ -350,7 +281,7 @@ function ReservationForm({
       .map((roomName) => ({ roomName, available: false, conflict: null, inactive: true }))
 
     return [...(stayBooking.roomAvailability ?? []), ...inactive]
-  }, [datesValid, roomOptions, canSearchRooms, stayBooking, isAvailabilityPending])
+  }, [datesValid, roomOptions, bookableRoomNames, canSearchRooms, stayBooking, isAvailabilityPending, availabilityError])
 
   const availableRooms = useMemo(
     () => roomAvailabilityList.filter((room) => room.available && isRoomBookable(room.roomName)),
@@ -723,6 +654,9 @@ function ReservationForm({
     if (submitting) return null
     if (reservationsLoading) return 'Oda müsaitliği yükleniyor, lütfen bekleyin.'
     if (isAvailabilityPending) return 'Oda müsaitliği hesaplanıyor, lütfen bekleyin.'
+    if (availabilityError) {
+      return 'Oda müsaitliği hesaplanamadı. Tarihleri değiştirip tekrar deneyin.'
+    }
     if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
     if (!relaxedEdit && !dateValidation.valid) return dateValidation.message
     if (!relaxedEdit && hasFullyBookedNight) {
@@ -756,6 +690,7 @@ function ReservationForm({
     submitting,
     reservationsLoading,
     isAvailabilityPending,
+    availabilityError,
     datesValid,
     relaxedEdit,
     dateValidation,
@@ -975,6 +910,17 @@ function ReservationForm({
             <p className='text-sm text-slate-500'>Oda müsaitliği için tarihleri seçin.</p>
           ) : (
             <>
+              {availabilityError ? (
+                <div
+                  className='rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900'
+                  role='alert'
+                >
+                  <p className='font-semibold'>Oda müsaitliği hesaplanamadı</p>
+                  <p className='mt-1 text-xs leading-relaxed text-rose-800'>
+                    Tarihleri değiştirip tekrar deneyin. Sorun sürerse sayfayı yenileyin.
+                  </p>
+                </div>
+              ) : null}
               {turnoverAvailableCount > 0 ? (
                 <p className='text-xs font-medium text-emerald-800'>
                   {turnoverAvailableCount} standart odada önceki misafir giriş gününüzde{' '}

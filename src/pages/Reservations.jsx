@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import ErrorBoundary from '../components/ErrorBoundary'
 import ReservationForm from '../components/ReservationForm'
 import ReservationNote from '../components/ReservationNote'
 import { useAuth } from '../context/useAuth'
@@ -349,13 +348,7 @@ function Reservations() {
             {error}
           </p>
         ) : null}
-        <ErrorBoundary
-          onRetry={() => {
-            setNewReservationFormKey((key) => key + 1)
-            setEditingReservation((current) => (current ? { ...current } : null))
-          }}
-        >
-          <ReservationForm
+        <ReservationForm
             key={
               editingReservation?.id
                 ? `edit-${editingReservation.id}-${editFormKey}`
@@ -370,7 +363,6 @@ function Reservations() {
             excludeId={editingReservation?.id}
             relaxedEdit={listTab === LIST_TABS.COMPLETED}
           />
-        </ErrorBoundary>
       </div>
 
       <div ref={listAnchorRef} className='card scroll-mt-4 space-y-4'>
