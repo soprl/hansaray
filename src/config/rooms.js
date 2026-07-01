@@ -63,6 +63,10 @@ export const isRoomBookable = (roomName) => !INACTIVE_ROOMS.has(normalizeRoomNam
 export const ACTIVE_ROOMS = ROOMS.filter((roomId) => isRoomBookable(roomId))
 export const ACTIVE_ROOM_COUNT = ACTIVE_ROOMS.length
 
+/** VIP hariç standart odalar — otomatik atama / taşıma yalnızca bunlarda */
+export const STANDARD_ROOMS = ACTIVE_ROOMS.filter((roomId) => !isVipRoom(roomId))
+export const STANDARD_ROOM_COUNT = STANDARD_ROOMS.length
+
 export const getRoomOptions = (reservations = []) => {
   const extras = new Set()
 

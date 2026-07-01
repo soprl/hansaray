@@ -15,10 +15,11 @@ import { getHotelTodayIso, HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME, HOTEL_TIME
 import { formatDateTR, normalizeFirestoreDate, parseISODateSafe } from '../utils/formatters'
 import { findBookingPlan } from '../utils/roomAssignmentUtils'
 import {
+  applyBookingPlanToAvailability,
   derivePaymentStatus,
   findConflictingReservation,
   getConflictingNightsInRange,
-  getFullyBookedNightsInRange,
+  getFullyBookedStandardNightsInRange,
   getRoomAvailabilityList,
   sanitizeReservations,
   normalizeReservationStatus,
@@ -196,7 +197,7 @@ function ReservationForm({
   const fullyBookedNights = useMemo(() => {
     if (!canSearchRooms) return []
     try {
-      return getFullyBookedNightsInRange(safeReservations, form.checkInDate, form.checkOutDate, {
+      return getFullyBookedStandardNightsInRange(safeReservations, form.checkInDate, form.checkOutDate, {
         excludeId,
       })
     } catch (error) {
@@ -252,29 +253,19 @@ function ReservationForm({
         available: false,
         conflict: null,
         inactive: false,
+        pendingDates: true,
       }))
     }
 
     try {
-      const bookable = getRoomAvailabilityList(safeReservations, {
+      const baseAvailability = getRoomAvailabilityList(safeReservations, {
         checkInDate: form.checkInDate,
         checkOutDate: form.checkOutDate,
         excludeId,
         roomNames: bookableNames,
-      }).map((room) => {
-        if (
-          bookingPlan?.targetRoom &&
-          normalizeRoomName(room.roomName) === normalizeRoomName(bookingPlan.targetRoom)
-        ) {
-          return {
-            ...room,
-            available: true,
-            conflict: null,
-            viaShuffle: Boolean(bookingPlan.shuffled),
-          }
-        }
-        return room
       })
+
+      const bookable = applyBookingPlanToAvailability(baseAvailability, bookingPlan)
 
       const inactive = roomOptions
         .filter((roomName) => !isRoomBookable(roomName))
@@ -328,14 +319,20 @@ function ReservationForm({
     [roomAvailabilityList],
   )
 
+  const hasStandardBookingPath = useMemo(() => {
+    if (hasFullyBookedNight) return false
+    if (bookingPlan?.targetRoom && !isVipRoom(bookingPlan.targetRoom)) return true
+    return autoPickableRooms.length > 0
+  }, [hasFullyBookedNight, bookingPlan?.targetRoom, autoPickableRooms.length])
+
   const allRoomsFull =
     canSearchRooms &&
     datesValid &&
+    !hasStandardBookingPath &&
     (hasFullyBookedNight ||
-      (!bookingPlan?.targetRoom &&
-        (isEditingVipReservation
-          ? !roomAvailabilityList.some((room) => isVipRoom(room.roomName) && room.available)
-          : bookableRoomCount > 0 && availableRooms.length === 0)))
+      (isEditingVipReservation
+        ? !roomAvailabilityList.some((room) => isVipRoom(room.roomName) && room.available)
+        : bookableRoomCount > 0))
 
   const resolvedRoomName = useMemo(() => {
     if (!datesValid || relaxedEdit) return form.roomName
@@ -468,7 +465,7 @@ function ReservationForm({
 
       let fullNights = []
       try {
-        fullNights = getFullyBookedNightsInRange(safeReservations, checkInDate, checkOutDate, {
+        fullNights = getFullyBookedStandardNightsInRange(safeReservations, checkInDate, checkOutDate, {
           excludeId,
         })
       } catch (error) {
@@ -569,7 +566,9 @@ function ReservationForm({
     inactive = false,
     viaShuffle = false,
     turnoverCheckout = null,
+    pendingDates = false,
   ) => {
+    if (pendingDates) return 'Tarih seçin'
     if (inactive || !isRoomBookable(roomName)) return 'Pasif · şu an kapalı'
     if (viaShuffle) return 'Müsait · taşıma ile'
     if (isVipRoom(roomName)) {
@@ -644,7 +643,7 @@ function ReservationForm({
     if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
     if (!relaxedEdit && !dateValidation.valid) return dateValidation.message
     if (!relaxedEdit && hasFullyBookedNight) {
-      return `Seçilen tarihlerde tüm evler dolu gece var: ${fullyBookedNights.map(formatDateTR).join(', ')}`
+      return `Seçilen tarihlerde tüm standart odalar dolu gece var: ${fullyBookedNights.map(formatDateTR).join(', ')}`
     }
     if (!relaxedEdit && allRoomsFull) return 'Bu tarihlerde tüm odalar dolu. Başka tarih seçin.'
     if (!resolvedRoomName) {
@@ -707,7 +706,7 @@ function ReservationForm({
     if (!relaxedEdit && datesValid && !dateValidation.valid) {
       nextErrors.checkInDate = dateValidation.message
     } else if (!relaxedEdit && hasFullyBookedNight) {
-      nextErrors.checkOutDate = `Bu gece(ler)de tüm evler dolu: ${fullyBookedNights.map(formatDateTR).join(', ')}`
+      nextErrors.checkOutDate = `Bu gece(ler)de tüm standart odalar dolu: ${fullyBookedNights.map(formatDateTR).join(', ')}`
     } else if (!relaxedEdit && allRoomsFull) {
       nextErrors.roomName = 'Bu tarihlerde tüm odalar dolu.'
     } else if (!resolvedRoomName) {
@@ -897,7 +896,7 @@ function ReservationForm({
                 >
                   <p className='font-semibold text-rose-700'>
                     {hasFullyBookedNight
-                      ? 'Seçilen tarihlerde tüm evler dolu gece var. Rezervasyon yapılamaz.'
+                      ? 'Seçilen tarihlerde tüm standart odalar dolu gece var. Rezervasyon yapılamaz.'
                       : isEditingVipReservation
                         ? 'Bu tarihlerde V.I.P dolu. Tarih değiştirin veya başka çözüm uygulayın.'
                         : 'Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.'}
@@ -907,7 +906,7 @@ function ReservationForm({
                       Dolu geceler:{' '}
                       <strong>{fullyBookedNights.map(formatDateTR).join(', ')}</strong>
                       {' '}
-                      (6/6 ev dolu — o gecelere yeni misafir sığmaz)
+                      (5/5 standart oda dolu — o gecelere yeni standart misafir sığmaz; V.I.P ayrı)
                     </p>
                   ) : !isEditingVipReservation ? (
                     <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
@@ -960,14 +959,23 @@ function ReservationForm({
 
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
                 {displayedRoomAvailabilityList.map(
-                  ({ roomName, available, conflict, inactive, viaShuffle, turnoverCheckout, incomingOnCheckoutDay }) => {
+                  ({
+                    roomName,
+                    available,
+                    conflict,
+                    inactive,
+                    viaShuffle,
+                    turnoverCheckout,
+                    incomingOnCheckoutDay,
+                    pendingDates,
+                  }) => {
                   const isSelected = isRoomSelected(roomName)
                   const vip = isVipRoom(roomName)
                   const isInactive = inactive || !isRoomBookable(roomName)
                   const canSelect =
-                    available && !isInactive && !isEditingVipReservation
+                    available && !isInactive && !isEditingVipReservation && !pendingDates
                   const conflictNights =
-                    !isInactive && !available && conflict
+                    !isInactive && !available && !pendingDates && conflict
                       ? getConflictingNightsInRange(
                           {
                             checkInDate: form.checkInDate,
@@ -983,7 +991,9 @@ function ReservationForm({
                       onClick={() => canSelect && selectRoom(roomName)}
                       disabled={!canSelect}
                       className={`rounded-xl border-2 p-3 text-left transition sm:p-4 ${
-                        isInactive
+                        pendingDates
+                          ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-80'
+                          : isInactive
                           ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-70'
                           : isSelected
                             ? vip
@@ -1008,7 +1018,9 @@ function ReservationForm({
                       ) : null}
                       <p
                         className={`mt-1 text-[11px] font-semibold leading-snug sm:text-xs ${
-                          isInactive
+                          pendingDates
+                            ? 'text-slate-500'
+                            : isInactive
                             ? 'text-slate-500'
                             : available
                               ? 'text-emerald-700'
@@ -1021,6 +1033,7 @@ function ReservationForm({
                           isInactive,
                           viaShuffle,
                           turnoverCheckout,
+                          pendingDates,
                         )}
                       </p>
                       {available && turnoverCheckout?.customerName ? (

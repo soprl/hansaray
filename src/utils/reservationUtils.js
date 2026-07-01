@@ -20,7 +20,7 @@ import {
   isOnOrAfterCheckInTime,
   isOnOrAfterCheckOutTime,
 } from '../config/hotelTime'
-import { ACTIVE_ROOM_COUNT, canonicalRoomName, normalizeRoomName } from '../config/rooms'
+import { ACTIVE_ROOM_COUNT, canonicalRoomName, normalizeRoomName, STANDARD_ROOM_COUNT, isVipRoom } from '../config/rooms'
 import { getSeasonBoundsForYear } from '../config/season'
 import { parseISODateSafe, normalizeFirestoreDate } from './formatters'
 
@@ -377,6 +377,21 @@ export const isReservationCountedForOccupancyOnDate = (reservation, date, now = 
   )
 }
 
+/** Seçili günde dolu standart oda sayısı (VIP hariç) */
+export const getStandardOccupiedRoomsOnDate = (reservations, date, now = new Date()) => {
+  const occupied = new Set()
+
+  reservations.forEach((reservation) => {
+    if (!reservation?.id) return
+    if (!isReservationCountedForOccupancyOnDate(reservation, date, now)) return
+    const room = canonicalRoomName(reservation.roomName)
+    if (!room || isVipRoom(room)) return
+    occupied.add(room)
+  })
+
+  return occupied.size
+}
+
 /** Seçili günde dolu oda sayısı (takvim rengi ile rezervasyon formu uyumlu) */
 export const getOccupiedRoomsOnDate = (reservations, date, now = new Date()) => {
   const occupied = new Set()
@@ -396,7 +411,7 @@ export const getFullyBookedNightsInRange = (
   reservations,
   checkInDate,
   checkOutDate,
-  { excludeId, now = new Date() } = {},
+  { excludeId, now = new Date(), standardOnly = false } = {},
 ) => {
   const checkIn = parseISODateSafe(checkInDate)
   const checkOut = parseISODateSafe(checkOutDate)
@@ -406,17 +421,41 @@ export const getFullyBookedNightsInRange = (
     ? reservations.filter((reservation) => reservation.id !== excludeId)
     : reservations
 
+  const roomLimit = standardOnly ? STANDARD_ROOM_COUNT : ACTIVE_ROOM_COUNT
+  const countOccupied = standardOnly ? getStandardOccupiedRoomsOnDate : getOccupiedRoomsOnDate
+
   const fullNights = []
   let night = startOfDay(checkIn)
 
   while (isBefore(night, checkOut)) {
-    if (getOccupiedRoomsOnDate(scopedReservations, night, now) >= ACTIVE_ROOM_COUNT) {
+    if (countOccupied(scopedReservations, night, now) >= roomLimit) {
       fullNights.push(format(night, 'yyyy-MM-dd'))
     }
     night = addDays(night, 1)
   }
 
   return fullNights
+}
+
+/** Standart odaların tamamının dolu olduğu geceler (VIP hariç — yeni standart misafir sığmaz) */
+export const getFullyBookedStandardNightsInRange = (reservations, checkInDate, checkOutDate, options = {}) =>
+  getFullyBookedNightsInRange(reservations, checkInDate, checkOutDate, { ...options, standardOnly: true })
+
+/** Oda listesine taşıma planını uygular */
+export const applyBookingPlanToAvailability = (availability = [], bookingPlan) => {
+  if (!bookingPlan?.targetRoom) return availability
+
+  const targetRoom = normalizeRoomName(bookingPlan.targetRoom)
+
+  return availability.map((room) => {
+    if (normalizeRoomName(room.roomName) !== targetRoom) return room
+    return {
+      ...room,
+      available: true,
+      conflict: null,
+      viaShuffle: Boolean(bookingPlan.shuffled),
+    }
+  })
 }
 
 /** Aktif rezervasyonlarda geçmiş giriş tarihini engeller (devam eden konaklama hariç) */

@@ -7,7 +7,7 @@ import {
 } from '../config/rooms'
 import {
   blocksRoomAvailability,
-  getFullyBookedNightsInRange,
+  getFullyBookedStandardNightsInRange,
   getReservationNightCount,
   getRoomAvailabilityList,
   hasReservationDateConflict,
@@ -221,7 +221,7 @@ const findBookingPlanUnsafe = (
   const scopedReservations = sanitizeReservations(reservations)
 
   if (
-    getFullyBookedNightsInRange(scopedReservations, checkInDate, checkOutDate, {
+    getFullyBookedStandardNightsInRange(scopedReservations, checkInDate, checkOutDate, {
       excludeId,
       now: referenceDate,
     }).length > 0
