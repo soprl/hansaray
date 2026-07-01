@@ -150,10 +150,12 @@ function Reservations() {
     setError('')
     setSuccessMessage('')
 
+    let orderedMoves = []
     try {
       const createdBy = user?.email ?? editingReservation?.createdBy ?? 'unknown'
       const { pendingReassignments = [], ...reservationInput } = formData
-      const orderedMoves = sortReassignmentsForApply(pendingReassignments)
+      orderedMoves = sortReassignmentsForApply(pendingReassignments)
+      const batchMoveIds = orderedMoves.map((move) => move.reservation.id).filter(Boolean)
 
       for (const move of orderedMoves) {
         if (isVipRoom(move.toRoom)) continue
@@ -163,6 +165,7 @@ function Reservations() {
             roomName: move.toRoom,
             originalCheckInDate: move.reservation.checkInDate,
           }),
+          { conflictExcludeIds: batchMoveIds },
         )
       }
 
@@ -208,7 +211,11 @@ function Reservations() {
       listAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } catch (submitError) {
       if (submitError?.message === 'CONFLICT') {
-        setError('Bu oda seçilen tarihlerde dolu. Başka oda veya tarih seçin.')
+        setError(
+          orderedMoves?.length > 0
+            ? 'Oda taşıması sırasında çakışma oluştu. Sayfayı yenileyip tekrar deneyin; sorun sürerse tarih veya oda değiştirin.'
+            : 'Bu oda seçilen tarihlerde dolu. Başka oda veya tarih seçin.',
+        )
       } else if (submitError?.message === 'PAST_DATE') {
         setError('Geçmiş tarihe rezervasyon yapılamaz. Giriş bugün veya sonrası olmalıdır.')
       } else {

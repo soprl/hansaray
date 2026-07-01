@@ -58,13 +58,20 @@ const normalizeReservationPayload = (data) => {
   }
 }
 
-const checkReservationConflict = async ({ roomName, checkInDate, checkOutDate, excludeId }) => {
+const checkReservationConflict = async ({
+  roomName,
+  checkInDate,
+  checkOutDate,
+  excludeId,
+  excludeIds = [],
+}) => {
   const variants = getRoomNameVariants(roomName)
   const roomQuery = query(reservationsRef, where('roomName', 'in', variants))
   const snapshot = await getDocs(roomQuery)
+  const excludeSet = new Set([excludeId, ...excludeIds].filter(Boolean))
 
   return snapshot.docs.some((document) => {
-    if (document.id === excludeId) return false
+    if (excludeSet.has(document.id)) return false
 
     const data = document.data()
     const existing = {
@@ -189,12 +196,15 @@ const assertReservationDatesAllowed = (payload, { originalCheckInDate } = {}) =>
   }
 }
 
-export async function addReservation(data) {
+export async function addReservation(data, { conflictExcludeIds = [] } = {}) {
   const payload = normalizeReservationPayload(data)
   assertReservationDatesAllowed(payload)
 
   return runWithAuthRetry(async () => {
-    const hasConflict = await checkReservationConflict(payload)
+    const hasConflict = await checkReservationConflict({
+      ...payload,
+      excludeIds: conflictExcludeIds,
+    })
     if (hasConflict && payload.reservationStatus === RES_STATUS.ACTIVE) {
       throw new Error('CONFLICT')
     }
@@ -209,12 +219,16 @@ export async function addReservation(data) {
   })
 }
 
-export async function updateReservation(id, data) {
+export async function updateReservation(id, data, { conflictExcludeIds = [] } = {}) {
   const payload = normalizeReservationPayload(data)
   assertReservationDatesAllowed(payload, { originalCheckInDate: data.originalCheckInDate })
 
   return runWithAuthRetry(async () => {
-    const hasConflict = await checkReservationConflict({ ...payload, excludeId: id })
+    const hasConflict = await checkReservationConflict({
+      ...payload,
+      excludeId: id,
+      excludeIds: conflictExcludeIds,
+    })
     if (hasConflict && payload.reservationStatus === RES_STATUS.ACTIVE) {
       throw new Error('CONFLICT')
     }

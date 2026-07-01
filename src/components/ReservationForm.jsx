@@ -882,6 +882,13 @@ function ReservationForm({
                       <li key={move.reservation?.id ?? `${move.fromRoom}-${move.toRoom}`}>
                         {move.reservation?.customerName ?? 'Misafir'}: {getRoomDisplayName(move.fromRoom)} →{' '}
                         {getRoomDisplayName(move.toRoom)}
+                        {move.reservation?.checkInDate && move.reservation?.checkOutDate ? (
+                          <span className='text-blue-800/80'>
+                            {' '}
+                            ({formatDateTR(move.reservation.checkInDate)} –{' '}
+                            {formatDateTR(move.reservation.checkOutDate)})
+                          </span>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
