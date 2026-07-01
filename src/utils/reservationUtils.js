@@ -23,6 +23,7 @@ import {
 import { ACTIVE_ROOM_COUNT, canonicalRoomName, normalizeRoomName, STANDARD_ROOM_COUNT, isVipRoom } from '../config/rooms'
 import { getSeasonBoundsForYear } from '../config/season'
 import { parseISODateSafe, normalizeFirestoreDate } from './formatters'
+import { isReservationOccupyingNight as isReservationCountedForOccupancyOnDate } from './roomAvailability.js'
 import {
   blocksRoomAvailability,
   getStoredReservationStatus,
