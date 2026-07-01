@@ -31,5 +31,6 @@ export const parseISODateSafe = (value) => {
 export const formatDateTR = (value, pattern = 'dd.MM.yyyy') => {
   const parsed = parseISODateSafe(value)
   if (!parsed) return '-'
-  return format(parsed, pattern, { locale: tr })
+  const safePattern = typeof pattern === 'string' ? pattern : 'dd.MM.yyyy'
+  return format(parsed, safePattern, { locale: tr })
 }

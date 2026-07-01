@@ -521,7 +521,7 @@ function ReservationForm({
     if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
     if (!relaxedEdit && !dateValidation.valid) return dateValidation.message
     if (!relaxedEdit && hasFullyBookedNight) {
-      return `Seçilen tarihlerde tüm standart odalar dolu gece var: ${fullyBookedNights.map(formatDateTR).join(', ')}`
+      return `Seçilen tarihlerde tüm standart odalar dolu gece var: ${fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}`
     }
     if (!relaxedEdit && shufflePlanFailed) {
       return 'Her gecede boş standart oda görünüyor ancak aynı odada konaklama veya taşıma planı oluşturulamadı. Tek gece deneyin veya V.I.P boşsa elle seçin.'
@@ -591,7 +591,7 @@ function ReservationForm({
     if (!relaxedEdit && datesValid && !dateValidation.valid) {
       nextErrors.checkInDate = dateValidation.message
     } else if (!relaxedEdit && hasFullyBookedNight) {
-      nextErrors.checkOutDate = `Bu gece(ler)de tüm standart odalar dolu: ${fullyBookedNights.map(formatDateTR).join(', ')}`
+      nextErrors.checkOutDate = `Bu gece(ler)de tüm standart odalar dolu: ${fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}`
     } else if (!relaxedEdit && shufflePlanFailed) {
       nextErrors.roomName =
         'Her gecede boş oda var ama aynı odada yerleşim bulunamadı. Tarih aralığını kısaltın veya V.I.P seçin.'
@@ -815,7 +815,7 @@ function ReservationForm({
                   {hasFullyBookedNight ? (
                     <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
                       Dolu geceler:{' '}
-                      <strong>{fullyBookedNights.map(formatDateTR).join(', ')}</strong>
+                      <strong>{fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}</strong>
                       {' '}
                       (5/5 standart oda dolu — o gecelere yeni standart misafir sığmaz; V.I.P ayrı).
                       Takvimde baktığınız tek gün boş olsa bile, aralıktaki başka bir gece tam dolu olabilir.
@@ -1003,7 +1003,7 @@ function ReservationForm({
                           </p>
                           {conflictNights.length > 0 ? (
                             <p className='mt-0.5 text-[10px] font-medium leading-snug text-rose-600'>
-                              Çakışan gece: {conflictNights.map(formatDateTR).join(', ')}
+                              Çakışan gece: {conflictNights.map((night) => formatDateTR(night)).join(', ')}
                             </p>
                           ) : null}
                         </>
