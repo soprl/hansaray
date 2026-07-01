@@ -87,6 +87,11 @@ class ErrorBoundary extends Component {
           <p className='mt-2 text-xs text-rose-800'>
             Tarihleri değiştirip tekrar deneyin. Sorun sürerse sayfayı yenileyin.
           </p>
+          {import.meta.env.DEV && this.state.error?.message ? (
+            <p className='mt-2 rounded bg-rose-100/80 px-2 py-1 font-mono text-[10px] text-rose-900'>
+              {this.state.error.message}
+            </p>
+          ) : null}
           <button
             type='button'
             className='mt-3 rounded-lg border border-rose-400 bg-white px-3 py-1.5 text-xs font-medium text-rose-800 hover:bg-rose-100'

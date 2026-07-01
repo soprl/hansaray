@@ -16,7 +16,7 @@ import {
   hasReservationDateConflict,
 } from './roomAvailability'
 import { blocksRoomAvailability, isCancelledReservation } from './reservationStatus'
-import { scopeReservationsForAvailability } from './stayBooking'
+import { scopeReservationsForAvailability } from './roomAvailability'
 
 const reservationsOverlap = (a, b) =>
   hasReservationDateConflict(

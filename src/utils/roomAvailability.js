@@ -14,7 +14,16 @@ import {
 import { normalizeFirestoreDate, parseISODateSafe } from './formatters'
 import {
   blocksRoomAvailability,
+  isCancelledReservation,
 } from './reservationStatus'
+
+export const scopeReservationsForAvailability = (reservations = [], { excludeId } = {}) =>
+  reservations.filter((reservation) => {
+    if (!reservation?.id) return false
+    if (excludeId && reservation.id === excludeId) return false
+    if (isCancelledReservation(reservation)) return false
+    return true
+  })
 
 export const normalizeStayDates = (checkInDate, checkOutDate) => {
   const checkIn = normalizeFirestoreDate(checkInDate)
@@ -124,7 +133,9 @@ export const getConflictingNightsInRange = (incoming, existing) => {
   if (!stay) return []
 
   return listStayNightIsos(stay.checkInDate, stay.checkOutDate).filter((nightIso) => {
-    const nextDayIso = format(addDays(parseISODateSafe(nightIso), 1), 'yyyy-MM-dd')
+    const nightDate = parseISODateSafe(nightIso)
+    if (!nightDate) return false
+    const nextDayIso = format(addDays(nightDate, 1), 'yyyy-MM-dd')
     return hasReservationDateConflict(
       { checkInDate: nightIso, checkOutDate: nextDayIso },
       existing,

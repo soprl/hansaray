@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format } from 'date-fns'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import DatePickerField from './DatePickerField'
 import MoneyInput from './MoneyInput'
 import { formatMoneyInputDisplay, parseMoneyInput } from '../utils/moneyInput'
@@ -44,6 +44,15 @@ const DEFAULT_FORM = {
 }
 
 const NIGHT_PRESETS = [1, 2, 3, 7]
+
+function safeConflictingNights(incoming, existing) {
+  try {
+    return getConflictingNightsInRange(incoming, existing)
+  } catch (error) {
+    console.error('Çakışan gece listesi hesaplanamadı:', error)
+    return []
+  }
+}
 
 function addDaysIso(dateIso, days) {
   const parsed = parseISODateSafe(dateIso)
@@ -169,6 +178,32 @@ function ReservationForm({
 
   const canSearchRooms = datesValid && (relaxedEdit || dateValidation.valid)
 
+  const deferredCheckIn = useDeferredValue(form.checkInDate)
+  const deferredCheckOut = useDeferredValue(form.checkOutDate)
+
+  const deferredCanSearch = useMemo(() => {
+    const checkIn = parseISODateSafe(deferredCheckIn)
+    const checkOut = parseISODateSafe(deferredCheckOut)
+    if (!checkIn || !checkOut || checkOut <= checkIn) return false
+    if (relaxedEdit) return true
+    return validateActiveReservationDates({
+      checkInDate: deferredCheckIn,
+      checkOutDate: deferredCheckOut,
+      reservationStatus: form.reservationStatus,
+      originalCheckInDate: initialValues?.checkInDate,
+    }).valid
+  }, [
+    deferredCheckIn,
+    deferredCheckOut,
+    relaxedEdit,
+    form.reservationStatus,
+    initialValues?.checkInDate,
+  ])
+
+  const isAvailabilityPending =
+    canSearchRooms &&
+    (deferredCheckIn !== form.checkInDate || deferredCheckOut !== form.checkOutDate)
+
   const safeReservations = useMemo(() => sanitizeReservations(reservations), [reservations])
 
   const roomOptions = useMemo(() => getRoomOptions(safeReservations), [safeReservations])
@@ -197,14 +232,14 @@ function ReservationForm({
   }, [datesValid, nightCount, form.checkInDate, form.checkOutDate])
 
   const baseStayBooking = useMemo(() => {
-    if (!canSearchRooms) return null
+    if (!deferredCanSearch) return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
 
     try {
       return evaluateStayBooking(safeReservations, {
-        checkInDate: form.checkInDate,
-        checkOutDate: form.checkOutDate,
+        checkInDate: deferredCheckIn,
+        checkOutDate: deferredCheckOut,
         excludeId,
         roomNames: bookableNames,
         isEditingVipReservation,
@@ -214,12 +249,12 @@ function ReservationForm({
       return null
     }
   }, [
-    canSearchRooms,
+    deferredCanSearch,
     isEditingVipReservation,
     safeReservations,
     roomOptions,
-    form.checkInDate,
-    form.checkOutDate,
+    deferredCheckIn,
+    deferredCheckOut,
     excludeId,
   ])
 
@@ -227,7 +262,7 @@ function ReservationForm({
   const preliminaryHasFullyBookedNight = preliminaryFullyBookedNights.length > 0
 
   const bookingPlan = useMemo(() => {
-    if (!canSearchRooms || isEditingVipReservation || preliminaryHasFullyBookedNight) return null
+    if (!deferredCanSearch || isEditingVipReservation || preliminaryHasFullyBookedNight) return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     const preferredRoom =
@@ -237,8 +272,8 @@ function ReservationForm({
 
     try {
       return findBookingPlan(safeReservations, {
-        checkInDate: form.checkInDate,
-        checkOutDate: form.checkOutDate,
+        checkInDate: deferredCheckIn,
+        checkOutDate: deferredCheckOut,
         excludeId,
         roomNames: bookableNames,
         preferredRoom,
@@ -248,14 +283,14 @@ function ReservationForm({
       return null
     }
   }, [
-    canSearchRooms,
+    deferredCanSearch,
     isEditingVipReservation,
     preliminaryHasFullyBookedNight,
     isEditing,
     safeReservations,
     roomOptions,
-    form.checkInDate,
-    form.checkOutDate,
+    deferredCheckIn,
+    deferredCheckOut,
     form.roomName,
     excludeId,
     initialValues?.roomName,
@@ -267,8 +302,8 @@ function ReservationForm({
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     try {
       return evaluateStayBooking(safeReservations, {
-        checkInDate: form.checkInDate,
-        checkOutDate: form.checkOutDate,
+        checkInDate: deferredCheckIn,
+        checkOutDate: deferredCheckOut,
         excludeId,
         roomNames: bookableNames,
         bookingPlan,
@@ -284,8 +319,8 @@ function ReservationForm({
     isEditingVipReservation,
     safeReservations,
     roomOptions,
-    form.checkInDate,
-    form.checkOutDate,
+    deferredCheckIn,
+    deferredCheckOut,
     excludeId,
   ])
 
@@ -300,13 +335,13 @@ function ReservationForm({
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
 
-    if (!canSearchRooms || !stayBooking) {
+    if (!canSearchRooms || !stayBooking || isAvailabilityPending) {
       return bookableNames.map((roomName) => ({
         roomName,
         available: false,
         conflict: null,
         inactive: false,
-        pendingDates: !canSearchRooms,
+        pendingDates: !canSearchRooms || isAvailabilityPending,
       }))
     }
 
@@ -314,8 +349,8 @@ function ReservationForm({
       .filter((roomName) => !isRoomBookable(roomName))
       .map((roomName) => ({ roomName, available: false, conflict: null, inactive: true }))
 
-    return [...stayBooking.roomAvailability, ...inactive]
-  }, [datesValid, roomOptions, canSearchRooms, stayBooking])
+    return [...(stayBooking.roomAvailability ?? []), ...inactive]
+  }, [datesValid, roomOptions, canSearchRooms, stayBooking, isAvailabilityPending])
 
   const availableRooms = useMemo(
     () => roomAvailabilityList.filter((room) => room.available && isRoomBookable(room.roomName)),
@@ -615,7 +650,7 @@ function ReservationForm({
     turnoverCheckout = null,
     pendingDates = false,
   ) => {
-    if (pendingDates) return 'Tarih seçin'
+    if (pendingDates) return 'Müsaitlik hesaplanıyor…'
     if (inactive || !isRoomBookable(roomName)) return 'Pasif · şu an kapalı'
     if (viaShuffle) return 'Müsait · taşıma ile'
     if (isVipRoom(roomName)) {
@@ -687,6 +722,7 @@ function ReservationForm({
   const submitBlockedReason = useMemo(() => {
     if (submitting) return null
     if (reservationsLoading) return 'Oda müsaitliği yükleniyor, lütfen bekleyin.'
+    if (isAvailabilityPending) return 'Oda müsaitliği hesaplanıyor, lütfen bekleyin.'
     if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
     if (!relaxedEdit && !dateValidation.valid) return dateValidation.message
     if (!relaxedEdit && hasFullyBookedNight) {
@@ -719,6 +755,7 @@ function ReservationForm({
   }, [
     submitting,
     reservationsLoading,
+    isAvailabilityPending,
     datesValid,
     relaxedEdit,
     dateValidation,
@@ -1075,7 +1112,7 @@ function ReservationForm({
                     available && !isInactive && !isEditingVipReservation && !pendingDates
                   const conflictNights =
                     !isInactive && !available && !pendingDates && conflict
-                      ? getConflictingNightsInRange(
+                      ? safeConflictingNights(
                           {
                             checkInDate: form.checkInDate,
                             checkOutDate: form.checkOutDate,

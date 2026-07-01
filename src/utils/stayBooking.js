@@ -4,7 +4,6 @@
  */
 import { isRoomBookable, isVipRoom, STANDARD_ROOM_COUNT, ACTIVE_ROOM_COUNT } from '../config/rooms'
 import { parseISODateSafe } from './formatters'
-import { isCancelledReservation } from './reservationStatus'
 import {
   applyBookingPlanToAvailability,
   getFullyBookedStandardNightsInRange,
@@ -12,15 +11,10 @@ import {
   getRoomAvailabilityList,
   getStandardOccupiedRoomsOnDate,
   listStayNightIsos,
+  scopeReservationsForAvailability,
 } from './roomAvailability'
 
-export const scopeReservationsForAvailability = (reservations = [], { excludeId } = {}) =>
-  reservations.filter((reservation) => {
-    if (!reservation?.id) return false
-    if (excludeId && reservation.id === excludeId) return false
-    if (isCancelledReservation(reservation)) return false
-    return true
-  })
+export { scopeReservationsForAvailability } from './roomAvailability'
 
 /** Takvim kutucuğu ile aynı gece doluluk özeti */
 export const getNightOccupancyBreakdown = (
@@ -33,6 +27,18 @@ export const getNightOccupancyBreakdown = (
 
   return listStayNightIsos(checkInDate, checkOutDate).map((nightIso) => {
     const nightDate = parseISODateSafe(nightIso)
+    if (!nightDate) {
+      return {
+        nightIso,
+        standardOccupied: 0,
+        allOccupied: 0,
+        standardEmpty: STANDARD_ROOM_COUNT,
+        allEmpty: ACTIVE_ROOM_COUNT,
+        isStandardFullyBooked: false,
+        isFullyBooked: false,
+      }
+    }
+
     const standardOccupied = getStandardOccupiedRoomsOnDate(scoped, nightDate, referenceDate)
     const allOccupied = getOccupiedRoomsOnDate(scoped, nightDate, referenceDate)
 
@@ -53,6 +59,53 @@ export const getNightOccupancyBreakdown = (
  * Takvimde gece başına boş oda varken formun yanlışlıkla tam dolu dememesi için tek karar noktası.
  */
 export const evaluateStayBooking = (
+  reservations,
+  {
+    checkInDate,
+    checkOutDate,
+    excludeId,
+    roomNames,
+    bookingPlan = null,
+    isEditingVipReservation = false,
+    referenceDate = new Date(),
+  },
+) => {
+  try {
+    return evaluateStayBookingUnsafe(reservations, {
+      checkInDate,
+      checkOutDate,
+      excludeId,
+      roomNames,
+      bookingPlan,
+      isEditingVipReservation,
+      referenceDate,
+    })
+  } catch (error) {
+    console.error('evaluateStayBooking failed:', error)
+    const bookableNames = (roomNames ?? []).filter((roomName) => isRoomBookable(roomName))
+    return {
+      nightOccupancy: [],
+      fullyBookedNights: [],
+      hasFullyBookedNight: false,
+      hasStandardCapacityEachNight: false,
+      shufflePlanFailed: false,
+      bookingPlan,
+      roomAvailability: bookableNames.map((roomName) => ({
+        roomName,
+        available: false,
+        conflict: null,
+      })),
+      directStandardRooms: [],
+      vipAvailable: false,
+      canBookStandard: false,
+      canBookVip: false,
+      standardBlockedOnly: false,
+      allRoomsFull: false,
+    }
+  }
+}
+
+const evaluateStayBookingUnsafe = (
   reservations,
   {
     checkInDate,
@@ -104,7 +157,8 @@ export const evaluateStayBooking = (
   const standardBlockedOnly = !hasFullyBookedNight && !canBookStandard && vipAvailable
 
   /** Takvimde her gecede en az bir standart boş oda görünüyor mu? */
-  const hasStandardCapacityEachNight = nightOccupancy.every((night) => night.standardEmpty > 0)
+  const hasStandardCapacityEachNight =
+    nightOccupancy.length > 0 && nightOccupancy.every((night) => night.standardEmpty > 0)
 
   /**
    * Otelde gece başına yer var ama aynı odada konaklama veya taşıma planı bulunamadı.
