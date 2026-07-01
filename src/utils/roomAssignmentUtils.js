@@ -16,6 +16,7 @@ import {
   hasReservationDateConflict,
 } from './roomAvailability'
 import { blocksRoomAvailability, isCancelledReservation } from './reservationStatus'
+import { scopeReservationsForAvailability } from './stayBooking'
 
 const reservationsOverlap = (a, b) =>
   hasReservationDateConflict(
@@ -219,7 +220,9 @@ const findBookingPlanUnsafe = (
 ) => {
   if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) return null
 
-  const scopedReservations = sanitizeReservations(reservations)
+  const scopedReservations = scopeReservationsForAvailability(sanitizeReservations(reservations), {
+    excludeId,
+  })
 
   if (
     getFullyBookedStandardNightsInRange(scopedReservations, checkInDate, checkOutDate, {

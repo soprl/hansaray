@@ -200,7 +200,7 @@ export const getRoomAvailabilityList = (
   const stay = normalizeStayDates(checkInDate, checkOutDate)
   if (!stay) return []
 
-  return roomNames.map((roomName) => {
+  return (roomNames ?? []).map((roomName) => {
     const conflict = findConflictingReservation(
       reservations,
       { roomName, ...stay, excludeId },

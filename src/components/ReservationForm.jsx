@@ -293,6 +293,7 @@ function ReservationForm({
   const hasFullyBookedNight = stayBooking?.hasFullyBookedNight ?? false
   const stayNightOccupancy = stayBooking?.nightOccupancy ?? []
   const standardBlockedOnly = stayBooking?.standardBlockedOnly ?? false
+  const shufflePlanFailed = stayBooking?.shufflePlanFailed ?? false
 
   const roomAvailabilityList = useMemo(() => {
     if (!datesValid) return []
@@ -477,13 +478,20 @@ function ReservationForm({
           ? normalizeRoomName(prevRoomName || initialValues?.roomName)
           : undefined
 
-      const baseBooking = evaluateStayBooking(safeReservations, {
-        checkInDate,
-        checkOutDate,
-        excludeId,
-        roomNames: bookableNames,
-        isEditingVipReservation,
-      })
+      let baseBooking
+      try {
+        baseBooking = evaluateStayBooking(safeReservations, {
+          checkInDate,
+          checkOutDate,
+          excludeId,
+          roomNames: bookableNames,
+          isEditingVipReservation,
+        })
+      } catch (error) {
+        console.error('Konaklama müsaitliği hesaplanamadı:', error)
+        lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
+        return { roomName: '', vipManual: false }
+      }
 
       if (baseBooking.hasFullyBookedNight) {
         lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
@@ -505,14 +513,21 @@ function ReservationForm({
         }
       }
 
-      const booking = evaluateStayBooking(safeReservations, {
-        checkInDate,
-        checkOutDate,
-        excludeId,
-        roomNames: bookableNames,
-        bookingPlan: plan,
-        isEditingVipReservation,
-      })
+      let booking
+      try {
+        booking = evaluateStayBooking(safeReservations, {
+          checkInDate,
+          checkOutDate,
+          excludeId,
+          roomNames: bookableNames,
+          bookingPlan: plan,
+          isEditingVipReservation,
+        })
+      } catch (error) {
+        console.error('Konaklama müsaitliği hesaplanamadı:', error)
+        lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
+        return { roomName: '', vipManual: false }
+      }
 
       if (isEditingVipReservation) {
         const vipRoom = normalizeRoomName(initialValues.roomName)
@@ -677,6 +692,9 @@ function ReservationForm({
     if (!relaxedEdit && hasFullyBookedNight) {
       return `Seçilen tarihlerde tüm standart odalar dolu gece var: ${fullyBookedNights.map(formatDateTR).join(', ')}`
     }
+    if (!relaxedEdit && shufflePlanFailed) {
+      return 'Her gecede boş standart oda görünüyor ancak aynı odada konaklama veya taşıma planı oluşturulamadı. Tek gece deneyin veya V.I.P boşsa elle seçin.'
+    }
     if (!relaxedEdit && allRoomsFull) return 'Bu tarih aralığında uygun oda yok. Takvimdeki gece doluluk satırına bakın.'
     if (!resolvedRoomName) {
       if (!relaxedEdit && availableRooms.some((room) => isVipRoom(room.roomName))) {
@@ -705,6 +723,7 @@ function ReservationForm({
     relaxedEdit,
     dateValidation,
     allRoomsFull,
+    shufflePlanFailed,
     hasFullyBookedNight,
     fullyBookedNights,
     resolvedRoomName,
@@ -739,6 +758,9 @@ function ReservationForm({
       nextErrors.checkInDate = dateValidation.message
     } else if (!relaxedEdit && hasFullyBookedNight) {
       nextErrors.checkOutDate = `Bu gece(ler)de tüm standart odalar dolu: ${fullyBookedNights.map(formatDateTR).join(', ')}`
+    } else if (!relaxedEdit && shufflePlanFailed) {
+      nextErrors.roomName =
+        'Her gecede boş oda var ama aynı odada yerleşim bulunamadı. Tarih aralığını kısaltın veya V.I.P seçin.'
     } else if (!relaxedEdit && allRoomsFull) {
       nextErrors.roomName = 'Bu tarihlerde tüm odalar dolu.'
     } else if (!resolvedRoomName) {
@@ -961,6 +983,31 @@ function ReservationForm({
                       bulunamamış olabilir. V.I.P yalnızca elle seçilir.
                     </p>
                   ) : null}
+                </div>
+              ) : shufflePlanFailed ? (
+                <div
+                  className='rounded-xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950'
+                  role='alert'
+                >
+                  <p className='font-semibold text-amber-900'>
+                    Takvimde her gecede boş oda görünüyor — ama aynı odada konaklama bulunamadı
+                  </p>
+                  {stayNightOccupancy.length > 0 ? (
+                    <p className='mt-1.5 text-xs leading-relaxed text-amber-900/90'>
+                      Gece doluluk:{' '}
+                      {stayNightOccupancy
+                        .map(
+                          ({ nightIso, standardOccupied, standardEmpty }) =>
+                            `${formatDateTR(nightIso)} — ${standardOccupied}/${STANDARD_ROOM_COUNT} dolu (${standardEmpty} boş)`,
+                        )
+                        .join(' · ')}
+                    </p>
+                  ) : null}
+                  <p className='mt-1.5 text-xs leading-relaxed text-amber-900/90'>
+                    Form, giriş–çıkış aralığının <strong>tamamında aynı odada</strong> kalınabileceğini
+                    kontrol eder. Geceler arasında farklı odalar boşsa otomatik taşıma planı gerekir;
+                    plan oluşturulamadı. Daha kısa tarih aralığı deneyin veya V.I.P boşsa elle seçin.
+                  </p>
                 </div>
               ) : bookingPlan?.shuffled &&
                 Array.isArray(bookingPlan.reassignments) &&

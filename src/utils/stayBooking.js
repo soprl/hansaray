@@ -103,16 +103,30 @@ export const evaluateStayBooking = (
 
   const standardBlockedOnly = !hasFullyBookedNight && !canBookStandard && vipAvailable
 
+  /** Takvimde her gecede en az bir standart boş oda görünüyor mu? */
+  const hasStandardCapacityEachNight = nightOccupancy.every((night) => night.standardEmpty > 0)
+
+  /**
+   * Otelde gece başına yer var ama aynı odada konaklama veya taşıma planı bulunamadı.
+   * Bu «tüm odalar dolu» değildir — takvimde boş görünen gecelerle çelişmemeli.
+   */
+  const shufflePlanFailed =
+    !hasFullyBookedNight &&
+    !canBookStandard &&
+    !vipAvailable &&
+    hasStandardCapacityEachNight
+
   const allRoomsFull = isEditingVipReservation
     ? !vipAvailable
-    : hasFullyBookedNight
-      ? true
-      : !canBookStandard && !vipAvailable
+    : hasFullyBookedNight ||
+      (!canBookStandard && !vipAvailable && !hasStandardCapacityEachNight)
 
   return {
     nightOccupancy,
     fullyBookedNights,
     hasFullyBookedNight,
+    hasStandardCapacityEachNight,
+    shufflePlanFailed,
     bookingPlan,
     roomAvailability,
     directStandardRooms,
