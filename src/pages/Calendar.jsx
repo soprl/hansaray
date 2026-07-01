@@ -9,11 +9,11 @@ import {
   filterReservationsByName,
   getCalendarDayReservations,
   getEffectiveReservationStatus,
-  isCancelledReservation,
-  isReservationCountedForOccupancyOnDate,
   PAYMENT_STATUS,
   RES_STATUS,
 } from '../utils/reservationUtils'
+import { isCancelledReservation } from '../utils/reservationStatus'
+import { isReservationOccupyingNight as isReservationCountedForOccupancyOnDate } from '../utils/roomAvailability'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 

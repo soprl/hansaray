@@ -19,9 +19,9 @@ import {
   isPermissionDenied,
   refreshAuthToken,
 } from '../utils/firestoreAuth'
+import { blocksRoomAvailability } from '../utils/reservationStatus'
+import { hasReservationDateConflict } from '../utils/roomAvailability'
 import {
-  blocksRoomAvailability,
-  hasReservationDateConflict,
   normalizeReservationStatus,
   PAYMENT_STATUS,
   RES_STATUS,

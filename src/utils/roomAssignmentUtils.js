@@ -6,15 +6,16 @@ import {
   pickFirstAvailableStandardRoom,
 } from '../config/rooms'
 import {
-  blocksRoomAvailability,
-  getFullyBookedStandardNightsInRange,
   getReservationNightCount,
-  getRoomAvailabilityList,
-  hasReservationDateConflict,
   hasValidReservationDates,
-  isCancelledReservation,
   sanitizeReservations,
 } from './reservationUtils'
+import {
+  getFullyBookedStandardNightsInRange,
+  getRoomAvailabilityList,
+  hasReservationDateConflict,
+} from './roomAvailability'
+import { blocksRoomAvailability, isCancelledReservation } from './reservationStatus'
 
 const reservationsOverlap = (a, b) =>
   hasReservationDateConflict(

@@ -23,82 +23,26 @@ import {
 import { ACTIVE_ROOM_COUNT, canonicalRoomName, normalizeRoomName, STANDARD_ROOM_COUNT, isVipRoom } from '../config/rooms'
 import { getSeasonBoundsForYear } from '../config/season'
 import { parseISODateSafe, normalizeFirestoreDate } from './formatters'
+import {
+  blocksRoomAvailability,
+  getStoredReservationStatus,
+  isCancelledReservation,
+  isReservationCheckInStarted,
+  isReservationCheckoutEnded,
+  normalizeReservationStatus,
+  RES_STATUS,
+  shouldAutoCompleteReservation,
+} from './reservationStatus'
 
-export const RES_STATUS = {
-  ACTIVE: 'Aktif',
-  COMPLETED: 'Tamamlandı',
-  CANCELLED: 'İptal',
-}
+export { RES_STATUS, normalizeReservationStatus, getStoredReservationStatus, isCancelledReservation, isReservationCheckoutEnded, isReservationCheckInStarted, shouldAutoCompleteReservation, blocksRoomAvailability } from './reservationStatus'
 
 /** Render / hesaplama öncesi bozuk kayıtları ayıklar */
 export const sanitizeReservations = (reservations = []) =>
   reservations.filter((reservation) => reservation && typeof reservation === 'object' && reservation.id)
 
-const RES_STATUS_ALIASES = {
-  aktif: RES_STATUS.ACTIVE,
-  active: RES_STATUS.ACTIVE,
-  tamamlandı: RES_STATUS.COMPLETED,
-  tamamlandi: RES_STATUS.COMPLETED,
-  completed: RES_STATUS.COMPLETED,
-  complete: RES_STATUS.COMPLETED,
-  iptal: RES_STATUS.CANCELLED,
-  cancelled: RES_STATUS.CANCELLED,
-  canceled: RES_STATUS.CANCELLED,
-}
-
-/** Firestore / eski kayıtlardaki farklı yazımları tek forma getirir */
-export const normalizeReservationStatus = (value) => {
-  const raw = (value ?? '').toString().trim()
-  if (!raw) return RES_STATUS.ACTIVE
-  if (Object.values(RES_STATUS).includes(raw)) return raw
-  const key = raw.toLocaleLowerCase('tr-TR')
-  return RES_STATUS_ALIASES[key] ?? RES_STATUS.ACTIVE
-}
-
-export const getStoredReservationStatus = (reservation) =>
-  normalizeReservationStatus(reservation?.reservationStatus)
-
 /** Manuel «Tamamlandı» — yalnızca kayıtta hâlâ Aktif olanlar */
 export const canMarkReservationComplete = (reservation) =>
   getStoredReservationStatus(reservation) === RES_STATUS.ACTIVE
-
-/**
- * Çıkış tamamlandı mı? (İstanbul)
- * — Çıkış gününden sonraki günler: evet
- * — Çıkış günü 11:30 ve sonrası: evet
- */
-export const isReservationCheckoutEnded = (reservation, referenceDate = new Date()) => {
-  const checkOutDate = parseISODateSafe(reservation.checkOutDate)
-  if (!checkOutDate) return false
-
-  const checkoutIso = format(startOfDay(checkOutDate), 'yyyy-MM-dd')
-  const hotel = getHotelDateTime(referenceDate)
-
-  if (hotel.dateIso > checkoutIso) return true
-  if (hotel.dateIso < checkoutIso) return false
-  return isOnOrAfterCheckOutTime(hotel)
-}
-
-/**
- * Giriş başladı mı? (İstanbul)
- * — Giriş gününden önceki günler: hayır
- * — Giriş günü 14:00 ve sonrası: evet
- */
-export const isReservationCheckInStarted = (reservation, referenceDate = new Date()) => {
-  const checkInDate = parseISODateSafe(reservation.checkInDate)
-  if (!checkInDate) return false
-
-  const checkInIso = format(startOfDay(checkInDate), 'yyyy-MM-dd')
-  const hotel = getHotelDateTime(referenceDate)
-
-  if (hotel.dateIso > checkInIso) return true
-  if (hotel.dateIso < checkInIso) return false
-  return isOnOrAfterCheckInTime(hotel)
-}
-
-export const shouldAutoCompleteReservation = (reservation, referenceDate = new Date()) =>
-  getStoredReservationStatus(reservation) === RES_STATUS.ACTIVE &&
-  isReservationCheckoutEnded(reservation, referenceDate)
 
 /** Firestore güncellemesi için alanlar */
 export const toReservationUpdateData = (reservation) => ({
@@ -145,162 +89,24 @@ export const isFullyPaidReservation = (reservation) => {
   return totalPrice > 0 && deposit >= totalPrice
 }
 
-export const isCancelledReservation = (reservation) =>
-  getStoredReservationStatus(reservation) === RES_STATUS.CANCELLED
+export {
+  applyBookingPlanToAvailability,
+  findConflictingReservation,
+  getConflictingNightsInRange,
+  getFullyBookedNightsInRange,
+  getFullyBookedStandardNightsInRange,
+  getOccupiedRoomsOnDate,
+  getRoomAvailabilityList,
+  getStandardOccupiedRoomsOnDate,
+  getStayAvailabilitySummary,
+  hasReservationDateConflict,
+  isReservationOccupyingNight,
+  isSameDayTurnover,
+  listStayNightIsos,
+} from './roomAvailability.js'
 
-/** Yeni rezervasyon / tarih değişikliğinde odayı bloklayan aktif konaklamalar (çıkış 11:30 sonrası bloklamaz). */
-export const blocksRoomAvailability = (reservation, referenceDate = new Date()) => {
-  if (getStoredReservationStatus(reservation) !== RES_STATUS.ACTIVE) return false
-  return !isReservationCheckoutEnded(reservation, referenceDate)
-}
-
-const normalizeReservationDate = (value) => normalizeFirestoreDate(value)
-
-/**
- * Tarih aralığı çakışması — aynı gün devir (çıkış = giriş) izinli.
- * Örn. A çıkış 18 Haz, B giriş 18 Haz → çakışma yok (11:30 / 14:00 arası temizlik).
- */
-export const hasReservationDateConflict = (incoming, existing) => {
-  const inCheckIn = normalizeReservationDate(incoming.checkInDate)
-  const inCheckOut = normalizeReservationDate(incoming.checkOutDate)
-  const exCheckIn = normalizeReservationDate(existing.checkInDate)
-  const exCheckOut = normalizeReservationDate(existing.checkOutDate)
-
-  if (!inCheckIn || !inCheckOut || !exCheckIn || !exCheckOut) return false
-
-  return inCheckIn < exCheckOut && inCheckOut > exCheckIn
-}
-
-/** Aynı gün devir: mevcut misafir çıkış günü = yeni misafir giriş günü (11:30 → 14:00) */
-export const isSameDayTurnover = (checkoutDate, checkInDate) =>
-  normalizeFirestoreDate(checkoutDate) === normalizeFirestoreDate(checkInDate) &&
-  Boolean(normalizeFirestoreDate(checkoutDate))
-
-const findTurnoverCheckoutGuest = (
-  reservations,
-  { roomName, checkInDate, checkOutDate, excludeId },
-) => {
-  const incomingCheckIn = normalizeFirestoreDate(checkInDate)
-  if (!incomingCheckIn) return null
-
-  return (
-    reservations.find((reservation) => {
-      if (!reservation?.id) return false
-      if (excludeId && reservation.id === excludeId) return false
-      if (!blocksRoomAvailability(reservation)) return false
-      if (normalizeRoomName(reservation.roomName) !== normalizeRoomName(roomName)) return false
-      if (!isSameDayTurnover(reservation.checkOutDate, incomingCheckIn)) return false
-      return !hasReservationDateConflict({ checkInDate, checkOutDate }, reservation)
-    }) ?? null
-  )
-}
-
-const findIncomingOnCheckoutDayGuest = (
-  reservations,
-  { roomName, checkInDate, checkOutDate, excludeId },
-) => {
-  const incomingCheckOut = normalizeFirestoreDate(checkOutDate)
-  if (!incomingCheckOut) return null
-
-  return (
-    reservations.find((reservation) => {
-      if (!reservation?.id) return false
-      if (excludeId && reservation.id === excludeId) return false
-      if (!blocksRoomAvailability(reservation)) return false
-      if (normalizeRoomName(reservation.roomName) !== normalizeRoomName(roomName)) return false
-      if (!isSameDayTurnover(incomingCheckOut, reservation.checkInDate)) return false
-      return !hasReservationDateConflict({ checkInDate, checkOutDate }, reservation)
-    }) ?? null
-  )
-}
-
-/** İki rezervasyon arasında çakışan konaklama geceleri (giriş dahil, çıkış hariç) */
-export const getConflictingNightsInRange = (incoming, existing) => {
-  const inCheckIn = parseISODateSafe(incoming.checkInDate)
-  const inCheckOut = parseISODateSafe(incoming.checkOutDate)
-  if (!inCheckIn || !inCheckOut || inCheckOut <= inCheckIn) return []
-
-  const nights = []
-  let night = startOfDay(inCheckIn)
-
-  while (isBefore(night, inCheckOut)) {
-    const dayIso = format(night, 'yyyy-MM-dd')
-    const nextDayIso = format(addDays(night, 1), 'yyyy-MM-dd')
-    if (
-      hasReservationDateConflict(
-        { checkInDate: dayIso, checkOutDate: nextDayIso },
-        existing,
-      )
-    ) {
-      nights.push(dayIso)
-    }
-    night = addDays(night, 1)
-  }
-
-  return nights
-}
-
-export const findConflictingReservation = (
-  reservations,
-  { roomName, checkInDate, checkOutDate, excludeId },
-) => {
-  const trimmedRoom = roomName?.trim()
-  if (!trimmedRoom || !checkInDate || !checkOutDate || checkOutDate <= checkInDate) return null
-
-  const incoming = { checkInDate, checkOutDate }
-
-  return (
-    reservations.find((reservation) => {
-      if (!reservation?.id) return false
-      if (excludeId && reservation.id === excludeId) return false
-      if (!blocksRoomAvailability(reservation)) return false
-      if (normalizeRoomName(reservation.roomName) !== normalizeRoomName(trimmedRoom)) return false
-      return hasReservationDateConflict(incoming, reservation)
-    }) ?? null
-  )
-}
-
-export const getRoomAvailabilityList = (
-  reservations,
-  { checkInDate, checkOutDate, excludeId, roomNames },
-) => {
-  if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) return []
-
-  return roomNames.map((roomName) => {
-    const conflict = findConflictingReservation(reservations, {
-      roomName,
-      checkInDate,
-      checkOutDate,
-      excludeId,
-    })
-
-    const turnoverCheckout = conflict
-      ? null
-      : findTurnoverCheckoutGuest(reservations, {
-          roomName,
-          checkInDate,
-          checkOutDate,
-          excludeId,
-        })
-
-    const incomingOnCheckoutDay = conflict
-      ? null
-      : findIncomingOnCheckoutDayGuest(reservations, {
-          roomName,
-          checkInDate,
-          checkOutDate,
-          excludeId,
-        })
-
-    return {
-      roomName,
-      available: !conflict,
-      conflict,
-      turnoverCheckout,
-      incomingOnCheckoutDay,
-    }
-  })
-}
+/** Takvim doluluk — roomAvailability ile aynı */
+export { isReservationOccupyingNight as isReservationCountedForOccupancyOnDate } from './roomAvailability.js'
 
 export const getEffectiveReservationStatus = (reservation, referenceDate = new Date()) => {
   const storedStatus = getStoredReservationStatus(reservation)
@@ -357,105 +163,6 @@ const isReservationScheduledOnDay = (reservation, day) => {
     isSameDay(checkOut, day) ||
     isReservationStayOnDate(reservation, day)
   )
-}
-
-/**
- * Takvim doluluk rengi — rezervasyon formu ile aynı çakışma kuralı.
- * «Bu güne giriş yapılsa (1 gece)» oda dolu mu? (çıkış günü devir hariç)
- */
-export const isReservationCountedForOccupancyOnDate = (reservation, date, now = new Date()) => {
-  if (isCancelledReservation(reservation)) return false
-  if (!blocksRoomAvailability(reservation, now)) return false
-
-  const day = startOfDay(date)
-  const dayIso = format(day, 'yyyy-MM-dd')
-  const nextDayIso = format(addDays(day, 1), 'yyyy-MM-dd')
-
-  return hasReservationDateConflict(
-    { checkInDate: dayIso, checkOutDate: nextDayIso },
-    reservation,
-  )
-}
-
-/** Seçili günde dolu standart oda sayısı (VIP hariç) */
-export const getStandardOccupiedRoomsOnDate = (reservations, date, now = new Date()) => {
-  const occupied = new Set()
-
-  reservations.forEach((reservation) => {
-    if (!reservation?.id) return
-    if (!isReservationCountedForOccupancyOnDate(reservation, date, now)) return
-    const room = canonicalRoomName(reservation.roomName)
-    if (!room || isVipRoom(room)) return
-    occupied.add(room)
-  })
-
-  return occupied.size
-}
-
-/** Seçili günde dolu oda sayısı (takvim rengi ile rezervasyon formu uyumlu) */
-export const getOccupiedRoomsOnDate = (reservations, date, now = new Date()) => {
-  const occupied = new Set()
-
-  reservations.forEach((reservation) => {
-    if (!reservation?.id) return
-    if (!isReservationCountedForOccupancyOnDate(reservation, date, now)) return
-    const room = canonicalRoomName(reservation.roomName)
-    if (room) occupied.add(room)
-  })
-
-  return occupied.size
-}
-
-/** Seçilen konaklama aralığında tüm evlerin dolu olduğu geceler (giriş dahil, çıkış hariç) */
-export const getFullyBookedNightsInRange = (
-  reservations,
-  checkInDate,
-  checkOutDate,
-  { excludeId, now = new Date(), standardOnly = false } = {},
-) => {
-  const checkIn = parseISODateSafe(checkInDate)
-  const checkOut = parseISODateSafe(checkOutDate)
-  if (!checkIn || !checkOut || checkOut <= checkIn) return []
-
-  const scopedReservations = excludeId
-    ? reservations.filter((reservation) => reservation.id !== excludeId)
-    : reservations
-
-  const roomLimit = standardOnly ? STANDARD_ROOM_COUNT : ACTIVE_ROOM_COUNT
-  const countOccupied = standardOnly ? getStandardOccupiedRoomsOnDate : getOccupiedRoomsOnDate
-
-  const fullNights = []
-  let night = startOfDay(checkIn)
-
-  while (isBefore(night, checkOut)) {
-    if (countOccupied(scopedReservations, night, now) >= roomLimit) {
-      fullNights.push(format(night, 'yyyy-MM-dd'))
-    }
-    night = addDays(night, 1)
-  }
-
-  return fullNights
-}
-
-/** Standart odaların tamamının dolu olduğu geceler (VIP hariç — yeni standart misafir sığmaz) */
-export const getFullyBookedStandardNightsInRange = (reservations, checkInDate, checkOutDate, options = {}) =>
-  getFullyBookedNightsInRange(reservations, checkInDate, checkOutDate, { ...options, standardOnly: true })
-
-/** Oda listesine taşıma planını uygular */
-export const applyBookingPlanToAvailability = (availability = [], bookingPlan) => {
-  if (!bookingPlan?.targetRoom) return availability
-
-  const targetRoom = normalizeRoomName(bookingPlan.targetRoom)
-
-  return availability.map((room) => {
-    if (normalizeRoomName(room.roomName) !== targetRoom) return room
-    return {
-      ...room,
-      available: true,
-      conflict: null,
-      viaShuffle: Boolean(bookingPlan.shuffled),
-    }
-  })
 }
 
 /** Aktif rezervasyonlarda geçmiş giriş tarihini engeller (devam eden konaklama hariç) */

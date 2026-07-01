@@ -16,11 +16,13 @@ import { formatDateTR, normalizeFirestoreDate, parseISODateSafe } from '../utils
 import { findBookingPlan } from '../utils/roomAssignmentUtils'
 import {
   applyBookingPlanToAvailability,
-  derivePaymentStatus,
   findConflictingReservation,
   getConflictingNightsInRange,
   getFullyBookedStandardNightsInRange,
   getRoomAvailabilityList,
+} from '../utils/roomAvailability'
+import {
+  derivePaymentStatus,
   sanitizeReservations,
   normalizeReservationStatus,
   PAYMENT_STATUS,
