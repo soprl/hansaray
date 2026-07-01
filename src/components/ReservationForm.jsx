@@ -10,6 +10,8 @@ import {
   isVipRoom,
   normalizeRoomName,
   pickFirstAvailableStandardRoom,
+  STANDARD_ROOM_COUNT,
+  ACTIVE_ROOM_COUNT,
 } from '../config/rooms'
 import { getHotelTodayIso, HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME, HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import { formatDateTR, normalizeFirestoreDate, parseISODateSafe } from '../utils/formatters'
@@ -19,7 +21,10 @@ import {
   findConflictingReservation,
   getConflictingNightsInRange,
   getFullyBookedStandardNightsInRange,
+  getOccupiedRoomsOnDate,
   getRoomAvailabilityList,
+  getStandardOccupiedRoomsOnDate,
+  listStayNightIsos,
 } from '../utils/roomAvailability'
 import {
   derivePaymentStatus,
@@ -209,6 +214,33 @@ function ReservationForm({
   }, [canSearchRooms, safeReservations, form.checkInDate, form.checkOutDate, excludeId])
 
   const hasFullyBookedNight = fullyBookedNights.length > 0
+
+  /** Takvimdeki gece doluluk satırı ile aynı sayım (form aralığındaki her gece) */
+  const stayNightOccupancy = useMemo(() => {
+    if (!canSearchRooms) return []
+
+    const scoped = excludeId
+      ? safeReservations.filter((reservation) => reservation.id !== excludeId)
+      : safeReservations
+
+    try {
+      return listStayNightIsos(form.checkInDate, form.checkOutDate).map((nightIso) => {
+        const nightDate = parseISODateSafe(nightIso)
+        const standardOccupied = getStandardOccupiedRoomsOnDate(scoped, nightDate)
+        const allOccupied = getOccupiedRoomsOnDate(scoped, nightDate)
+        return {
+          nightIso,
+          standardOccupied,
+          allOccupied,
+          standardEmpty: STANDARD_ROOM_COUNT - standardOccupied,
+          allEmpty: ACTIVE_ROOM_COUNT - allOccupied,
+        }
+      })
+    } catch (error) {
+      console.error('Gece doluluk özeti hesaplanamadı:', error)
+      return []
+    }
+  }, [canSearchRooms, safeReservations, form.checkInDate, form.checkOutDate, excludeId])
 
   const bookingPlan = useMemo(() => {
     if (!canSearchRooms || isEditingVipReservation || hasFullyBookedNight) return null
@@ -663,7 +695,7 @@ function ReservationForm({
     if (!relaxedEdit && hasFullyBookedNight) {
       return `Seçilen tarihlerde tüm standart odalar dolu gece var: ${fullyBookedNights.map(formatDateTR).join(', ')}`
     }
-    if (!relaxedEdit && allRoomsFull) return 'Bu tarihlerde tüm odalar dolu. Başka tarih seçin.'
+    if (!relaxedEdit && allRoomsFull) return 'Bu tarih aralığında uygun oda yok. Takvimdeki gece doluluk satırına bakın.'
     if (!resolvedRoomName) {
       if (!relaxedEdit && availableRooms.some((room) => isVipRoom(room.roomName))) {
         return 'Standart odalar dolu. V.I.P müsaitse odalar bölümünden elle seçin.'
@@ -918,19 +950,33 @@ function ReservationForm({
                       ? 'Seçilen tarihlerde tüm standart odalar dolu gece var. Rezervasyon yapılamaz.'
                       : isEditingVipReservation
                         ? 'Bu tarihlerde V.I.P dolu. Tarih değiştirin veya başka çözüm uygulayın.'
-                        : 'Bu tarihlerde tüm odalar dolu. Lütfen başka tarih seçin.'}
+                        : 'Bu tarih aralığında uygun oda bulunamadı.'}
                   </p>
+                  {stayNightOccupancy.length > 0 ? (
+                    <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
+                      Takvimle aynı gece sayımı:{' '}
+                      {stayNightOccupancy
+                        .map(
+                          ({ nightIso, standardOccupied, allOccupied, standardEmpty, allEmpty }) =>
+                            `${formatDateTR(nightIso)} — standart ${standardOccupied}/${STANDARD_ROOM_COUNT} dolu (${standardEmpty} boş), toplam ${allOccupied}/${ACTIVE_ROOM_COUNT} dolu (${allEmpty} boş)`,
+                        )
+                        .join(' · ')}
+                    </p>
+                  ) : null}
                   {hasFullyBookedNight ? (
                     <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
                       Dolu geceler:{' '}
                       <strong>{fullyBookedNights.map(formatDateTR).join(', ')}</strong>
                       {' '}
-                      (5/5 standart oda dolu — o gecelere yeni standart misafir sığmaz; V.I.P ayrı)
+                      (5/5 standart oda dolu — o gecelere yeni standart misafir sığmaz; V.I.P ayrı).
+                      Takvimde baktığınız tek gün boş olsa bile, aralıktaki başka bir gece tam dolu olabilir.
                     </p>
                   ) : !isEditingVipReservation ? (
                     <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
-                      Standart odalar yeniden düzenlense bile uygun yerleşim bulunamadı. V.I.P
-                      misafirler taşınmaz.
+                      Takvim tek bir geceyi gösterir; form giriş–çıkış aralığının{' '}
+                      <strong>tamamında aynı odada</strong> yer olup olmadığına bakar. Gecelerin
+                      birinde boş oda olsa bile başka gecede dolu olabilir veya taşıma planı
+                      bulunamamış olabilir. V.I.P yalnızca elle seçilir.
                     </p>
                   ) : null}
                 </div>
