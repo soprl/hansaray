@@ -1,5 +1,5 @@
 /** Deploy sonrası bir kez çalışır — eski önbellek / oturum kalıntılarını temizler */
-export const CLIENT_VERSION = '2026.07.02.5'
+export const CLIENT_VERSION = '2026.07.02.6'
 
 const CLIENT_VERSION_KEY = 'hansaray_client_version'
 
@@ -24,6 +24,12 @@ export async function resetClientStorageIfVersionChanged() {
 
   try {
     sessionStorage.clear()
+  } catch {
+    // Tarayıcı kısıtlaması
+  }
+
+  try {
+    localStorage.clear()
   } catch {
     // Tarayıcı kısıtlaması
   }
