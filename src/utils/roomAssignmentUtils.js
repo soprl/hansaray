@@ -60,7 +60,30 @@ const getFixedVipReservations = (reservations, excludeId, referenceDate = new Da
 
 const getStandardRooms = () => ACTIVE_ROOMS.filter((room) => isRoomBookable(room) && !isVipRoom(room))
 
-const canPlaceOnRoom = (reservation, roomName, assignment, reservationsById, fixedVip) => {
+const getFixedStandardReservations = (
+  reservations,
+  movableIds,
+  excludeId,
+  referenceDate = new Date(),
+) =>
+  reservations.filter((reservation) => {
+    if (!reservation?.id) return false
+    if (excludeId && reservation.id === excludeId) return false
+    if (movableIds.has(reservation.id)) return false
+    if (isCancelledReservation(reservation)) return false
+    if (isVipRoom(reservation.roomName)) return false
+    if (!hasValidReservationDates(reservation)) return false
+    return blocksRoomAvailability(reservation, referenceDate)
+  })
+
+const canPlaceOnRoom = (
+  reservation,
+  roomName,
+  assignment,
+  reservationsById,
+  fixedVip,
+  fixedStandard = [],
+) => {
   const room = normalizeRoomName(roomName)
   if (isVipRoom(room)) return false
 
@@ -68,6 +91,11 @@ const canPlaceOnRoom = (reservation, roomName, assignment, reservationsById, fix
     if (normalizeRoomName(assignedRoom) !== room) continue
     const other = reservationsById.get(id)
     if (other && reservationsOverlap(reservation, other)) return false
+  }
+
+  for (const fixed of fixedStandard) {
+    if (normalizeRoomName(fixed.roomName) !== room) continue
+    if (reservationsOverlap(reservation, fixed)) return false
   }
 
   for (const vip of fixedVip) {
@@ -85,6 +113,7 @@ const targetRoomBlocksIncoming = (
   assignment,
   reservationsById,
   fixedVip,
+  fixedStandard = [],
 ) => {
   const room = normalizeRoomName(targetRoom)
 
@@ -92,6 +121,11 @@ const targetRoomBlocksIncoming = (
     if (normalizeRoomName(assignedRoom) !== room) continue
     const reservation = reservationsById.get(id)
     if (reservation && incomingOverlaps(checkInDate, checkOutDate, reservation)) return true
+  }
+
+  for (const fixed of fixedStandard) {
+    if (normalizeRoomName(fixed.roomName) !== room) continue
+    if (incomingOverlaps(checkInDate, checkOutDate, fixed)) return true
   }
 
   for (const vip of fixedVip) {
@@ -138,6 +172,19 @@ export const sortReassignmentsForApply = (reassignments = []) => {
   }
 
   return ordered
+}
+
+/** Taşıma sırasında yalnızca hedef odadan henüz çıkmamış batch misafirlerini hariç tutar */
+export const getVacatingPhantomExcludeIds = (targetRoom, pendingMoves, appliedMoveIds = new Set()) => {
+  const room = normalizeRoomName(targetRoom)
+  return pendingMoves
+    .filter((move) => {
+      const id = move.reservation?.id
+      if (!id || appliedMoveIds.has(id)) return false
+      const fromRoom = normalizeRoomName(move.fromRoom ?? move.reservation?.roomName)
+      return fromRoom === room
+    })
+    .map((move) => move.reservation.id)
 }
 
 /**
@@ -219,6 +266,13 @@ const findBookingPlanUnsafe = (
     excludeId,
     referenceDate,
   )
+  const movableIds = new Set(movable.map((reservation) => reservation.id))
+  const fixedStandard = getFixedStandardReservations(
+    scopedReservations,
+    movableIds,
+    excludeId,
+    referenceDate,
+  )
   const fixedVip = getFixedVipReservations(scopedReservations, excludeId, referenceDate)
   const safeReservations = scopedReservations
   const reservationsById = new Map(safeReservations.map((reservation) => [reservation.id, reservation]))
@@ -259,6 +313,7 @@ const findBookingPlanUnsafe = (
             assignment,
             reservationsById,
             fixedVip,
+            fixedStandard,
           )
         ) {
           return null
@@ -288,7 +343,8 @@ const findBookingPlanUnsafe = (
           continue
         }
 
-        if (!canPlaceOnRoom(reservation, room, assignment, reservationsById, fixedVip)) continue
+        if (!canPlaceOnRoom(reservation, room, assignment, reservationsById, fixedVip, fixedStandard))
+          continue
 
         assignment.set(reservation.id, room)
         const result = search(index + 1, depth + 1)

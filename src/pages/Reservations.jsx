@@ -9,7 +9,7 @@ import {
   getReservations,
   updateReservation,
 } from '../services/reservationService'
-import { sortReassignmentsForApply } from '../utils/roomAssignmentUtils'
+import { getVacatingPhantomExcludeIds, sortReassignmentsForApply } from '../utils/roomAssignmentUtils'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomDisplayName, getRoomOptions, isRoomBookable, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME } from '../config/hotelTime'
@@ -151,11 +151,13 @@ function Reservations() {
     setSuccessMessage('')
 
     let orderedMoves = []
+    let savePhase = 'moves'
     try {
       const createdBy = user?.email ?? editingReservation?.createdBy ?? 'unknown'
       const { pendingReassignments = [], ...reservationInput } = formData
       orderedMoves = sortReassignmentsForApply(pendingReassignments)
-      const batchMoveIds = orderedMoves.map((move) => move.reservation.id).filter(Boolean)
+      if (orderedMoves.length === 0) savePhase = 'save'
+      const appliedMoveIds = new Set()
 
       for (const move of orderedMoves) {
         if (isVipRoom(move.toRoom)) continue
@@ -165,9 +167,18 @@ function Reservations() {
             roomName: move.toRoom,
             originalCheckInDate: move.reservation.checkInDate,
           }),
-          { conflictExcludeIds: batchMoveIds },
+          {
+            conflictExcludeIds: getVacatingPhantomExcludeIds(
+              move.toRoom,
+              orderedMoves,
+              appliedMoveIds,
+            ),
+          },
         )
+        appliedMoveIds.add(move.reservation.id)
       }
+
+      savePhase = 'save'
 
       if (editingReservation?.id) {
         await updateReservation(
@@ -212,9 +223,11 @@ function Reservations() {
     } catch (submitError) {
       if (submitError?.message === 'CONFLICT') {
         setError(
-          orderedMoves?.length > 0
+          savePhase === 'moves'
             ? 'Oda taşıması sırasında çakışma oluştu. Sayfayı yenileyip tekrar deneyin; sorun sürerse tarih veya oda değiştirin.'
-            : 'Bu oda seçilen tarihlerde dolu. Başka oda veya tarih seçin.',
+            : orderedMoves.length > 0
+              ? 'Misafir taşındı ancak yeni rezervasyon kaydedilemedi. Sayfayı yenileyip durumu kontrol edin.'
+              : 'Bu oda seçilen tarihlerde dolu. Başka oda veya tarih seçin.',
         )
       } else if (submitError?.message === 'PAST_DATE') {
         setError('Geçmiş tarihe rezervasyon yapılamaz. Giriş bugün veya sonrası olmalıdır.')
