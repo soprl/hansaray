@@ -17,15 +17,10 @@ import { getHotelTodayIso, HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME, HOTEL_TIME
 import { formatDateTR, normalizeFirestoreDate, parseISODateSafe } from '../utils/formatters'
 import { findBookingPlan } from '../utils/roomAssignmentUtils'
 import {
-  applyBookingPlanToAvailability,
   findConflictingReservation,
   getConflictingNightsInRange,
-  getFullyBookedStandardNightsInRange,
-  getOccupiedRoomsOnDate,
-  getRoomAvailabilityList,
-  getStandardOccupiedRoomsOnDate,
-  listStayNightIsos,
 } from '../utils/roomAvailability'
+import { evaluateStayBooking } from '../utils/stayBooking'
 import {
   derivePaymentStatus,
   sanitizeReservations,
@@ -201,55 +196,45 @@ function ReservationForm({
     return labels
   }, [datesValid, nightCount, form.checkInDate, form.checkOutDate])
 
-  const fullyBookedNights = useMemo(() => {
-    if (!canSearchRooms) return []
+  const baseStayBooking = useMemo(() => {
+    if (!canSearchRooms) return null
+
+    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+
     try {
-      return getFullyBookedStandardNightsInRange(safeReservations, form.checkInDate, form.checkOutDate, {
+      return evaluateStayBooking(safeReservations, {
+        checkInDate: form.checkInDate,
+        checkOutDate: form.checkOutDate,
         excludeId,
+        roomNames: bookableNames,
+        isEditingVipReservation,
       })
     } catch (error) {
-      console.error('Dolu gece hesaplanamadı:', error)
-      return []
+      console.error('Konaklama müsaitliği hesaplanamadı:', error)
+      return null
     }
-  }, [canSearchRooms, safeReservations, form.checkInDate, form.checkOutDate, excludeId])
+  }, [
+    canSearchRooms,
+    isEditingVipReservation,
+    safeReservations,
+    roomOptions,
+    form.checkInDate,
+    form.checkOutDate,
+    excludeId,
+  ])
 
-  const hasFullyBookedNight = fullyBookedNights.length > 0
-
-  /** Takvimdeki gece doluluk satırı ile aynı sayım (form aralığındaki her gece) */
-  const stayNightOccupancy = useMemo(() => {
-    if (!canSearchRooms) return []
-
-    const scoped = excludeId
-      ? safeReservations.filter((reservation) => reservation.id !== excludeId)
-      : safeReservations
-
-    try {
-      return listStayNightIsos(form.checkInDate, form.checkOutDate).map((nightIso) => {
-        const nightDate = parseISODateSafe(nightIso)
-        const standardOccupied = getStandardOccupiedRoomsOnDate(scoped, nightDate)
-        const allOccupied = getOccupiedRoomsOnDate(scoped, nightDate)
-        return {
-          nightIso,
-          standardOccupied,
-          allOccupied,
-          standardEmpty: STANDARD_ROOM_COUNT - standardOccupied,
-          allEmpty: ACTIVE_ROOM_COUNT - allOccupied,
-        }
-      })
-    } catch (error) {
-      console.error('Gece doluluk özeti hesaplanamadı:', error)
-      return []
-    }
-  }, [canSearchRooms, safeReservations, form.checkInDate, form.checkOutDate, excludeId])
+  const preliminaryFullyBookedNights = baseStayBooking?.fullyBookedNights ?? []
+  const preliminaryHasFullyBookedNight = preliminaryFullyBookedNights.length > 0
 
   const bookingPlan = useMemo(() => {
-    if (!canSearchRooms || isEditingVipReservation || hasFullyBookedNight) return null
+    if (!canSearchRooms || isEditingVipReservation || preliminaryHasFullyBookedNight) return null
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
     const preferredRoom =
       isEditing && !isEditingVipReservation
         ? normalizeRoomName(form.roomName || initialValues?.roomName)
         : undefined
+
     try {
       return findBookingPlan(safeReservations, {
         checkInDate: form.checkInDate,
@@ -265,6 +250,7 @@ function ReservationForm({
   }, [
     canSearchRooms,
     isEditingVipReservation,
+    preliminaryHasFullyBookedNight,
     isEditing,
     safeReservations,
     roomOptions,
@@ -272,67 +258,66 @@ function ReservationForm({
     form.checkOutDate,
     form.roomName,
     excludeId,
-    hasFullyBookedNight,
     initialValues?.roomName,
   ])
+
+  const stayBooking = useMemo(() => {
+    if (!baseStayBooking) return null
+
+    const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+    try {
+      return evaluateStayBooking(safeReservations, {
+        checkInDate: form.checkInDate,
+        checkOutDate: form.checkOutDate,
+        excludeId,
+        roomNames: bookableNames,
+        bookingPlan,
+        isEditingVipReservation,
+      })
+    } catch (error) {
+      console.error('Konaklama müsaitliği hesaplanamadı:', error)
+      return baseStayBooking
+    }
+  }, [
+    baseStayBooking,
+    bookingPlan,
+    isEditingVipReservation,
+    safeReservations,
+    roomOptions,
+    form.checkInDate,
+    form.checkOutDate,
+    excludeId,
+  ])
+
+  const fullyBookedNights = stayBooking?.fullyBookedNights ?? []
+  const hasFullyBookedNight = stayBooking?.hasFullyBookedNight ?? false
+  const stayNightOccupancy = stayBooking?.nightOccupancy ?? []
+  const standardBlockedOnly = stayBooking?.standardBlockedOnly ?? false
 
   const roomAvailabilityList = useMemo(() => {
     if (!datesValid) return []
 
     const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
 
-    if (!canSearchRooms) {
+    if (!canSearchRooms || !stayBooking) {
       return bookableNames.map((roomName) => ({
         roomName,
         available: false,
         conflict: null,
         inactive: false,
-        pendingDates: true,
+        pendingDates: !canSearchRooms,
       }))
     }
 
-    try {
-      const baseAvailability = getRoomAvailabilityList(safeReservations, {
-        checkInDate: form.checkInDate,
-        checkOutDate: form.checkOutDate,
-        excludeId,
-        roomNames: bookableNames,
-      })
+    const inactive = roomOptions
+      .filter((roomName) => !isRoomBookable(roomName))
+      .map((roomName) => ({ roomName, available: false, conflict: null, inactive: true }))
 
-      const bookable = applyBookingPlanToAvailability(baseAvailability, bookingPlan)
-
-      const inactive = roomOptions
-        .filter((roomName) => !isRoomBookable(roomName))
-        .map((roomName) => ({ roomName, available: false, conflict: null, inactive: true }))
-
-      return [...bookable, ...inactive]
-    } catch (error) {
-      console.error('Oda müsaitliği hesaplanamadı:', error)
-      return bookableNames.map((roomName) => ({
-        roomName,
-        available: false,
-        conflict: null,
-        inactive: false,
-      }))
-    }
-  }, [
-    safeReservations,
-    roomOptions,
-    form.checkInDate,
-    form.checkOutDate,
-    excludeId,
-    datesValid,
-    canSearchRooms,
-    bookingPlan,
-  ])
+    return [...stayBooking.roomAvailability, ...inactive]
+  }, [datesValid, roomOptions, canSearchRooms, stayBooking])
 
   const availableRooms = useMemo(
     () => roomAvailabilityList.filter((room) => room.available && isRoomBookable(room.roomName)),
-    [roomAvailabilityList],
-  )
-
-  const bookableRoomCount = useMemo(
-    () => roomAvailabilityList.filter((room) => isRoomBookable(room.roomName)).length,
     [roomAvailabilityList],
   )
 
@@ -353,36 +338,9 @@ function ReservationForm({
     [roomAvailabilityList],
   )
 
-  const hasStandardBookingPath = useMemo(() => {
-    if (hasFullyBookedNight) return false
-    if (bookingPlan?.targetRoom && !isVipRoom(bookingPlan.targetRoom)) return true
-    return autoPickableRooms.length > 0
-  }, [hasFullyBookedNight, bookingPlan?.targetRoom, autoPickableRooms.length])
+  const vipRoomAvailable = stayBooking?.vipAvailable ?? false
 
-  const vipRoomAvailable = useMemo(
-    () => roomAvailabilityList.some((room) => isVipRoom(room.roomName) && room.available),
-    [roomAvailabilityList],
-  )
-
-  const allRoomsFull = useMemo(() => {
-    if (!canSearchRooms || !datesValid) return false
-    if (hasFullyBookedNight) return true
-
-    if (isEditingVipReservation) {
-      return !vipRoomAvailable
-    }
-
-    if (hasStandardBookingPath) return false
-
-    return !vipRoomAvailable
-  }, [
-    canSearchRooms,
-    datesValid,
-    hasFullyBookedNight,
-    isEditingVipReservation,
-    hasStandardBookingPath,
-    vipRoomAvailable,
-  ])
+  const allRoomsFull = stayBooking?.allRoomsFull ?? false
 
   const resolvedRoomName = useMemo(() => {
     if (!datesValid || relaxedEdit) return form.roomName
@@ -513,19 +471,48 @@ function ReservationForm({
         return { roomName: '', vipManual: false }
       }
 
-      let fullNights = []
-      try {
-        fullNights = getFullyBookedStandardNightsInRange(safeReservations, checkInDate, checkOutDate, {
-          excludeId,
-        })
-      } catch (error) {
-        console.error('Dolu gece kontrolü başarısız:', error)
-      }
+      const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
+      const preferredRoom =
+        isEditing && !isEditingVipReservation
+          ? normalizeRoomName(prevRoomName || initialValues?.roomName)
+          : undefined
 
-      if (fullNights.length > 0) {
+      const baseBooking = evaluateStayBooking(safeReservations, {
+        checkInDate,
+        checkOutDate,
+        excludeId,
+        roomNames: bookableNames,
+        isEditingVipReservation,
+      })
+
+      if (baseBooking.hasFullyBookedNight) {
         lastAutoPickDatesRef.current = { checkIn: checkInDate, checkOut: checkOutDate }
         return { roomName: '', vipManual: false }
       }
+
+      let plan = null
+      if (!isEditingVipReservation) {
+        try {
+          plan = findBookingPlan(safeReservations, {
+            checkInDate,
+            checkOutDate,
+            excludeId,
+            roomNames: bookableNames,
+            preferredRoom,
+          })
+        } catch (error) {
+          console.error('Oda yerleştirme planı hesaplanamadı:', error)
+        }
+      }
+
+      const booking = evaluateStayBooking(safeReservations, {
+        checkInDate,
+        checkOutDate,
+        excludeId,
+        roomNames: bookableNames,
+        bookingPlan: plan,
+        isEditingVipReservation,
+      })
 
       if (isEditingVipReservation) {
         const vipRoom = normalizeRoomName(initialValues.roomName)
@@ -533,15 +520,7 @@ function ReservationForm({
         return { roomName: vipRoom, vipManual: true }
       }
 
-      const bookableNames = roomOptions.filter((roomName) => isRoomBookable(roomName))
-      const availability = getRoomAvailabilityList(safeReservations, {
-        checkInDate,
-        checkOutDate,
-        excludeId,
-        roomNames: bookableNames,
-      })
-
-      const directlyAvailable = availability.filter(
+      const directlyAvailable = booking.roomAvailability.filter(
         (room) => room.available && isRoomBookable(room.roomName),
       )
       const directStandard = directlyAvailable.filter((room) => !isVipRoom(room.roomName))
@@ -558,9 +537,12 @@ function ReservationForm({
         return { roomName: normalizedPrevRoom, vipManual: true }
       }
 
-      // Düzenlemede tarih değişse bile mevcut oda müsaitse koru.
       if (normalizedPrevRoom && currentStillAvailable && !isVipRoom(normalizedPrevRoom)) {
         return { roomName: normalizedPrevRoom, vipManual: false }
+      }
+
+      if (booking.bookingPlan?.targetRoom && !isVipRoom(booking.bookingPlan.targetRoom)) {
+        return { roomName: booking.bookingPlan.targetRoom, vipManual: false }
       }
 
       if (directStandard.length > 0) {
@@ -570,7 +552,6 @@ function ReservationForm({
         }
       }
 
-      // Taşıma planı render sırasında hesaplanır; burada ağır arama yapılmaz.
       return { roomName: '', vipManual: false }
     },
     [
@@ -579,6 +560,7 @@ function ReservationForm({
       initialValues?.checkInDate,
       initialValues?.roomName,
       isEditingVipReservation,
+      isEditing,
       safeReservations,
       excludeId,
       roomOptions,
@@ -1010,6 +992,11 @@ function ReservationForm({
               ) : isEditingVipReservation ? (
                 <p className='text-xs text-amber-800'>
                   V.I.P rezervasyonunda oda değiştirilemez. Misafir bu tarihlerde V.I.P&apos;de kalır.
+                </p>
+              ) : standardBlockedOnly ? (
+                <p className='text-xs text-amber-800'>
+                  Takvimde bazı geceler boş görünse bile bu aralıkta standart oda yok. V.I.P boşsa
+                  odalar bölümünden elle seçin.
                 </p>
               ) : autoPickableRooms.length > 0 && resolvedRoomName && !vipManuallySelected ? (
                 <p className='text-xs text-emerald-700'>

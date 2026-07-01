@@ -12,8 +12,8 @@ import {
   PAYMENT_STATUS,
   RES_STATUS,
 } from '../utils/reservationUtils'
-import { isCancelledReservation } from '../utils/reservationStatus'
 import { isReservationOccupyingNight as isReservationCountedForOccupancyOnDate } from '../utils/roomAvailability'
+import { isCancelledReservation } from '../utils/reservationStatus'
 
 const dayKey = (date) => format(date, 'yyyy-MM-dd')
 
