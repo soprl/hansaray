@@ -171,6 +171,75 @@ export const hasReservationDateConflict = (incoming, existing) => {
   return inCheckIn < exCheckOut && inCheckOut > exCheckIn
 }
 
+/** Aynı gün devir: mevcut misafir çıkış günü = yeni misafir giriş günü (11:30 → 14:00) */
+export const isSameDayTurnover = (checkoutDate, checkInDate) =>
+  normalizeFirestoreDate(checkoutDate) === normalizeFirestoreDate(checkInDate) &&
+  Boolean(normalizeFirestoreDate(checkoutDate))
+
+const findTurnoverCheckoutGuest = (
+  reservations,
+  { roomName, checkInDate, checkOutDate, excludeId },
+) => {
+  const incomingCheckIn = normalizeFirestoreDate(checkInDate)
+  if (!incomingCheckIn) return null
+
+  return (
+    reservations.find((reservation) => {
+      if (!reservation?.id) return false
+      if (excludeId && reservation.id === excludeId) return false
+      if (!blocksRoomAvailability(reservation)) return false
+      if (normalizeRoomName(reservation.roomName) !== normalizeRoomName(roomName)) return false
+      if (!isSameDayTurnover(reservation.checkOutDate, incomingCheckIn)) return false
+      return !hasReservationDateConflict({ checkInDate, checkOutDate }, reservation)
+    }) ?? null
+  )
+}
+
+const findIncomingOnCheckoutDayGuest = (
+  reservations,
+  { roomName, checkInDate, checkOutDate, excludeId },
+) => {
+  const incomingCheckOut = normalizeFirestoreDate(checkOutDate)
+  if (!incomingCheckOut) return null
+
+  return (
+    reservations.find((reservation) => {
+      if (!reservation?.id) return false
+      if (excludeId && reservation.id === excludeId) return false
+      if (!blocksRoomAvailability(reservation)) return false
+      if (normalizeRoomName(reservation.roomName) !== normalizeRoomName(roomName)) return false
+      if (!isSameDayTurnover(incomingCheckOut, reservation.checkInDate)) return false
+      return !hasReservationDateConflict({ checkInDate, checkOutDate }, reservation)
+    }) ?? null
+  )
+}
+
+/** İki rezervasyon arasında çakışan konaklama geceleri (giriş dahil, çıkış hariç) */
+export const getConflictingNightsInRange = (incoming, existing) => {
+  const inCheckIn = parseISODateSafe(incoming.checkInDate)
+  const inCheckOut = parseISODateSafe(incoming.checkOutDate)
+  if (!inCheckIn || !inCheckOut || inCheckOut <= inCheckIn) return []
+
+  const nights = []
+  let night = startOfDay(inCheckIn)
+
+  while (isBefore(night, inCheckOut)) {
+    const dayIso = format(night, 'yyyy-MM-dd')
+    const nextDayIso = format(addDays(night, 1), 'yyyy-MM-dd')
+    if (
+      hasReservationDateConflict(
+        { checkInDate: dayIso, checkOutDate: nextDayIso },
+        existing,
+      )
+    ) {
+      nights.push(dayIso)
+    }
+    night = addDays(night, 1)
+  }
+
+  return nights
+}
+
 export const findConflictingReservation = (
   reservations,
   { roomName, checkInDate, checkOutDate, excludeId },
@@ -205,10 +274,30 @@ export const getRoomAvailabilityList = (
       excludeId,
     })
 
+    const turnoverCheckout = conflict
+      ? null
+      : findTurnoverCheckoutGuest(reservations, {
+          roomName,
+          checkInDate,
+          checkOutDate,
+          excludeId,
+        })
+
+    const incomingOnCheckoutDay = conflict
+      ? null
+      : findIncomingOnCheckoutDayGuest(reservations, {
+          roomName,
+          checkInDate,
+          checkOutDate,
+          excludeId,
+        })
+
     return {
       roomName,
       available: !conflict,
       conflict,
+      turnoverCheckout,
+      incomingOnCheckoutDay,
     }
   })
 }

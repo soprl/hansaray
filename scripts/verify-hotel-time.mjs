@@ -81,5 +81,33 @@ assert.equal(
   'Çıkış günü takvimde boş (devir)',
 )
 
+// 25 Temmuz: sabah çıkış + öğleden sonra giriş
+assert.equal(
+  hasDateConflict(
+    { checkInDate: '2026-07-25', checkOutDate: '2026-07-27' },
+    { checkInDate: '2026-07-23', checkOutDate: '2026-07-25' },
+  ),
+  false,
+  'Çıkış 25 / giriş 25 aynı gün devir — çakışma yok',
+)
+
+assert.equal(
+  hasDateConflict(
+    { checkInDate: '2026-07-23', checkOutDate: '2026-07-25' },
+    { checkInDate: '2026-07-25', checkOutDate: '2026-07-27' },
+  ),
+  false,
+  'Mevcut misafir 25 giriş — sizin 25 çıkışınızla çakışma yok',
+)
+
+assert.equal(
+  hasDateConflict(
+    { checkInDate: '2026-07-23', checkOutDate: '2026-07-25' },
+    { checkInDate: '2026-07-24', checkOutDate: '2026-07-26' },
+  ),
+  true,
+  '24 Temmuz gecesi iki misafir — gerçek çakışma',
+)
+
 console.log('✓ Otel saati kuralları doğrulandı (11:30 çıkış, 14:00 giriş, aynı gün devir).')
 console.log('✓ Takvim doluluk = rezervasyon çakışma kuralı uyumlu.')

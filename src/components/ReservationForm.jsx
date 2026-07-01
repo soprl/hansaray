@@ -11,12 +11,13 @@ import {
   normalizeRoomName,
   pickFirstAvailableStandardRoom,
 } from '../config/rooms'
-import { getHotelTodayIso, HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
+import { getHotelTodayIso, HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME, HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import { formatDateTR, normalizeFirestoreDate, parseISODateSafe } from '../utils/formatters'
 import { findBookingPlan } from '../utils/roomAssignmentUtils'
 import {
   derivePaymentStatus,
   findConflictingReservation,
+  getConflictingNightsInRange,
   getFullyBookedNightsInRange,
   getRoomAvailabilityList,
   sanitizeReservations,
@@ -177,6 +178,21 @@ function ReservationForm({
     return differenceInCalendarDays(checkOut, checkIn)
   }, [form.checkInDate, form.checkOutDate, datesValid])
 
+  const stayNightLabels = useMemo(() => {
+    if (!datesValid || nightCount <= 0) return []
+    const checkIn = parseISODateSafe(form.checkInDate)
+    const checkOut = parseISODateSafe(form.checkOutDate)
+    if (!checkIn || !checkOut) return []
+
+    const labels = []
+    let night = checkIn
+    while (night < checkOut) {
+      labels.push(formatDateTR(format(night, 'yyyy-MM-dd')))
+      night = addDays(night, 1)
+    }
+    return labels
+  }, [datesValid, nightCount, form.checkInDate, form.checkOutDate])
+
   const fullyBookedNights = useMemo(() => {
     if (!canSearchRooms) return []
     try {
@@ -298,6 +314,18 @@ function ReservationForm({
   const autoPickableRooms = useMemo(
     () => availableRooms.filter((room) => !isVipRoom(room.roomName)),
     [availableRooms],
+  )
+
+  const turnoverAvailableCount = useMemo(
+    () =>
+      roomAvailabilityList.filter(
+        (room) =>
+          room.available &&
+          isRoomBookable(room.roomName) &&
+          !isVipRoom(room.roomName) &&
+          room.turnoverCheckout,
+      ).length,
+    [roomAvailabilityList],
   )
 
   const allRoomsFull =
@@ -535,12 +563,19 @@ function ReservationForm({
     [syncRoomAfterDateChange],
   )
 
-  const getRoomStatusLabel = (roomName, available, inactive = false, viaShuffle = false) => {
+  const getRoomStatusLabel = (
+    roomName,
+    available,
+    inactive = false,
+    viaShuffle = false,
+    turnoverCheckout = null,
+  ) => {
     if (inactive || !isRoomBookable(roomName)) return 'Pasif · şu an kapalı'
     if (viaShuffle) return 'Müsait · taşıma ile'
     if (isVipRoom(roomName)) {
       return available ? 'Müsait · VIP boş' : 'Dolu · Bu tarihlerde VIP dolu'
     }
+    if (available && turnoverCheckout) return 'Müsait · aynı gün devir'
     return available ? 'Müsait' : 'Dolu'
   }
 
@@ -825,10 +860,19 @@ function ReservationForm({
           ) : null}
 
           {datesValid ? (
-            <p className='text-sm text-slate-600'>
-              {formatDateTR(form.checkInDate)} → {formatDateTR(form.checkOutDate)} ·{' '}
-              <span className='font-medium text-blue-950'>{nightCount} gece</span>
-            </p>
+            <div className='space-y-1'>
+              <p className='text-sm text-slate-600'>
+                {formatDateTR(form.checkInDate)} → {formatDateTR(form.checkOutDate)} ·{' '}
+                <span className='font-medium text-blue-950'>{nightCount} gece</span>
+              </p>
+              {stayNightLabels.length > 0 ? (
+                <p className='text-xs leading-relaxed text-slate-500'>
+                  Konaklanan geceler: <strong>{stayNightLabels.join(', ')}</strong> —{' '}
+                  {formatDateTR(form.checkOutDate)} sabah {HOTEL_CHECK_OUT_TIME} çıkış (o gece odada
+                  kalınmaz). Aynı gün yeni misafir {HOTEL_CHECK_IN_TIME}&apos;da girebilir.
+                </p>
+              ) : null}
+            </div>
           ) : (
             <p className='text-xs text-slate-500'>Önce giriş tarihini, sonra çıkışı veya gece sayısını seçin.</p>
           )}
@@ -840,6 +884,12 @@ function ReservationForm({
             <p className='text-sm text-slate-500'>Oda müsaitliği için tarihleri seçin.</p>
           ) : (
             <>
+              {turnoverAvailableCount > 0 ? (
+                <p className='text-xs font-medium text-emerald-800'>
+                  {turnoverAvailableCount} standart odada önceki misafir giriş gününüzde{' '}
+                  {HOTEL_CHECK_OUT_TIME}&apos;da çıkıyor — {HOTEL_CHECK_IN_TIME} giriş için müsait.
+                </p>
+              ) : null}
               {allRoomsFull ? (
                 <div
                   className='rounded-xl border-2 border-rose-500 bg-rose-50 px-4 py-3 text-sm text-rose-800'
@@ -909,12 +959,23 @@ function ReservationForm({
               ) : null}
 
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
-                {displayedRoomAvailabilityList.map(({ roomName, available, conflict, inactive, viaShuffle }) => {
+                {displayedRoomAvailabilityList.map(
+                  ({ roomName, available, conflict, inactive, viaShuffle, turnoverCheckout, incomingOnCheckoutDay }) => {
                   const isSelected = isRoomSelected(roomName)
                   const vip = isVipRoom(roomName)
                   const isInactive = inactive || !isRoomBookable(roomName)
                   const canSelect =
                     available && !isInactive && !isEditingVipReservation
+                  const conflictNights =
+                    !isInactive && !available && conflict
+                      ? getConflictingNightsInRange(
+                          {
+                            checkInDate: form.checkInDate,
+                            checkOutDate: form.checkOutDate,
+                          },
+                          conflict,
+                        )
+                      : []
                   return (
                     <button
                       key={roomName}
@@ -954,8 +1015,25 @@ function ReservationForm({
                               : 'text-rose-700'
                         }`}
                       >
-                        {getRoomStatusLabel(roomName, available, isInactive, viaShuffle)}
+                        {getRoomStatusLabel(
+                          roomName,
+                          available,
+                          isInactive,
+                          viaShuffle,
+                          turnoverCheckout,
+                        )}
                       </p>
+                      {available && turnoverCheckout?.customerName ? (
+                        <p className='mt-1 text-[10px] leading-snug text-emerald-800'>
+                          {turnoverCheckout.customerName} bu gün {HOTEL_CHECK_OUT_TIME}&apos;da çıkıyor
+                        </p>
+                      ) : null}
+                      {available && incomingOnCheckoutDay?.customerName ? (
+                        <p className='mt-1 text-[10px] leading-snug text-emerald-800'>
+                          {incomingOnCheckoutDay.customerName} sizin çıkış gününüzde{' '}
+                          {HOTEL_CHECK_IN_TIME}&apos;da giriş yapacak
+                        </p>
+                      ) : null}
                       {!isInactive && !available && conflict?.customerName ? (
                         <>
                           <p className='mt-1 truncate text-xs font-medium text-slate-600' title={conflict.customerName}>
@@ -964,6 +1042,11 @@ function ReservationForm({
                           <p className='mt-0.5 text-[10px] leading-snug text-slate-500'>
                             {formatDateTR(conflict.checkInDate)} – {formatDateTR(conflict.checkOutDate)}
                           </p>
+                          {conflictNights.length > 0 ? (
+                            <p className='mt-0.5 text-[10px] font-medium leading-snug text-rose-600'>
+                              Çakışan gece: {conflictNights.map(formatDateTR).join(', ')}
+                            </p>
+                          ) : null}
                         </>
                       ) : null}
                     </button>
