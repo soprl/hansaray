@@ -29,8 +29,8 @@ import { getRoomDisplayName, STANDARD_ROOM_COUNT, STANDARD_ROOMS, VIP_ROOMS } fr
 import { HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import {
   formatStandardOccupancyDetail,
-  formatStandardOccupancyLabel,
   formatVipOccupancyShort,
+  getCalendarTileBadgeParts,
   getOccupancyLevel,
   getOvernightStayStats,
 } from '../utils/occupancyUtils'
@@ -50,14 +50,25 @@ const tagClass = {
   Konaklıyor: 'bg-emerald-100 text-emerald-800',
 }
 
-/** Takvim kutucuğu — standart oda doluluğu (form ile aynı) */
-function formatOvernightRoomTile(stats) {
-  return formatStandardOccupancyLabel(stats)
-}
-
 /** Gün detayı — standart boş odalar */
 function formatOvernightRoomDetail(stats) {
   return formatStandardOccupancyDetail(stats)
+}
+
+function CalendarTileBadges({ stats, compact = false }) {
+  const parts = getCalendarTileBadgeParts(stats)
+  if (!parts) return null
+
+  const sizeClass = compact ? 'text-[8px] sm:text-[9px]' : 'text-[10px]'
+
+  return (
+    <div className={`tile-day-summary flex w-full flex-col items-stretch gap-0.5 ${compact ? 'mt-0.5' : ''}`}>
+      {parts.standardLabel ? (
+        <span className={`tile-std-label ${sizeClass}`}>{parts.standardLabel}</span>
+      ) : null}
+      <span className={`tile-vip-label tile-vip-${parts.vipTone} ${sizeClass}`}>{parts.vipLabel}</span>
+    </div>
+  )
 }
 
 function getWeekDayButtonClass({ selected, level }) {
@@ -68,12 +79,6 @@ function getWeekDayButtonClass({ selected, level }) {
   if (level === 'high') return 'border-orange-500 bg-orange-100 ring-2 ring-orange-400'
   if (level === 'normal') return 'border-emerald-200 bg-emerald-50/80'
   return 'border-slate-200 bg-white hover:bg-slate-50'
-}
-
-function getGuestCountBadgeClass(level) {
-  if (level === 'full') return 'bg-rose-700'
-  if (level === 'high') return 'bg-orange-600'
-  return 'bg-emerald-600'
 }
 
 function CalendarGuestCard({
@@ -299,14 +304,11 @@ function CalendarView({
   const tileContent = ({ date, view }) => {
     if (view !== 'month' || !isVisibleMonthDay(date)) return null
     const dayStats = getDayStayStats(date)
-    const label = formatOvernightRoomTile(dayStats)
-    if (!label) return null
+    if (!getCalendarTileBadgeParts(dayStats)) return null
 
     return (
-      <div className='tile-day-summary' aria-hidden>
-        <span className='tile-guest-label' title={formatOvernightRoomDetail(dayStats)}>
-          {label}
-        </span>
+      <div title={formatOvernightRoomDetail(dayStats)} aria-hidden>
+        <CalendarTileBadges stats={dayStats} />
       </div>
     )
   }
@@ -415,7 +417,8 @@ function CalendarView({
                 {STANDARD_ROOM_COUNT}/{STANDARD_ROOM_COUNT} standart dolu = kırmızı (VIP ayrı satırda)
               </span>
               <span className='text-slate-500'>
-                Kutucukta örn. «4/4 · VIP boş» — standart dolu olsa bile VIP müsait olabilir
+                VIP şeridi: <span className='rounded bg-emerald-600 px-1 text-white'>VIP dolu değil</span>{' '}
+                yeşil · <span className='rounded bg-rose-600 px-1 text-white'>VIP dolu</span> kırmızı
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
@@ -454,7 +457,7 @@ function CalendarView({
                 const isToday = isSameDay(date, getToday())
                 const { standardOccupiedRoomCount } = stayStats
                 const level = getOccupancyLevel(stayStats)
-                const roomLabel = formatOvernightRoomTile(stayStats)
+                const tileParts = getCalendarTileBadgeParts(stayStats)
                 return (
                   <button
                     key={dayKey(date)}
@@ -469,12 +472,8 @@ function CalendarView({
                     <span className='text-base font-bold text-blue-950 sm:text-lg'>
                       {format(date, 'd')}
                     </span>
-                    {standardOccupiedRoomCount > 0 ? (
-                      <span
-                        className={`mt-0.5 rounded px-1 py-0.5 text-[9px] font-bold text-white sm:text-[10px] ${getGuestCountBadgeClass(level)}`}
-                      >
-                        {roomLabel}
-                      </span>
+                    {tileParts ? (
+                      <CalendarTileBadges stats={stayStats} compact />
                     ) : (
                       <span className='mt-0.5 text-[10px] text-slate-400'>—</span>
                     )}
