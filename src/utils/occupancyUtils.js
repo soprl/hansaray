@@ -5,7 +5,15 @@ import {
   startOfDay,
   startOfMonth,
 } from 'date-fns'
-import { canonicalRoomName, ACTIVE_ROOM_COUNT, isRoomBookable } from '../config/rooms'
+import {
+  ACTIVE_ROOM_COUNT,
+  canonicalRoomName,
+  getRoomDisplayName,
+  isRoomBookable,
+  isVipRoom,
+  STANDARD_ROOM_COUNT,
+  STANDARD_ROOMS,
+} from '../config/rooms'
 import {
   countSeasonDaysInRange,
   getSeasonYearToDateRange,
@@ -19,34 +27,88 @@ import {
   isCancelledReservation,
 } from './reservationUtils'
 
+/** @deprecated Takvimde standart doluluk için STANDARD_ROOM_COUNT kullanın */
 export const ROOM_COUNT = ACTIVE_ROOM_COUNT
 export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ACTIVE_ROOM_COUNT
 
-/** O gece konaklayanlar: kişi sayısı + dolu oda sayısı (takvim rengi = rezervasyon çakışması) */
+/**
+ * O gece konaklayanlar — rezervasyon formu ile uyumlu.
+ * Doluluk rengi standart odalara (5) göre; VIP ayrı sayılır.
+ */
 export const getOvernightStayStats = (stayList = []) => {
   const occupiedRooms = new Set()
+  const occupiedStandardRooms = new Set()
 
   stayList.forEach((reservation) => {
     const room = canonicalRoomName(reservation.roomName)
-    if (room && isRoomBookable(room)) occupiedRooms.add(room)
+    if (!room || !isRoomBookable(room)) return
+    occupiedRooms.add(room)
+    if (!isVipRoom(room)) occupiedStandardRooms.add(room)
   })
 
   const guestCount = stayList.length
   const occupiedRoomCount = occupiedRooms.size
+  const standardOccupiedRoomCount = occupiedStandardRooms.size
+  const freeStandardRoomCount = Math.max(STANDARD_ROOM_COUNT - standardOccupiedRoomCount, 0)
+  const freeStandardRooms = STANDARD_ROOMS.filter((room) => !occupiedStandardRooms.has(room))
 
-  const isAllRoomsFull = occupiedRoomCount >= ROOM_COUNT
-  const isNearlyFull = occupiedRoomCount === ROOM_COUNT - 1 && !isAllRoomsFull
+  const isStandardFull = standardOccupiedRoomCount >= STANDARD_ROOM_COUNT
+  const isNearlyFull =
+    standardOccupiedRoomCount === STANDARD_ROOM_COUNT - 1 && !isStandardFull
+  const isAllRoomsFull = occupiedRoomCount >= ACTIVE_ROOM_COUNT
+
+  const level = isStandardFull
+    ? 'full'
+    : isNearlyFull
+      ? 'high'
+      : guestCount > 0
+        ? 'normal'
+        : 'empty'
 
   return {
     guestCount,
     occupiedRoomCount,
+    standardOccupiedRoomCount,
+    freeStandardRoomCount,
+    freeStandardRooms,
     isAllRoomsFull,
+    isStandardFull,
     isNearlyFull,
-    level: isAllRoomsFull ? 'full' : isNearlyFull ? 'high' : guestCount > 0 ? 'normal' : 'empty',
+    level,
   }
 }
 
 export const getOccupancyLevel = (stats) => stats.level ?? 'empty'
+
+export const formatStandardOccupancyLabel = (stats) => {
+  if (!stats || stats.standardOccupiedRoomCount <= 0) return null
+  return `${stats.standardOccupiedRoomCount}/${STANDARD_ROOM_COUNT}`
+}
+
+export const formatStandardOccupancyDetail = (stats) => {
+  if (!stats || stats.standardOccupiedRoomCount <= 0) {
+    return `Standart odalar boş (${STANDARD_ROOM_COUNT}/${STANDARD_ROOM_COUNT} müsait)`
+  }
+
+  const { standardOccupiedRoomCount, freeStandardRoomCount, freeStandardRooms, guestCount } = stats
+  const freeNames =
+    freeStandardRooms.length > 0
+      ? freeStandardRooms.map(getRoomDisplayName).join(', ')
+      : 'yok'
+
+  let base = `Standart ${standardOccupiedRoomCount}/${STANDARD_ROOM_COUNT} dolu`
+  if (freeStandardRoomCount > 0) {
+    base += ` · boş: ${freeNames}`
+  } else {
+    base += ' — standart oda kalmadı (rezervasyon formu bu geceye yeni standart misafir alamaz)'
+  }
+
+  if (guestCount !== standardOccupiedRoomCount) {
+    return `${base} (${guestCount} kayıt)`
+  }
+
+  return base
+}
 
 const isCancelled = (reservation) => isCancelledReservation(reservation)
 

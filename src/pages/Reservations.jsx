@@ -9,7 +9,6 @@ import {
   getReservations,
   updateReservation,
 } from '../services/reservationService'
-import { getVacatingPhantomExcludeIds, sortReassignmentsForApply } from '../utils/roomAssignmentUtils'
 import { auditReservations, buildReservationsExport } from '../utils/reservationAudit'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomDisplayName, getRoomOptions, isRoomBookable, isVipRoom, normalizeRoomName } from '../config/rooms'
@@ -174,35 +173,9 @@ function Reservations() {
     setError('')
     setSuccessMessage('')
 
-    let orderedMoves = []
-    let savePhase = 'moves'
     try {
       const createdBy = user?.email ?? editingReservation?.createdBy ?? 'unknown'
-      const { pendingReassignments = [], ...reservationInput } = formData
-      orderedMoves = sortReassignmentsForApply(pendingReassignments)
-      if (orderedMoves.length === 0) savePhase = 'save'
-      const appliedMoveIds = new Set()
-
-      for (const move of orderedMoves) {
-        if (isVipRoom(move.toRoom)) continue
-        await updateReservation(
-          move.reservation.id,
-          buildReservationUpdatePayload(move.reservation, {
-            roomName: move.toRoom,
-            originalCheckInDate: move.reservation.checkInDate,
-          }),
-          {
-            conflictExcludeIds: getVacatingPhantomExcludeIds(
-              move.toRoom,
-              orderedMoves,
-              appliedMoveIds,
-            ),
-          },
-        )
-        appliedMoveIds.add(move.reservation.id)
-      }
-
-      savePhase = 'save'
+      const { pendingReassignments: _ignored, ...reservationInput } = formData
 
       if (editingReservation?.id) {
         await updateReservation(
@@ -213,21 +186,13 @@ function Reservations() {
             originalCheckInDate: editingReservation.checkInDate,
           }),
         )
-        setSuccessMessage(
-          orderedMoves.length > 0
-            ? `Rezervasyon güncellendi. ${orderedMoves.length} misafir başka odaya taşındı.`
-            : 'Rezervasyon güncellendi.',
-        )
+        setSuccessMessage('Rezervasyon güncellendi.')
       } else {
         const newId = await addReservation({ ...reservationInput, createdBy })
         setNewReservationFormKey((key) => key + 1)
         setListTab(LIST_TABS.ACTIVE)
         setFilters((prev) => ({ ...prev, search: '', roomName: '' }))
-        setSuccessMessage(
-          orderedMoves.length > 0
-            ? `Rezervasyon eklendi. ${orderedMoves.length} misafir başka odaya taşındı.`
-            : 'Rezervasyon eklendi.',
-        )
+        setSuccessMessage('Rezervasyon eklendi.')
         setReservations((prev) => {
           const nextReservation = {
             id: newId,
@@ -246,13 +211,7 @@ function Reservations() {
       listAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } catch (submitError) {
       if (submitError?.message === 'CONFLICT') {
-        setError(
-          savePhase === 'moves'
-            ? 'Oda taşıması sırasında çakışma oluştu. Sayfayı yenileyip tekrar deneyin; sorun sürerse tarih veya oda değiştirin.'
-            : orderedMoves.length > 0
-              ? 'Misafir taşındı ancak yeni rezervasyon kaydedilemedi. Sayfayı yenileyip durumu kontrol edin.'
-              : 'Bu oda seçilen tarihlerde dolu. Başka oda veya tarih seçin.',
-        )
+        setError('Bu oda seçilen tarihlerde dolu. Başka oda veya tarih seçin.')
       } else if (submitError?.message === 'PAST_DATE') {
         setError('Geçmiş tarihe rezervasyon yapılamaz. Giriş bugün veya sonrası olmalıdır.')
       } else {

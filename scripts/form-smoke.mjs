@@ -4,7 +4,6 @@
  */
 import { ACTIVE_ROOMS } from '../src/config/rooms.js'
 import { evaluateStayBooking } from '../src/utils/stayBooking.js'
-import { findBookingPlan } from '../src/utils/roomAssignmentUtils.js'
 import { getConflictingNightsInRange } from '../src/utils/roomAvailability.js'
 
 const bookable = ACTIVE_ROOMS.filter((r) => r !== 'V.I.P')
@@ -54,24 +53,13 @@ let failures = 0
 
 for (const [checkIn, checkOut] of ranges) {
   try {
-    const base = evaluateStayBooking(reservations, {
+    const result = evaluateStayBooking(reservations, {
       checkInDate: checkIn,
       checkOutDate: checkOut,
       roomNames: bookable,
-    })
-    const plan = findBookingPlan(reservations, {
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      roomNames: bookable,
-    })
-    const full = evaluateStayBooking(reservations, {
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      roomNames: bookable,
-      bookingPlan: plan,
     })
 
-    for (const room of full.roomAvailability ?? []) {
+    for (const room of result.roomAvailability ?? []) {
       if (!room.available && room.conflict) {
         getConflictingNightsInRange(
           { checkInDate: checkIn, checkOutDate: checkOut },
@@ -81,9 +69,9 @@ for (const [checkIn, checkOut] of ranges) {
     }
 
     console.log(`OK ${checkIn}→${checkOut}`, {
-      allRoomsFull: full.allRoomsFull,
-      rooms: full.roomAvailability?.length,
-      plan: plan?.targetRoom ?? null,
+      allRoomsFull: result.allRoomsFull,
+      rooms: result.roomAvailability?.length,
+      directStandard: result.directStandardRooms?.map((r) => r.roomName) ?? [],
     })
   } catch (error) {
     failures += 1
