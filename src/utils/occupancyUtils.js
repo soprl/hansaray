@@ -13,6 +13,7 @@ import {
   isVipRoom,
   STANDARD_ROOM_COUNT,
   STANDARD_ROOMS,
+  VIP_ROOM,
 } from '../config/rooms'
 import {
   countSeasonDaysInRange,
@@ -52,6 +53,9 @@ export const getOvernightStayStats = (stayList = []) => {
   const freeStandardRoomCount = Math.max(STANDARD_ROOM_COUNT - standardOccupiedRoomCount, 0)
   const freeStandardRooms = STANDARD_ROOMS.filter((room) => !occupiedStandardRooms.has(room))
 
+  const vipOccupied = occupiedRooms.has(VIP_ROOM)
+  const vipFree = !vipOccupied
+
   const isStandardFull = standardOccupiedRoomCount >= STANDARD_ROOM_COUNT
   const isNearlyFull =
     standardOccupiedRoomCount === STANDARD_ROOM_COUNT - 1 && !isStandardFull
@@ -71,6 +75,8 @@ export const getOvernightStayStats = (stayList = []) => {
     standardOccupiedRoomCount,
     freeStandardRoomCount,
     freeStandardRooms,
+    vipOccupied,
+    vipFree,
     isAllRoomsFull,
     isStandardFull,
     isNearlyFull,
@@ -80,14 +86,36 @@ export const getOvernightStayStats = (stayList = []) => {
 
 export const getOccupancyLevel = (stats) => stats.level ?? 'empty'
 
+export const formatVipOccupancyShort = (stats) => {
+  if (!stats) return ''
+  return stats.vipOccupied ? 'VIP dolu' : 'VIP boş'
+}
+
 export const formatStandardOccupancyLabel = (stats) => {
-  if (!stats || stats.standardOccupiedRoomCount <= 0) return null
-  return `${stats.standardOccupiedRoomCount}/${STANDARD_ROOM_COUNT}`
+  if (!stats) return null
+
+  const { standardOccupiedRoomCount, vipOccupied } = stats
+  if (standardOccupiedRoomCount <= 0 && !vipOccupied) return null
+
+  const vipShort = formatVipOccupancyShort(stats)
+  if (standardOccupiedRoomCount > 0) {
+    return `${standardOccupiedRoomCount}/${STANDARD_ROOM_COUNT} · ${vipShort}`
+  }
+
+  return vipShort
 }
 
 export const formatStandardOccupancyDetail = (stats) => {
-  if (!stats || stats.standardOccupiedRoomCount <= 0) {
-    return `Standart odalar boş (${STANDARD_ROOM_COUNT}/${STANDARD_ROOM_COUNT} müsait)`
+  if (!stats) {
+    return `Standart odalar boş · V.I.P boş`
+  }
+
+  const vipNote = stats.vipOccupied
+    ? 'V.I.P dolu'
+    : 'V.I.P boş (standart dolu olsa bile elle rezerve edilebilir)'
+
+  if (stats.standardOccupiedRoomCount <= 0) {
+    return `Standart odalar boş (${STANDARD_ROOM_COUNT}/${STANDARD_ROOM_COUNT} müsait) · ${vipNote}`
   }
 
   const { standardOccupiedRoomCount, freeStandardRoomCount, freeStandardRooms, guestCount } = stats
@@ -100,8 +128,10 @@ export const formatStandardOccupancyDetail = (stats) => {
   if (freeStandardRoomCount > 0) {
     base += ` · boş: ${freeNames}`
   } else {
-    base += ' — standart oda kalmadı (rezervasyon formu bu geceye yeni standart misafir alamaz)'
+    base += ' — standart oda kalmadı'
   }
+
+  base += ` · ${vipNote}`
 
   if (guestCount !== standardOccupiedRoomCount) {
     return `${base} (${guestCount} kayıt)`

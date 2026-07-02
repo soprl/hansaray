@@ -30,6 +30,7 @@ import { HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import {
   formatStandardOccupancyDetail,
   formatStandardOccupancyLabel,
+  formatVipOccupancyShort,
   getOccupancyLevel,
   getOvernightStayStats,
 } from '../utils/occupancyUtils'
@@ -303,7 +304,9 @@ function CalendarView({
 
     return (
       <div className='tile-day-summary' aria-hidden>
-        <span className='tile-guest-label' title={`${label} oda dolu`}>{label}</span>
+        <span className='tile-guest-label' title={formatOvernightRoomDetail(dayStats)}>
+          {label}
+        </span>
       </div>
     )
   }
@@ -321,8 +324,8 @@ function CalendarView({
                 ? 'Haftayı seçin, güne tıklayın — o günün konukları altta görünür.'
                 : 'Güne tıklayın — konuklar ve giriş/çıkışlar altta listelenir.'}
               <span className='mt-1 block text-xs text-slate-400'>
-                {HOTEL_TIME_POLICY_LABEL} · Doluluk <strong>standart 5 oda</strong> üzerinden (form ile
-                aynı). Oda taşıması yok — rezervasyon tüm aralıkta aynı odada kalır.
+                {HOTEL_TIME_POLICY_LABEL} · Standart doluluk <strong>5 oda</strong> (C/1, C/2, D/1,
+                D/2, Oda 6); <strong>V.I.P ayrı</strong> gösterilir. Oda taşıması yok.
               </span>
             </p>
           </div>
@@ -405,7 +408,10 @@ function CalendarView({
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded bg-rose-100 ring-1 ring-rose-500' />
-                {STANDARD_ROOM_COUNT}/{STANDARD_ROOM_COUNT} standart dolu = kırmızı (yeni standart misafir alınamaz)
+                {STANDARD_ROOM_COUNT}/{STANDARD_ROOM_COUNT} standart dolu = kırmızı (VIP ayrı satırda)
+              </span>
+              <span className='text-slate-500'>
+                Kutucukta örn. «5/5 · VIP boş» — standart dolu olsa bile V.I.P müsait olabilir
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
@@ -573,6 +579,13 @@ function CalendarView({
                     ? `${selectedDayStayStats.freeStandardRoomCount} standart boş`
                     : 'Standart oda kalmadı'
                   : 'O gece standart doluluk yok'}
+              </p>
+              <p
+                className={`mt-1 text-[11px] font-medium ${
+                  selectedDayStayStats.vipOccupied ? 'text-violet-800' : 'text-emerald-800'
+                }`}
+              >
+                {formatVipOccupancyShort(selectedDayStayStats)}
               </p>
             </div>
           </div>
