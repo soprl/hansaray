@@ -10,6 +10,7 @@ import {
   updateReservation,
 } from '../services/reservationService'
 import { getVacatingPhantomExcludeIds, sortReassignmentsForApply } from '../utils/roomAssignmentUtils'
+import { auditReservations, buildReservationsExport } from '../utils/reservationAudit'
 import { formatCurrencyTRY, formatDateTR } from '../utils/formatters'
 import { getRoomDisplayName, getRoomOptions, isRoomBookable, isVipRoom, normalizeRoomName } from '../config/rooms'
 import { HOTEL_CHECK_IN_TIME, HOTEL_CHECK_OUT_TIME } from '../config/hotelTime'
@@ -91,6 +92,29 @@ function Reservations() {
   }, [user])
 
   const roomOptions = useMemo(() => getRoomOptions(reservations), [reservations])
+
+  const audit = useMemo(() => auditReservations(reservations), [reservations])
+  const hasAuditIssues =
+    audit.conflicts.length > 0 || audit.missingRoom.length > 0 || audit.invalidDates.length > 0
+
+  const handleExportReservations = () => {
+    try {
+      const json = buildReservationsExport(reservations)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      link.href = url
+      link.download = `rezervasyonlar-${stamp}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (exportError) {
+      console.error('Rezervasyon dışa aktarımı başarısız:', exportError)
+      setError('Rezervasyonlar indirilemedi. Lütfen tekrar deneyin.')
+    }
+  }
 
   const tabCounts = useMemo(() => {
     return reservations.reduce(
@@ -338,6 +362,86 @@ function Reservations() {
 
   return (
     <section className='space-y-4'>
+      <div className='card space-y-3'>
+        <div className='flex flex-wrap items-center justify-between gap-3'>
+          <div>
+            <h2 className='text-base font-semibold text-blue-950'>Oda denetimi & yedek</h2>
+            <p className='text-xs text-slate-500'>
+              Sistemdeki oda atamalarını kontrol eder ve tüm rezervasyonları JSON olarak indirir.
+            </p>
+          </div>
+          <button
+            type='button'
+            onClick={handleExportReservations}
+            disabled={loading || reservations.length === 0}
+            className='shrink-0 rounded-lg border border-blue-900 bg-blue-900 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50'
+          >
+            Rezervasyonları indir (JSON)
+          </button>
+        </div>
+
+        {loading ? (
+          <p className='text-xs text-slate-500'>Denetim için rezervasyonlar yükleniyor…</p>
+        ) : hasAuditIssues ? (
+          <div className='space-y-3'>
+            {audit.conflicts.length > 0 ? (
+              <div className='rounded-lg border-2 border-rose-500 bg-rose-50 px-4 py-3 text-sm text-rose-800'>
+                <p className='font-semibold text-rose-700'>
+                  {audit.conflicts.length} çakışma: aynı odada aynı tarihlerde iki misafir
+                </p>
+                <ul className='mt-2 space-y-1.5 text-xs'>
+                  {audit.conflicts.map(({ a, b, roomName }) => (
+                    <li key={`${a.id}-${b.id}`} className='leading-relaxed'>
+                      <strong>{getRoomDisplayName(roomName)}</strong>:{' '}
+                      {a.customerName || 'İsimsiz'} ({formatDateTR(a.checkInDate)}–
+                      {formatDateTR(a.checkOutDate)}) <span className='text-rose-500'>↔</span>{' '}
+                      {b.customerName || 'İsimsiz'} ({formatDateTR(b.checkInDate)}–
+                      {formatDateTR(b.checkOutDate)})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {audit.missingRoom.length > 0 ? (
+              <div className='rounded-lg border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900'>
+                <p className='font-semibold'>
+                  {audit.missingRoom.length} rezervasyonda oda atanmamış
+                </p>
+                <ul className='mt-2 space-y-1 text-xs'>
+                  {audit.missingRoom.map((reservation) => (
+                    <li key={reservation.id}>
+                      {reservation.customerName || 'İsimsiz'} ·{' '}
+                      {formatDateTR(reservation.checkInDate)}–{formatDateTR(reservation.checkOutDate)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {audit.invalidDates.length > 0 ? (
+              <div className='rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700'>
+                <p className='font-semibold'>
+                  {audit.invalidDates.length} rezervasyonda tarih eksik veya hatalı
+                </p>
+                <ul className='mt-2 space-y-1 text-xs'>
+                  {audit.invalidDates.map((reservation) => (
+                    <li key={reservation.id}>
+                      {reservation.customerName || 'İsimsiz'} · giriş:{' '}
+                      {reservation.checkInDate || '—'} · çıkış: {reservation.checkOutDate || '—'}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className='rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800'>
+            Sistemde oda çakışması, boş oda ataması veya hatalı tarih bulunmuyor.
+          </p>
+        )}
+      </div>
+
       <div ref={formAnchorRef} className='scroll-mt-4'>
         {successMessage ? (
           <p className='mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800'>
