@@ -96,26 +96,9 @@ export const getOccupancyLevel = (stats) => stats.level ?? 'empty'
 export const formatVipOccupancyShort = (stats) => {
   if (!stats) return ''
   const freeVip = stats.vipFreeRooms ?? []
-  if (freeVip.length === VIP_ROOMS.length) return 'VIP dolu değil'
+  if (freeVip.length === VIP_ROOMS.length) return 'VIP boş'
   if (freeVip.length === 0) return 'VIP dolu'
-  return 'VIP dolu değil'
-}
-
-/** Takvim kutucuğu — standart sayı + VIP şeridi (ayrı renk) */
-export const getCalendarTileBadgeParts = (stats) => {
-  if (!stats) return null
-
-  const { standardOccupiedRoomCount, vipOccupied, vipFree } = stats
-  if (standardOccupiedRoomCount <= 0 && !vipOccupied) return null
-
-  return {
-    standardLabel:
-      standardOccupiedRoomCount > 0
-        ? `${standardOccupiedRoomCount}/${STANDARD_ROOM_COUNT}`
-        : null,
-    vipLabel: vipFree ? 'VIP dolu değil' : 'VIP dolu',
-    vipTone: vipFree ? 'free' : 'full',
-  }
+  return `${freeVip.map(getRoomDisplayName).join(', ')} boş`
 }
 
 export const formatVipOccupancyDetail = (stats) =>

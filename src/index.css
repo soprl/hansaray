@@ -234,38 +234,9 @@ html.native-app .min-h-screen.bg-slate-100 {
 }
 
 .calendar-shell .react-calendar__tile .tile-day-summary {
-  @apply mt-0.5 flex w-full flex-col items-stretch gap-0.5 px-0.5;
+  @apply mt-0.5 flex w-full justify-center;
 }
 
-.calendar-shell .react-calendar__tile .tile-std-label {
-  @apply rounded-md px-1 py-0.5 text-center font-bold leading-tight text-white;
-}
-
-.calendar-shell .react-calendar__tile.tile-high .tile-std-label {
-  @apply bg-orange-600;
-}
-
-.calendar-shell .react-calendar__tile.tile-full .tile-std-label {
-  @apply bg-rose-600;
-}
-
-.calendar-shell .react-calendar__tile:not(.tile-full):not(.tile-high) .tile-std-label {
-  @apply bg-emerald-600;
-}
-
-.calendar-shell .react-calendar__tile .tile-vip-label {
-  @apply rounded px-1 py-0.5 text-center font-bold leading-tight;
-}
-
-.calendar-shell .react-calendar__tile .tile-vip-label.tile-vip-free {
-  @apply bg-emerald-600 text-white;
-}
-
-.calendar-shell .react-calendar__tile .tile-vip-label.tile-vip-full {
-  @apply bg-rose-600 text-white;
-}
-
-/* Eski tek satır etiket — geriye dönük */
 .calendar-shell .react-calendar__tile .tile-guest-label {
   @apply rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white;
 }
