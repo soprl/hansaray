@@ -496,7 +496,7 @@ function ReservationForm({
     if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
     if (!relaxedEdit && !dateValidation.valid) return dateValidation.message
     if (!relaxedEdit && hasFullyBookedNight) {
-      return `Bu gece(ler)de tüm standart odalar dolu (takvimde kırmızı): ${fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}. Başka tarih seçin veya V.I.P boşsa elle seçin.`
+      return `Bu gece(ler)de tüm standart odalar dolu (takvimde kırmızı): ${fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}. Başka tarih seçin veya VIP odalar boşsa elle seçin.`
     }
     if (!relaxedEdit && noContinuousStandardRoom) {
       return 'Her gecede boş standart oda var ama seçilen tarihlerin tamamında aynı oda boş değil. Daha kısa aralık deneyin veya takvimde kırmızı (5/5 dolu) geceleri kontrol edin.'
@@ -506,12 +506,12 @@ function ReservationForm({
     }
     if (!resolvedRoomName) {
       if (!relaxedEdit && availableRooms.some((room) => isVipRoom(room.roomName))) {
-        return 'Standart odalar dolu. V.I.P müsaitse odalar bölümünden elle seçin.'
+        return 'Standart odalar dolu. VIP odalar (Teras / Sahil) müsaitse odalar bölümünden elle seçin.'
       }
       return 'Müsait bir oda seçin.'
     }
     if (!relaxedEdit && isVipRoom(resolvedRoomName) && !vipManuallySelected) {
-      return 'V.I.P odasını odalar bölümünden elle seçin.'
+      return 'VIP odasını (Teras veya Sahil) odalar bölümünden elle seçin.'
     }
     if (
       resolvedRoomName &&
@@ -571,7 +571,7 @@ function ReservationForm({
       nextErrors.checkOutDate = `Bu gece(ler)de tüm standart odalar dolu: ${fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}`
     } else if (!relaxedEdit && noContinuousStandardRoom) {
       nextErrors.roomName =
-        'Her gecede boş oda var ama seçilen aralığın tamamında aynı standart oda boş değil. Tarih aralığını kısaltın veya V.I.P seçin.'
+        'Her gecede boş oda var ama seçilen aralığın tamamında aynı standart oda boş değil. Tarih aralığını kısaltın veya VIP oda seçin.'
     } else if (!relaxedEdit && allRoomsFull) {
       nextErrors.roomName = 'Bu tarihlerde tüm odalar dolu.'
     } else if (!resolvedRoomName) {
@@ -643,7 +643,8 @@ function ReservationForm({
             {!relaxedEdit ? (
               <span className='mt-1 block text-slate-400'>
                 Oda taşıması yok — misafir seçilen aralığın tamamında aynı odada kalır. Takvimle aynı
-                standart doluluk kuralı (5 oda) kullanılır.
+                standart doluluk kuralı ({STANDARD_ROOM_COUNT} oda) kullanılır. VIP odalar (Teras,
+                Sahil) yalnızca elle seçilir.
               </span>
             ) : null}
           </p>
@@ -747,7 +748,7 @@ function ReservationForm({
                     {hasFullyBookedNight
                       ? 'Seçilen tarihlerde tüm standart odalar dolu gece var. Rezervasyon yapılamaz.'
                       : isEditingVipReservation
-                        ? 'Bu tarihlerde V.I.P dolu. Tarih değiştirin veya başka çözüm uygulayın.'
+                        ? 'Bu tarihlerde VIP odalar dolu. Tarih değiştirin veya başka çözüm uygulayın.'
                         : 'Bu tarih aralığında uygun oda bulunamadı.'}
                   </p>
                   {stayNightOccupancy.length > 0 ? (
@@ -766,15 +767,17 @@ function ReservationForm({
                       Dolu geceler:{' '}
                       <strong>{fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}</strong>
                       {' '}
-                      (5/5 standart oda dolu — o gecelere yeni standart misafir sığmaz; V.I.P ayrı).
+                      ({STANDARD_ROOM_COUNT}/{STANDARD_ROOM_COUNT} standart oda dolu — o gecelere yeni
+                      standart misafir sığmaz; VIP odalar ayrı).
                       Takvimde baktığınız tek gün boş olsa bile, aralıktaki başka bir gece tam dolu olabilir.
                     </p>
                   ) : !isEditingVipReservation ? (
                     <p className='mt-1.5 text-xs leading-relaxed text-rose-700/90'>
                       Takvim tek bir geceyi gösterir; form giriş–çıkış aralığının{' '}
                       <strong>tamamında aynı odada</strong> yer olup olmadığına bakar. Oda taşıması
-                      yapılmaz — misafir kayıtlı odasında kalır. Gecelerin birinde 5/5 standart dolu
-                      olsa bile takvimde o gün turuncu/kırmızı görünür.
+                      yapılmaz — misafir kayıtlı odasında kalır. Gecelerin birinde{' '}
+                      {STANDARD_ROOM_COUNT}/{STANDARD_ROOM_COUNT} standart dolu olsa bile takvimde o
+                      gün turuncu/kırmızı görünür.
                     </p>
                   ) : null}
                 </div>
@@ -799,26 +802,26 @@ function ReservationForm({
                   ) : null}
                   <p className='mt-1.5 text-xs leading-relaxed text-amber-900/90'>
                     Örnek: Pazartesi C/1 boş, salı D/2 boş — ama hiçbir oda iki gece üst üste boş
-                    değilse rezervasyon yapılamaz. Daha kısa tarih aralığı deneyin veya V.I.P boşsa
+                    değilse rezervasyon yapılamaz. Daha kısa tarih aralığı deneyin veya VIP boşsa
                     elle seçin.
                   </p>
                 </div>
               ) : isEditingVipReservation ? (
                 <p className='text-xs text-amber-800'>
-                  V.I.P rezervasyonunda oda değiştirilemez. Misafir bu tarihlerde V.I.P&apos;de kalır.
+                  VIP rezervasyonunda oda değiştirilemez. Misafir seçili VIP odasında kalır.
                 </p>
               ) : standardBlockedOnly ? (
                 <p className='text-xs text-amber-800'>
-                  Takvimde bazı geceler boş görünse bile bu aralıkta standart oda yok. V.I.P boşsa
+                  Takvimde bazı geceler boş görünse bile bu aralıkta standart oda yok. VIP boşsa
                   odalar bölümünden elle seçin.
                 </p>
               ) : autoPickableRooms.length > 0 && resolvedRoomName && !vipManuallySelected ? (
                 <p className='text-xs text-emerald-700'>
-                  Boş standart odalardan biri otomatik seçildi. V.I.P yalnızca elle seçilir.
+                  Boş standart odalardan biri otomatik seçildi. VIP odalar yalnızca elle seçilir.
                 </p>
               ) : autoPickableRooms.length === 0 && availableRooms.some((r) => isVipRoom(r.roomName)) ? (
                 <p className='text-xs text-amber-800'>
-                  Standart odalar dolu. V.I.P boşsa yalnızca odalar bölümünden elle seçebilirsiniz;
+                  Standart odalar dolu. VIP boşsa yalnızca odalar bölümünden elle seçebilirsiniz;
                   otomatik taşınmaz.
                 </p>
               ) : null}

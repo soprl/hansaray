@@ -13,7 +13,7 @@ import {
   isVipRoom,
   STANDARD_ROOM_COUNT,
   STANDARD_ROOMS,
-  VIP_ROOM,
+  VIP_ROOMS,
 } from '../config/rooms'
 import {
   countSeasonDaysInRange,
@@ -34,17 +34,22 @@ export const SEASON_ROOM_NIGHTS_PER_YEAR = SEASON_LENGTH_DAYS * ACTIVE_ROOM_COUN
 
 /**
  * O gece konaklayanlar — rezervasyon formu ile uyumlu.
- * Doluluk rengi standart odalara (5) göre; VIP ayrı sayılır.
+ * Doluluk rengi standart odalara göre; V.I.P Teras / V.I.P Sahil ayrı sayılır.
  */
 export const getOvernightStayStats = (stayList = []) => {
   const occupiedRooms = new Set()
   const occupiedStandardRooms = new Set()
+  const occupiedVipRooms = new Set()
 
   stayList.forEach((reservation) => {
     const room = canonicalRoomName(reservation.roomName)
     if (!room || !isRoomBookable(room)) return
     occupiedRooms.add(room)
-    if (!isVipRoom(room)) occupiedStandardRooms.add(room)
+    if (isVipRoom(room)) {
+      occupiedVipRooms.add(room)
+    } else {
+      occupiedStandardRooms.add(room)
+    }
   })
 
   const guestCount = stayList.length
@@ -52,9 +57,9 @@ export const getOvernightStayStats = (stayList = []) => {
   const standardOccupiedRoomCount = occupiedStandardRooms.size
   const freeStandardRoomCount = Math.max(STANDARD_ROOM_COUNT - standardOccupiedRoomCount, 0)
   const freeStandardRooms = STANDARD_ROOMS.filter((room) => !occupiedStandardRooms.has(room))
-
-  const vipOccupied = occupiedRooms.has(VIP_ROOM)
-  const vipFree = !vipOccupied
+  const vipFreeRooms = VIP_ROOMS.filter((room) => !occupiedVipRooms.has(room))
+  const vipOccupied = occupiedVipRooms.size > 0
+  const vipFree = vipFreeRooms.length > 0
 
   const isStandardFull = standardOccupiedRoomCount >= STANDARD_ROOM_COUNT
   const isNearlyFull =
@@ -75,6 +80,8 @@ export const getOvernightStayStats = (stayList = []) => {
     standardOccupiedRoomCount,
     freeStandardRoomCount,
     freeStandardRooms,
+    occupiedVipRooms,
+    vipFreeRooms,
     vipOccupied,
     vipFree,
     isAllRoomsFull,
@@ -88,8 +95,17 @@ export const getOccupancyLevel = (stats) => stats.level ?? 'empty'
 
 export const formatVipOccupancyShort = (stats) => {
   if (!stats) return ''
-  return stats.vipOccupied ? 'VIP dolu' : 'VIP boş'
+  const freeVip = stats.vipFreeRooms ?? []
+  if (freeVip.length === VIP_ROOMS.length) return 'VIP boş'
+  if (freeVip.length === 0) return 'VIP dolu'
+  return `${freeVip.map(getRoomDisplayName).join(', ')} boş`
 }
+
+export const formatVipOccupancyDetail = (stats) =>
+  VIP_ROOMS.map((room) => {
+    const occupied = stats?.occupiedVipRooms?.has(room)
+    return `${getRoomDisplayName(room)}: ${occupied ? 'dolu' : 'boş'}`
+  }).join(' · ')
 
 export const formatStandardOccupancyLabel = (stats) => {
   if (!stats) return null
@@ -107,18 +123,16 @@ export const formatStandardOccupancyLabel = (stats) => {
 
 export const formatStandardOccupancyDetail = (stats) => {
   if (!stats) {
-    return `Standart odalar boş · V.I.P boş`
+    return `Standart odalar boş · ${formatVipOccupancyDetail(stats)}`
   }
 
-  const vipNote = stats.vipOccupied
-    ? 'V.I.P dolu'
-    : 'V.I.P boş (standart dolu olsa bile elle rezerve edilebilir)'
+  const vipNote = formatVipOccupancyDetail(stats)
 
   if (stats.standardOccupiedRoomCount <= 0) {
     return `Standart odalar boş (${STANDARD_ROOM_COUNT}/${STANDARD_ROOM_COUNT} müsait) · ${vipNote}`
   }
 
-  const { standardOccupiedRoomCount, freeStandardRoomCount, freeStandardRooms, guestCount } = stats
+  const { standardOccupiedRoomCount, freeStandardRoomCount, freeStandardRooms, guestCount, occupiedRoomCount } = stats
   const freeNames =
     freeStandardRooms.length > 0
       ? freeStandardRooms.map(getRoomDisplayName).join(', ')
@@ -133,7 +147,7 @@ export const formatStandardOccupancyDetail = (stats) => {
 
   base += ` · ${vipNote}`
 
-  if (guestCount !== standardOccupiedRoomCount) {
+  if (guestCount !== occupiedRoomCount) {
     return `${base} (${guestCount} kayıt)`
   }
 

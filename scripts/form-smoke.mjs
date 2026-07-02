@@ -3,7 +3,7 @@
  * Çalıştır: npx vite-node scripts/form-smoke.mjs
  */
 import assert from 'node:assert/strict'
-import { ACTIVE_ROOMS } from '../src/config/rooms.js'
+import { ACTIVE_ROOMS, isRoomBookable, isVipRoom } from '../src/config/rooms.js'
 import { evaluateStayBooking } from '../src/utils/stayBooking.js'
 import {
   getConflictingNightsInRange,
@@ -11,7 +11,7 @@ import {
   hasReservationDateConflict,
 } from '../src/utils/roomAvailability.js'
 
-const bookable = ACTIVE_ROOMS.filter((r) => r !== 'V.I.P')
+const bookable = ACTIVE_ROOMS.filter((room) => isRoomBookable(room) && !isVipRoom(room))
 
 const reservations = [
   {
@@ -101,7 +101,7 @@ const augReservations = [
 const aug912 = getRoomAvailabilityList(augReservations, {
   checkInDate: '2026-08-09',
   checkOutDate: '2026-08-12',
-  roomNames: bookable,
+  roomNames: [...bookable, 'V.I.P', 'ODA/6'],
 })
 
 const d1Aug912 = aug912.find((room) => room.roomName === 'D/1')

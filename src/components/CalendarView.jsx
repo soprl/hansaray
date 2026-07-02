@@ -25,7 +25,7 @@ import {
   getReservationNightCount,
   isFullyPaidReservation,
 } from '../utils/reservationUtils'
-import { getRoomDisplayName, STANDARD_ROOM_COUNT } from '../config/rooms'
+import { getRoomDisplayName, STANDARD_ROOM_COUNT, STANDARD_ROOMS, VIP_ROOMS } from '../config/rooms'
 import { HOTEL_TIME_POLICY_LABEL } from '../config/hotelTime'
 import {
   formatStandardOccupancyDetail,
@@ -50,7 +50,7 @@ const tagClass = {
   Konaklıyor: 'bg-emerald-100 text-emerald-800',
 }
 
-/** Takvim kutucuğu — standart oda doluluğu (form ile aynı: 5 standart) */
+/** Takvim kutucuğu — standart oda doluluğu (form ile aynı) */
 function formatOvernightRoomTile(stats) {
   return formatStandardOccupancyLabel(stats)
 }
@@ -324,8 +324,12 @@ function CalendarView({
                 ? 'Haftayı seçin, güne tıklayın — o günün konukları altta görünür.'
                 : 'Güne tıklayın — konuklar ve giriş/çıkışlar altta listelenir.'}
               <span className='mt-1 block text-xs text-slate-400'>
-                {HOTEL_TIME_POLICY_LABEL} · Standart doluluk <strong>5 oda</strong> (C/1, C/2, D/1,
-                D/2, Oda 6); <strong>V.I.P ayrı</strong> gösterilir. Oda taşıması yok.
+                {HOTEL_TIME_POLICY_LABEL} · Standart doluluk{' '}
+                <strong>
+                  {STANDARD_ROOM_COUNT} oda ({STANDARD_ROOMS.map(getRoomDisplayName).join(', ')})
+                </strong>
+                ; VIP: <strong>{VIP_ROOMS.map(getRoomDisplayName).join(', ')}</strong> ayrı gösterilir.
+                Oda taşıması yok.
               </span>
             </p>
           </div>
@@ -411,7 +415,7 @@ function CalendarView({
                 {STANDARD_ROOM_COUNT}/{STANDARD_ROOM_COUNT} standart dolu = kırmızı (VIP ayrı satırda)
               </span>
               <span className='text-slate-500'>
-                Kutucukta örn. «5/5 · VIP boş» — standart dolu olsa bile V.I.P müsait olabilir
+                Kutucukta örn. «4/4 · VIP boş» — standart dolu olsa bile VIP müsait olabilir
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
@@ -582,7 +586,7 @@ function CalendarView({
               </p>
               <p
                 className={`mt-1 text-[11px] font-medium ${
-                  selectedDayStayStats.vipOccupied ? 'text-violet-800' : 'text-emerald-800'
+                  selectedDayStayStats.vipFree ? 'text-emerald-800' : 'text-violet-800'
                 }`}
               >
                 {formatVipOccupancyShort(selectedDayStayStats)}

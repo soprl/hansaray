@@ -2,6 +2,9 @@ export const VIP_ROOM = 'V.I.P'
 /** Firestore'da sabit kalacak oda kimliği; görünen adı ROOM_DISPLAY_NAMES ile değiştirilebilir */
 export const ODA_6_ROOM = 'ODA/6'
 
+/** Elle seçilen VIP odalar — otomatik atamaya dahil değil */
+export const VIP_ROOMS = [VIP_ROOM, ODA_6_ROOM]
+
 export const ROOMS = ['C/1', 'C/2', 'D/1', 'D/2', VIP_ROOM, ODA_6_ROOM]
 
 /** Rezervasyona kapalı odalar — oda eklemek için ODA_6_ROOM vb. buraya yazın */
@@ -9,7 +12,8 @@ export const INACTIVE_ROOMS = new Set()
 
 /** Görünen oda adları — yalnızca arayüzde kullanılır; veritabanı roomName alanı sabit kalır */
 export const ROOM_DISPLAY_NAMES = {
-  [ODA_6_ROOM]: 'Oda 6',
+  [VIP_ROOM]: 'V.I.P Teras',
+  [ODA_6_ROOM]: 'V.I.P Sahil',
 }
 
 const ROOM_ALIASES = {
@@ -42,15 +46,11 @@ export const getRoomDisplayName = (roomName) => {
 
 export const isVipRoom = (roomName) => {
   if (!roomName?.trim()) return false
-  if (normalizeRoomName(roomName) === VIP_ROOM) return true
-  const compact = roomName
-    .trim()
-    .toLocaleUpperCase('tr-TR')
-    .replace(/[.\s/_-]/g, '')
-  return compact === 'VIP' || compact === 'VİP'
+  const canonical = normalizeRoomName(roomName)
+  return VIP_ROOMS.includes(canonical)
 }
 
-export const canonicalRoomName = (roomName) => (isVipRoom(roomName) ? VIP_ROOM : normalizeRoomName(roomName))
+export const canonicalRoomName = (roomName) => normalizeRoomName(roomName)
 
 export const normalizeRoomName = (name) => {
   const trimmed = name?.trim() ?? ''
@@ -63,7 +63,7 @@ export const isRoomBookable = (roomName) => !INACTIVE_ROOMS.has(normalizeRoomNam
 export const ACTIVE_ROOMS = ROOMS.filter((roomId) => isRoomBookable(roomId))
 export const ACTIVE_ROOM_COUNT = ACTIVE_ROOMS.length
 
-/** VIP hariç standart odalar — otomatik atama / taşıma yalnızca bunlarda */
+/** VIP hariç standart odalar — otomatik atama yalnızca bunlarda */
 export const STANDARD_ROOMS = ACTIVE_ROOMS.filter((roomId) => !isVipRoom(roomId))
 export const STANDARD_ROOM_COUNT = STANDARD_ROOMS.length
 
@@ -92,7 +92,7 @@ export const getRoomNameVariants = (canonicalName) => {
   return [...variants]
 }
 
-/** VIP hariç, sırayla ilk müsait standart oda (taşıma / otomatik atama) */
+/** VIP hariç, sırayla ilk müsait standart oda */
 export const pickFirstAvailableStandardRoom = (availableRoomNames = []) => {
   const available = new Set(availableRoomNames.map((name) => normalizeRoomName(name)))
   return ACTIVE_ROOMS.find((room) => !isVipRoom(room) && available.has(room)) ?? null
