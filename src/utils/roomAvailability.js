@@ -12,6 +12,7 @@ import {
   STANDARD_ROOM_COUNT,
 } from '../config/rooms'
 import { normalizeFirestoreDate, parseISODateSafe } from './formatters'
+import { HOTEL_CHECK_IN_TIME } from '../config/hotelTime'
 import {
   blocksRoomAvailability,
   isCancelledReservation,
@@ -32,7 +33,11 @@ export const normalizeStayDates = (checkInDate, checkOutDate) => {
   return { checkInDate: checkIn, checkOutDate: checkOut }
 }
 
-/** Takvim + form: aynı gün devir ile çakışma kontrolü */
+/** Takvim + form: aynı gün devir ile çakışma kontrolü
+ *  - Mevcut misafir çıkış günü = yeni giriş günü → çakışma yok (11:30 çıkış, 14:00 giriş)
+ *  - Mevcut misafir giriş günü aralığın içinde → çakışma var (14:00'ten itibaren oda dolu)
+ *  - Yeni çıkış günü = mevcut giriş günü → çakışma yok (sabah çıkış, öğleden sonra yeni giriş)
+ */
 export const hasReservationDateConflict = (incoming, existing) => {
   const inCheckIn = normalizeFirestoreDate(incoming.checkInDate)
   const inCheckOut = normalizeFirestoreDate(incoming.checkOutDate)
@@ -172,6 +177,30 @@ export const findConflictingReservation = (
   params,
   referenceDate = new Date(),
 ) => listConflictingReservationsForRoom(reservations, params, referenceDate)[0] ?? null
+
+/** Formda çakışma nedeni — 11:30 çıkış / 14:00 giriş kuralını açıklar */
+export const describeReservationConflict = (
+  incoming,
+  existing,
+  { formatDate = (iso) => iso } = {},
+) => {
+  const stay = normalizeStayDates(incoming.checkInDate, incoming.checkOutDate)
+  if (!stay || !existing) return ''
+
+  const exCheckIn = normalizeFirestoreDate(existing.checkInDate)
+  const exCheckOut = normalizeFirestoreDate(existing.checkOutDate)
+  if (!exCheckIn || !exCheckOut) return 'Bu tarihlerde oda dolu'
+
+  if (!hasReservationDateConflict(stay, existing)) return ''
+
+  const guestName = existing.customerName?.trim() || 'Misafir'
+
+  if (exCheckIn >= stay.checkInDate && exCheckIn < stay.checkOutDate) {
+    return `${guestName} ${formatDate(exCheckIn)} tarihinde ${HOTEL_CHECK_IN_TIME} giriş — o gece ve sonrası çakışır`
+  }
+
+  return `${guestName} seçilen gecelerde konaklıyor (giriş ${HOTEL_CHECK_IN_TIME} kuralı)`
+}
 
 const findTurnoverCheckoutGuest = (
   reservations,

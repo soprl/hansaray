@@ -2,11 +2,13 @@
  * Rezervasyon formu hesap yolu — vite-node ile smoke test.
  * Çalıştır: npx vite-node scripts/form-smoke.mjs
  */
+import assert from 'node:assert/strict'
 import { ACTIVE_ROOMS } from '../src/config/rooms.js'
 import { evaluateStayBooking } from '../src/utils/stayBooking.js'
 import {
   getConflictingNightsInRange,
   getRoomAvailabilityList,
+  hasReservationDateConflict,
 } from '../src/utils/roomAvailability.js'
 
 const bookable = ACTIVE_ROOMS.filter((r) => r !== 'V.I.P')
@@ -131,5 +133,46 @@ console.log('Aug 9-12 regression OK:', {
   c1: 'müsait',
   d1Nights: d1Aug912.conflictingNights,
 })
+
+// 11:30 çıkış aynı gün → müsait; 14:00 giriş aralıkta → dolu
+assert.equal(
+  hasReservationDateConflict(
+    { checkInDate: '2026-08-09', checkOutDate: '2026-08-12' },
+    { checkInDate: '2026-08-07', checkOutDate: '2026-08-09' },
+  ),
+  false,
+  '11:30 çıkış + aynı gün 14:00 giriş = çakışma yok',
+)
+
+assert.equal(
+  hasReservationDateConflict(
+    { checkInDate: '2026-08-09', checkOutDate: '2026-08-12' },
+    { checkInDate: '2026-08-10', checkOutDate: '2026-08-16' },
+  ),
+  true,
+  '14:00 giriş (10 Ağu) seçilen aralıkla çakışır',
+)
+
+const turnoverOnly = getRoomAvailabilityList(
+  [{ id: 'z', roomName: 'C/1', checkInDate: '2026-08-07', checkOutDate: '2026-08-09', reservationStatus: 'Aktif', customerName: 'Zuhal' }],
+  { checkInDate: '2026-08-09', checkOutDate: '2026-08-12', roomNames: ['C/1'] },
+)[0]
+
+if (!turnoverOnly?.available) {
+  console.error('FAIL: 11:30 çıkış günü giriş müsait olmalı')
+  process.exit(1)
+}
+
+const blockedByCheckIn = getRoomAvailabilityList(
+  [{ id: 'h', roomName: 'D/1', checkInDate: '2026-08-10', checkOutDate: '2026-08-16', reservationStatus: 'Aktif', customerName: 'Haluk' }],
+  { checkInDate: '2026-08-09', checkOutDate: '2026-08-12', roomNames: ['D/1'] },
+)[0]
+
+if (blockedByCheckIn?.available) {
+  console.error('FAIL: 14:00 giriş (10 Ağu) varken rezervasyon yapılmamalı')
+  process.exit(1)
+}
+
+console.log('Turnover policy OK (11:30 out / 14:00 in)')
 
 console.log('All smoke tests passed.')

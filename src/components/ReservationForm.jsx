@@ -19,6 +19,7 @@ import { formatDateTR, normalizeFirestoreDate, parseISODateSafe } from '../utils
 import {
   findConflictingReservation,
   getConflictingNightsInRange,
+  describeReservationConflict,
 } from '../utils/roomAvailability'
 import {
   derivePaymentStatus,
@@ -911,6 +912,18 @@ function ReservationForm({
                       {!isInactive && !available ? (
                         <p className='mt-1 text-[10px] font-semibold leading-snug text-rose-700'>
                           Bu tarihlerde konaklayamazsınız
+                        </p>
+                      ) : null}
+                      {!isInactive && !available && conflict ? (
+                        <p className='mt-0.5 text-[10px] leading-snug text-rose-700'>
+                          {describeReservationConflict(
+                            {
+                              checkInDate: form.checkInDate,
+                              checkOutDate: form.checkOutDate,
+                            },
+                            conflict,
+                            { formatDate: formatDateTR },
+                          )}
                         </p>
                       ) : null}
                       {available && turnoverCheckout?.customerName ? (
