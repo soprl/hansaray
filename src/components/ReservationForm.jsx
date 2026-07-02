@@ -417,10 +417,11 @@ function ReservationForm({
     if (pendingDates) return 'Müsaitlik hesaplanıyor…'
     if (inactive || !isRoomBookable(roomName)) return 'Pasif · şu an kapalı'
     if (isVipRoom(roomName)) {
-      return available ? 'Müsait · VIP boş' : 'Dolu · Bu tarihlerde VIP dolu'
+      return available ? 'Müsait · VIP boş' : 'Dolu · VIP dolu — seçilemez'
     }
-    if (available && turnoverCheckout) return 'Müsait · aynı gün devir'
-    return available ? 'Müsait' : 'Dolu'
+    if (!available) return 'Dolu · çakışma — seçilemez'
+    if (turnoverCheckout) return 'Müsait · aynı gün devir'
+    return 'Müsait'
   }
 
   const handleChange = (event) => {
@@ -821,12 +822,17 @@ function ReservationForm({
                 </p>
               ) : null}
 
+              <p className='text-xs text-slate-500'>
+                Kırmızı odalar seçili tarihlerde <strong>çakışır</strong> — tıklanamaz. Yalnızca yeşil
+                «Müsait» odalar seçilebilir.
+              </p>
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
                 {displayedRoomAvailabilityList.map(
                   ({
                     roomName,
                     available,
                     conflict,
+                    conflictingNights: roomConflictingNights,
                     inactive,
                     turnoverCheckout,
                     incomingOnCheckoutDay,
@@ -840,13 +846,15 @@ function ReservationForm({
                     available && !isInactive && !isEditingVipReservation && !pendingDates
                   const conflictNights =
                     !isInactive && !available && !pendingDates && conflict
-                      ? safeConflictingNights(
-                          {
-                            checkInDate: form.checkInDate,
-                            checkOutDate: form.checkOutDate,
-                          },
-                          conflict,
-                        )
+                      ? roomConflictingNights?.length
+                        ? roomConflictingNights
+                        : safeConflictingNights(
+                            {
+                              checkInDate: form.checkInDate,
+                              checkOutDate: form.checkOutDate,
+                            },
+                            conflict,
+                          )
                       : []
                   return (
                     <button
@@ -866,8 +874,8 @@ function ReservationForm({
                             : available
                               ? vip
                                 ? 'border-dashed border-amber-400 bg-white hover:border-amber-500 hover:bg-amber-50/40'
-                                : 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50'
-                              : 'cursor-not-allowed border-rose-200 bg-rose-50/80'
+                                : 'border-emerald-300 bg-white hover:border-emerald-500 hover:bg-emerald-50/50'
+                              : 'cursor-not-allowed border-rose-400 bg-rose-50 ring-1 ring-rose-300'
                       }`}
                     >
                       <p
@@ -900,6 +908,11 @@ function ReservationForm({
                           waitingReservations,
                         )}
                       </p>
+                      {!isInactive && !available ? (
+                        <p className='mt-1 text-[10px] font-semibold leading-snug text-rose-700'>
+                          Bu tarihlerde konaklayamazsınız
+                        </p>
+                      ) : null}
                       {available && turnoverCheckout?.customerName ? (
                         <p className='mt-1 text-[10px] leading-snug text-emerald-800'>
                           {turnoverCheckout.customerName} bu gün {HOTEL_CHECK_OUT_TIME}&apos;da çıkıyor

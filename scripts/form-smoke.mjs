@@ -4,7 +4,10 @@
  */
 import { ACTIVE_ROOMS } from '../src/config/rooms.js'
 import { evaluateStayBooking } from '../src/utils/stayBooking.js'
-import { getConflictingNightsInRange } from '../src/utils/roomAvailability.js'
+import {
+  getConflictingNightsInRange,
+  getRoomAvailabilityList,
+} from '../src/utils/roomAvailability.js'
 
 const bookable = ACTIVE_ROOMS.filter((r) => r !== 'V.I.P')
 
@@ -82,5 +85,51 @@ for (const [checkIn, checkOut] of ranges) {
 if (failures > 0) {
   process.exit(1)
 }
+
+const augReservations = [
+  { id: 'c1', roomName: 'C/1', checkInDate: '2026-08-07', checkOutDate: '2026-08-09', reservationStatus: 'Aktif', customerName: 'Zuhal Tosun' },
+  { id: 'c2', roomName: 'C/2', checkInDate: '2026-08-08', checkOutDate: '2026-08-10', reservationStatus: 'Aktif', customerName: 'Halil Şen' },
+  { id: 'd1', roomName: 'D/1', checkInDate: '2026-08-10', checkOutDate: '2026-08-16', reservationStatus: 'Aktif', customerName: 'Haluk Öztürk' },
+  { id: 'd2', roomName: 'D/2', checkInDate: '2026-08-08', checkOutDate: '2026-08-10', reservationStatus: 'Aktif', customerName: 'Zeki Yıldız' },
+  { id: 'vip', roomName: 'V.I.P', checkInDate: '2026-08-10', checkOutDate: '2026-09-13', reservationStatus: 'Aktif', customerName: 'Mustafa Ali Kurt' },
+  { id: 'oda6', roomName: 'ODA/6', checkInDate: '2026-08-07', checkOutDate: '2026-08-10', reservationStatus: 'Aktif', customerName: 'Yavuz Bayrak' },
+  { id: 'c1b', roomName: 'C/1', checkInDate: '2026-08-12', checkOutDate: '2026-08-20', reservationStatus: 'Aktif', customerName: 'Neslihan Aydın' },
+]
+
+const aug912 = getRoomAvailabilityList(augReservations, {
+  checkInDate: '2026-08-09',
+  checkOutDate: '2026-08-12',
+  roomNames: bookable,
+})
+
+const d1Aug912 = aug912.find((room) => room.roomName === 'D/1')
+const c1Aug912 = aug912.find((room) => room.roomName === 'C/1')
+
+if (!d1Aug912 || d1Aug912.available) {
+  console.error('FAIL Aug 9-12: D/1 must be unavailable (Haluk conflict)')
+  process.exit(1)
+}
+
+if (!c1Aug912?.available) {
+  console.error('FAIL Aug 9-12: C/1 must be available')
+  process.exit(1)
+}
+
+const d1Aug910 = getRoomAvailabilityList(augReservations, {
+  checkInDate: '2026-08-09',
+  checkOutDate: '2026-08-10',
+  roomNames: ['D/1'],
+})[0]
+
+if (!d1Aug910?.available) {
+  console.error('FAIL Aug 9-10: D/1 should be available with same-day turnover')
+  process.exit(1)
+}
+
+console.log('Aug 9-12 regression OK:', {
+  d1: 'dolu',
+  c1: 'müsait',
+  d1Nights: d1Aug912.conflictingNights,
+})
 
 console.log('All smoke tests passed.')

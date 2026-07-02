@@ -143,25 +143,35 @@ export const getConflictingNightsInRange = (incoming, existing) => {
   })
 }
 
-export const findConflictingReservation = (
+export const listConflictingReservationsForRoom = (
   reservations,
   { roomName, checkInDate, checkOutDate, excludeId },
   referenceDate = new Date(),
 ) => {
   const stay = normalizeStayDates(checkInDate, checkOutDate)
   const trimmedRoom = roomName?.trim()
-  if (!stay || !trimmedRoom) return null
+  if (!stay || !trimmedRoom) return []
 
-  return (
-    reservations.find((reservation) => {
+  return reservations
+    .filter((reservation) => {
       if (!reservation?.id) return false
       if (excludeId && reservation.id === excludeId) return false
       if (!isReservationBlockingAvailability(reservation, referenceDate)) return false
       if (normalizeRoomName(reservation.roomName) !== normalizeRoomName(trimmedRoom)) return false
       return hasReservationDateConflict(stay, reservation)
-    }) ?? null
-  )
+    })
+    .sort(
+      (left, right) =>
+        getConflictingNightsInRange(stay, right).length -
+        getConflictingNightsInRange(stay, left).length,
+    )
 }
+
+export const findConflictingReservation = (
+  reservations,
+  params,
+  referenceDate = new Date(),
+) => listConflictingReservationsForRoom(reservations, params, referenceDate)[0] ?? null
 
 const findTurnoverCheckoutGuest = (
   reservations,
@@ -212,24 +222,30 @@ export const getRoomAvailabilityList = (
   if (!stay) return []
 
   return (roomNames ?? []).map((roomName) => {
-    const conflict = findConflictingReservation(
+    const conflicts = listConflictingReservationsForRoom(
       reservations,
       { roomName, ...stay, excludeId },
       referenceDate,
     )
+    const conflict = conflicts[0] ?? null
+    const conflictingNights = conflict
+      ? getConflictingNightsInRange(stay, conflict)
+      : []
+    const available = conflicts.length === 0
 
-    const turnoverCheckout = conflict
-      ? null
-      : findTurnoverCheckoutGuest(reservations, { roomName, ...stay, excludeId }, referenceDate)
+    const turnoverCheckout = available
+      ? findTurnoverCheckoutGuest(reservations, { roomName, ...stay, excludeId }, referenceDate)
+      : null
 
-    const incomingOnCheckoutDay = conflict
-      ? null
-      : findIncomingOnCheckoutDayGuest(reservations, { roomName, ...stay, excludeId }, referenceDate)
+    const incomingOnCheckoutDay = available
+      ? findIncomingOnCheckoutDayGuest(reservations, { roomName, ...stay, excludeId }, referenceDate)
+      : null
 
     return {
       roomName,
-      available: !conflict,
+      available,
       conflict,
+      conflictingNights,
       turnoverCheckout,
       incomingOnCheckoutDay,
     }
