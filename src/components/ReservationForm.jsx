@@ -282,6 +282,15 @@ function ReservationForm({
     [roomAvailabilityList],
   )
 
+  const manualVipRoomName = useMemo(() => {
+    if (!vipManuallySelected || !form.roomName || !isVipRoom(form.roomName)) return null
+    const canonical = normalizeRoomName(form.roomName)
+    const isAvailable = availableRooms.some(
+      (room) => normalizeRoomName(room.roomName) === canonical,
+    )
+    return isAvailable ? canonical : null
+  }, [vipManuallySelected, form.roomName, availableRooms])
+
   const vipRoomAvailable = stayBooking?.vipAvailable ?? false
 
   const allRoomsFull = stayBooking?.allRoomsFull ?? false
@@ -289,17 +298,9 @@ function ReservationForm({
   const resolvedRoomName = useMemo(() => {
     try {
       if (!datesValid || relaxedEdit) return form.roomName
+      if (manualVipRoomName) return manualVipRoomName
       if (hasFullyBookedNight) return ''
       if (isEditingVipReservation) return normalizeRoomName(initialValues?.roomName ?? '')
-
-      if (
-        vipManuallySelected &&
-        form.roomName &&
-        isVipRoom(form.roomName) &&
-        availableRooms.some((room) => room.roomName === form.roomName)
-      ) {
-        return form.roomName
-      }
 
       const preferred = normalizeRoomName(form.roomName)
       if (
@@ -326,15 +327,6 @@ function ReservationForm({
       )
       if (directStandard) return directStandard
 
-      if (
-        vipManuallySelected &&
-        form.roomName &&
-        isVipRoom(form.roomName) &&
-        availableRooms.some((room) => room.roomName === form.roomName)
-      ) {
-        return form.roomName
-      }
-
       return ''
     } catch (error) {
       console.error('Oda seçimi hesaplanamadı:', error)
@@ -343,6 +335,7 @@ function ReservationForm({
   }, [
     datesValid,
     relaxedEdit,
+    manualVipRoomName,
     hasFullyBookedNight,
     isEditing,
     isEditingVipReservation,
@@ -495,7 +488,7 @@ function ReservationForm({
     }
     if (!datesValid) return 'Giriş ve çıkış tarihlerini seçin.'
     if (!relaxedEdit && !dateValidation.valid) return dateValidation.message
-    if (!relaxedEdit && hasFullyBookedNight) {
+    if (!relaxedEdit && hasFullyBookedNight && !manualVipRoomName) {
       return `Bu gece(ler)de tüm standart odalar dolu (takvimde kırmızı): ${fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}. Başka tarih seçin veya VIP odalar boşsa elle seçin.`
     }
     if (!relaxedEdit && noContinuousStandardRoom) {
@@ -537,6 +530,7 @@ function ReservationForm({
     noContinuousStandardRoom,
     hasFullyBookedNight,
     fullyBookedNights,
+    manualVipRoomName,
     resolvedRoomName,
     availableRooms,
     vipManuallySelected,
@@ -567,7 +561,7 @@ function ReservationForm({
     if (!form.checkOutDate) nextErrors.checkOutDate = 'Çıkış tarihi zorunludur.'
     if (!relaxedEdit && datesValid && !dateValidation.valid) {
       nextErrors.checkInDate = dateValidation.message
-    } else if (!relaxedEdit && hasFullyBookedNight) {
+    } else if (!relaxedEdit && hasFullyBookedNight && !manualVipRoomName) {
       nextErrors.checkOutDate = `Bu gece(ler)de tüm standart odalar dolu: ${fullyBookedNights.map((night) => formatDateTR(night)).join(', ')}`
     } else if (!relaxedEdit && noContinuousStandardRoom) {
       nextErrors.roomName =
@@ -617,7 +611,9 @@ function ReservationForm({
     if (isSubmitDisabled) return
     if (!validate()) return
 
-    const targetRoom = normalizeRoomName(resolvedRoomName || form.roomName || initialValues?.roomName)
+    const targetRoom = normalizeRoomName(
+      resolvedRoomName || manualVipRoomName || form.roomName || initialValues?.roomName,
+    )
 
     await onSubmit({
       ...form,

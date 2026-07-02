@@ -158,10 +158,7 @@ const evaluateStayBookingUnsafe = (
   const noContinuousStandardRoom =
     !hasFullyBookedNight && !canBookStandard && !vipAvailable && hasStandardCapacityEachNight
 
-  const allRoomsFull = isEditingVipReservation
-    ? !vipAvailable
-    : hasFullyBookedNight ||
-      (!canBookStandard && !vipAvailable && !hasStandardCapacityEachNight)
+  const allRoomsFull = isEditingVipReservation ? !vipAvailable : !canBookStandard && !canBookVip
 
   return {
     nightOccupancy,

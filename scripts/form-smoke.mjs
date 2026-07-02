@@ -173,6 +173,28 @@ if (blockedByCheckIn?.available) {
   process.exit(1)
 }
 
-console.log('Turnover policy OK (11:30 out / 14:00 in)')
+// VIP elle seçildiğinde standart dolu geceler kaydı engellememeli
+const fullStandardNights = [
+  { id: 'c1', roomName: 'C/1', checkInDate: '2026-08-07', checkOutDate: '2026-08-09', reservationStatus: 'Aktif', customerName: 'A' },
+  { id: 'c2', roomName: 'C/2', checkInDate: '2026-08-07', checkOutDate: '2026-08-09', reservationStatus: 'Aktif', customerName: 'B' },
+  { id: 'd1', roomName: 'D/1', checkInDate: '2026-08-07', checkOutDate: '2026-08-09', reservationStatus: 'Aktif', customerName: 'C' },
+  { id: 'd2', roomName: 'D/2', checkInDate: '2026-08-07', checkOutDate: '2026-08-09', reservationStatus: 'Aktif', customerName: 'D' },
+  { id: 'vip', roomName: 'V.I.P', checkInDate: '2026-08-10', checkOutDate: '2026-08-20', reservationStatus: 'Aktif', customerName: 'VIP guest' },
+]
+
+const vipBooking = evaluateStayBooking(fullStandardNights, {
+  checkInDate: '2026-08-07',
+  checkOutDate: '2026-08-09',
+  roomNames: [...bookable, 'V.I.P', 'ODA/6'],
+})
+
+assert.equal(vipBooking.hasFullyBookedNight, true, 'standart geceler tam dolu')
+assert.equal(vipBooking.canBookVip, true, 'VIP müsait olmalı')
+assert.equal(vipBooking.allRoomsFull, false, 'VIP varken tüm odalar dolu sayılmamalı')
+
+const oda6Aug78 = vipBooking.roomAvailability?.find((room) => room.roomName === 'ODA/6')
+assert.equal(oda6Aug78?.available, true, 'standart dolu gecede VIP (Sahil) müsait')
+
+console.log('VIP manual booking regression OK')
 
 console.log('All smoke tests passed.')
