@@ -61,10 +61,16 @@ function formatOvernightRoomDetail(stats) {
 }
 
 function getWeekDayButtonClass({ selected, level }) {
-  if (selected && level === 'full') return 'border-blue-800 bg-rose-100 ring-2 ring-blue-800'
-  if (selected && level === 'high') return 'border-blue-800 bg-orange-100 ring-2 ring-blue-800'
-  if (selected) return 'border-blue-800 bg-blue-50 ring-2 ring-blue-800'
+  if (selected) {
+    if (level === 'full') return 'border-blue-800 bg-rose-100 ring-2 ring-blue-800'
+    if (level === 'vip-open') return 'border-blue-800 bg-amber-100 ring-2 ring-blue-800'
+    if (level === 'standard-open') return 'border-blue-800 bg-sky-100 ring-2 ring-blue-800'
+    if (level === 'high') return 'border-blue-800 bg-orange-100 ring-2 ring-blue-800'
+    return 'border-blue-800 bg-blue-50 ring-2 ring-blue-800'
+  }
   if (level === 'full') return 'border-rose-500 bg-rose-100 ring-2 ring-rose-400'
+  if (level === 'vip-open') return 'border-amber-500 bg-amber-100 ring-2 ring-amber-400'
+  if (level === 'standard-open') return 'border-sky-500 bg-sky-100 ring-2 ring-sky-400'
   if (level === 'high') return 'border-orange-500 bg-orange-100 ring-2 ring-orange-400'
   if (level === 'normal') return 'border-emerald-200 bg-emerald-50/80'
   return 'border-slate-200 bg-white hover:bg-slate-50'
@@ -72,8 +78,18 @@ function getWeekDayButtonClass({ selected, level }) {
 
 function getGuestCountBadgeClass(level) {
   if (level === 'full') return 'bg-rose-700'
+  if (level === 'vip-open') return 'bg-amber-600'
+  if (level === 'standard-open') return 'bg-sky-600'
   if (level === 'high') return 'bg-orange-600'
   return 'bg-emerald-600'
+}
+
+function getDayOccupancyCardClass(level) {
+  if (level === 'full') return { box: 'bg-rose-100 ring-2 ring-rose-400', text: 'text-rose-800' }
+  if (level === 'vip-open') return { box: 'bg-amber-100 ring-2 ring-amber-400', text: 'text-amber-900' }
+  if (level === 'standard-open') return { box: 'bg-sky-100 ring-2 ring-sky-400', text: 'text-sky-900' }
+  if (level === 'high') return { box: 'bg-orange-100 ring-2 ring-orange-400', text: 'text-orange-900' }
+  return { box: 'bg-emerald-50', text: 'text-emerald-900' }
 }
 
 function CalendarGuestCard({
@@ -286,11 +302,13 @@ function CalendarView({
     if (!isVisibleMonthDay(date)) return 'calendar-tile tile-outside-month'
     const classes = ['calendar-tile']
     const dayStats = getDayStayStats(date)
-    const { standardOccupiedRoomCount } = dayStats
+    const { standardOccupiedRoomCount, vipOccupied } = dayStats
     const level = getOccupancyLevel(dayStats)
-    if (standardOccupiedRoomCount > 0) classes.push('tile-has-events')
+    if (standardOccupiedRoomCount > 0 || vipOccupied) classes.push('tile-has-events')
     if (level === 'full') classes.push('tile-full')
-    if (level === 'high') classes.push('tile-high')
+    else if (level === 'vip-open') classes.push('tile-vip-open')
+    else if (level === 'standard-open') classes.push('tile-standard-open')
+    else if (level === 'high') classes.push('tile-high')
     if (isSameDay(date, getToday())) classes.push('tile-today')
     if (isSameDay(date, selectedDate)) classes.push('tile-selected')
     return classes.join(' ')
@@ -401,26 +419,37 @@ function CalendarView({
               />
             </div>
 
-            <div className='mt-3 flex flex-wrap gap-3 text-xs text-slate-600'>
-              <span className='flex items-center gap-1.5'>
-                <span className='inline-block h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400' />
-                Boş oda var
-              </span>
-              <span className='flex items-center gap-1.5'>
-                <span className='inline-block h-3 w-3 rounded bg-orange-100 ring-1 ring-orange-500' />
-                {STANDARD_ROOM_COUNT - 1}/{STANDARD_ROOM_COUNT} standart dolu = turuncu
-              </span>
-              <span className='flex items-center gap-1.5'>
-                <span className='inline-block h-3 w-3 rounded bg-rose-100 ring-1 ring-rose-500' />
-                {STANDARD_ROOM_COUNT}/{STANDARD_ROOM_COUNT} standart dolu = kırmızı (VIP ayrı satırda)
-              </span>
-              <span className='text-slate-500'>
-                Kutucukta örn. «4/4 · VIP boş» — standart dolu olsa bile VIP müsait olabilir
-              </span>
-              <span className='flex items-center gap-1.5'>
-                <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
-                Seçili gün
-              </span>
+            <div className='mt-3 flex flex-col gap-2 text-xs text-slate-600'>
+              <div className='flex flex-wrap gap-x-3 gap-y-2'>
+                <span className='flex items-center gap-1.5'>
+                  <span className='inline-block h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400' />
+                  Standart odada yer var
+                </span>
+                <span className='flex items-center gap-1.5'>
+                  <span className='inline-block h-3 w-3 rounded bg-orange-100 ring-1 ring-orange-500' />
+                  {STANDARD_ROOM_COUNT - 1}/{STANDARD_ROOM_COUNT} standart dolu
+                </span>
+                <span className='flex items-center gap-1.5'>
+                  <span className='inline-block h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-500' />
+                  Standart dolu, VIP boş
+                </span>
+                <span className='flex items-center gap-1.5'>
+                  <span className='inline-block h-3 w-3 rounded bg-sky-100 ring-1 ring-sky-500' />
+                  VIP dolu, standart boş
+                </span>
+                <span className='flex items-center gap-1.5'>
+                  <span className='inline-block h-3 w-3 rounded bg-rose-100 ring-1 ring-rose-500' />
+                  Tam dolu (standart + VIP)
+                </span>
+                <span className='flex items-center gap-1.5'>
+                  <span className='inline-block h-3 w-3 rounded ring-2 ring-blue-800' />
+                  Seçili gün
+                </span>
+              </div>
+              <p className='text-slate-500'>
+                Kutucukta örn. «4/4 · VIP boş» — standart dolu olsa bile VIP müsait olabilir. Kırmızı yalnızca
+                hem standart hem VIP dolu olduğunda görünür.
+              </p>
             </div>
           </>
         ) : (
@@ -469,7 +498,7 @@ function CalendarView({
                     <span className='text-base font-bold text-blue-950 sm:text-lg'>
                       {format(date, 'd')}
                     </span>
-                    {standardOccupiedRoomCount > 0 ? (
+                    {standardOccupiedRoomCount > 0 || stayStats.vipOccupied ? (
                       <span
                         className={`mt-0.5 rounded px-1 py-0.5 text-[9px] font-bold text-white sm:text-[10px] ${getGuestCountBadgeClass(level)}`}
                       >
@@ -557,20 +586,12 @@ function CalendarView({
             </div>
             <div
               className={`rounded-lg px-3 py-2 text-center ${
-                selectedDayStayStats.isStandardFull
-                  ? 'bg-rose-100 ring-2 ring-rose-400'
-                  : selectedDayStayStats.isNearlyFull
-                    ? 'bg-orange-100 ring-2 ring-orange-400'
-                    : 'bg-emerald-50'
+                getDayOccupancyCardClass(getOccupancyLevel(selectedDayStayStats)).box
               }`}
             >
               <p
                 className={`text-2xl font-bold ${
-                  selectedDayStayStats.isStandardFull
-                    ? 'text-rose-800'
-                    : selectedDayStayStats.isNearlyFull
-                      ? 'text-orange-900'
-                      : 'text-emerald-900'
+                  getDayOccupancyCardClass(getOccupancyLevel(selectedDayStayStats)).text
                 }`}
               >
                 {selectedDayStayStats.standardOccupiedRoomCount > 0

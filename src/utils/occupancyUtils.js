@@ -64,15 +64,21 @@ export const getOvernightStayStats = (stayList = []) => {
   const isStandardFull = standardOccupiedRoomCount >= STANDARD_ROOM_COUNT
   const isNearlyFull =
     standardOccupiedRoomCount === STANDARD_ROOM_COUNT - 1 && !isStandardFull
-  const isAllRoomsFull = occupiedRoomCount >= ACTIVE_ROOM_COUNT
+  const vipFull = vipFreeRooms.length === 0
+  const isAllRoomsFull = isStandardFull && vipFull
 
-  const level = isStandardFull
-    ? 'full'
-    : isNearlyFull
-      ? 'high'
-      : guestCount > 0
-        ? 'normal'
-        : 'empty'
+  let level = 'empty'
+  if (isStandardFull && vipFull) {
+    level = 'full'
+  } else if (isStandardFull && vipFree) {
+    level = 'vip-open'
+  } else if (isNearlyFull) {
+    level = 'high'
+  } else if (vipFull && freeStandardRoomCount > 0) {
+    level = 'standard-open'
+  } else if (guestCount > 0) {
+    level = 'normal'
+  }
 
   return {
     guestCount,
@@ -84,6 +90,7 @@ export const getOvernightStayStats = (stayList = []) => {
     vipFreeRooms,
     vipOccupied,
     vipFree,
+    vipFull,
     isAllRoomsFull,
     isStandardFull,
     isNearlyFull,

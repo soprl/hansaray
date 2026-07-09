@@ -221,12 +221,20 @@ html.native-app .min-h-screen.bg-slate-100 {
   @apply bg-blue-50 text-blue-950 ring-2 ring-blue-800 ring-inset;
 }
 
-.calendar-shell .react-calendar__tile.tile-has-events:not(.tile-full):not(.tile-high) {
+.calendar-shell .react-calendar__tile.tile-has-events:not(.tile-full):not(.tile-high):not(.tile-vip-open):not(.tile-standard-open) {
   @apply bg-emerald-50/90;
 }
 
 .calendar-shell .react-calendar__tile.tile-high {
   @apply bg-orange-100 ring-2 ring-orange-400 ring-inset;
+}
+
+.calendar-shell .react-calendar__tile.tile-vip-open {
+  @apply bg-amber-100 ring-2 ring-amber-400 ring-inset;
+}
+
+.calendar-shell .react-calendar__tile.tile-standard-open {
+  @apply bg-sky-100 ring-2 ring-sky-400 ring-inset;
 }
 
 .calendar-shell .react-calendar__tile.tile-full {
@@ -245,6 +253,14 @@ html.native-app .min-h-screen.bg-slate-100 {
   @apply bg-orange-600;
 }
 
+.calendar-shell .react-calendar__tile.tile-vip-open .tile-guest-label {
+  @apply bg-amber-600;
+}
+
+.calendar-shell .react-calendar__tile.tile-standard-open .tile-guest-label {
+  @apply bg-sky-600;
+}
+
 .calendar-shell .react-calendar__tile.tile-full .tile-guest-label {
   @apply bg-rose-600;
 }
@@ -253,11 +269,19 @@ html.native-app .min-h-screen.bg-slate-100 {
   @apply bg-rose-100 text-rose-950 ring-2 ring-blue-800 ring-inset;
 }
 
+.calendar-shell .react-calendar__tile.tile-selected.tile-vip-open {
+  @apply bg-amber-100 text-amber-950 ring-2 ring-blue-800 ring-inset;
+}
+
+.calendar-shell .react-calendar__tile.tile-selected.tile-standard-open {
+  @apply bg-sky-100 text-sky-950 ring-2 ring-blue-800 ring-inset;
+}
+
 .calendar-shell .react-calendar__tile.tile-selected.tile-high {
   @apply bg-orange-100 text-orange-950 ring-2 ring-blue-800 ring-inset;
 }
 
-.calendar-shell .react-calendar__tile.tile-selected:not(.tile-full):not(.tile-high) {
+.calendar-shell .react-calendar__tile.tile-selected:not(.tile-full):not(.tile-high):not(.tile-vip-open):not(.tile-standard-open) {
   @apply bg-blue-50 text-blue-950 ring-2 ring-blue-800 ring-inset;
 }
 
@@ -265,11 +289,19 @@ html.native-app .min-h-screen.bg-slate-100 {
   @apply bg-rose-700;
 }
 
+.calendar-shell .react-calendar__tile.tile-selected.tile-vip-open .tile-guest-label {
+  @apply bg-amber-700;
+}
+
+.calendar-shell .react-calendar__tile.tile-selected.tile-standard-open .tile-guest-label {
+  @apply bg-sky-700;
+}
+
 .calendar-shell .react-calendar__tile.tile-selected.tile-high .tile-guest-label {
   @apply bg-orange-700;
 }
 
-.calendar-shell .react-calendar__tile.tile-selected:not(.tile-full):not(.tile-high) .tile-guest-label {
+.calendar-shell .react-calendar__tile.tile-selected:not(.tile-full):not(.tile-high):not(.tile-vip-open):not(.tile-standard-open) .tile-guest-label {
   @apply bg-blue-900;
 }
 
