@@ -21,7 +21,6 @@ import {
   isOnOrAfterCheckOutTime,
 } from '../config/hotelTime'
 import { ACTIVE_ROOM_COUNT, canonicalRoomName, normalizeRoomName, STANDARD_ROOM_COUNT, isVipRoom } from '../config/rooms'
-import { isDateInSeason } from '../config/season'
 import { parseISODateSafe, normalizeFirestoreDate } from './formatters'
 import { isReservationOccupyingNight as isReservationCountedForOccupancyOnDate } from './roomAvailability.js'
 import {
@@ -339,9 +338,9 @@ export const getCalendarPaymentDisplay = (reservation) => {
 }
 
 /**
- * Sezon boyunca girişi olan tüm rezervasyonlar (gelecek dahil) — yıllık gelir hedefi için.
- * Her rezervasyon kendi giriş tarihinin ait olduğu sezona göre sayılır (referenceDate'in
- * yılına sabitlenmez), böylece gelecek sezona ait rezervasyonlar da hedefe yansır.
+ * Tüm rezervasyonların toplam ücreti (geçmiş ve gelecek dahil) — yıllık gelir hedefi için.
+ * Giriş tarihi sezon aralığıyla (1 Nisan-27 Eylül) sınırlı değildir; otel yıl boyu
+ * rezervasyon alabildiği için hedef de tüm yılı kapsar.
  */
 export const getSeasonLodgingIncome = (
   reservations,
@@ -351,9 +350,6 @@ export const getSeasonLodgingIncome = (
   return reservations.reduce((total, reservation) => {
     if (!isRevenueEligibleReservation(reservation)) return total
     if (roomId && canonicalRoomName(reservation.roomName) !== roomId) return total
-
-    const checkIn = parseISODateSafe(reservation.checkInDate)
-    if (!checkIn || !isDateInSeason(checkIn)) return total
 
     return total + (Number(reservation.totalPrice) || 0)
   }, 0)

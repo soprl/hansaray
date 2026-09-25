@@ -542,7 +542,7 @@ function Reports() {
           />
         </div>
         <p className='mt-3 text-xs text-slate-400'>
-          Sezon geliri: sezon içinde girişi olan tüm rezervasyonların toplam ücreti (gelecek rezervasyonlar dahil).
+          Sezon geliri: tarih aralığı fark etmeksizin tüm rezervasyonların toplam ücreti (geçmiş ve gelecek rezervasyonlar dahil).
         </p>
         <div className='mt-2 grid gap-3 sm:grid-cols-2'>
           <GoalProgress
